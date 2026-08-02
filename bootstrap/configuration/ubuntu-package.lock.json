@@ -1,0 +1,158 @@
+{
+  "identity": "system-x.bootstrap.ubuntu-package-lock.resolute.v1",
+  "version": 1,
+  "source_repository": {
+    "identity": "ubuntu-resolute-official",
+    "release": "26.04",
+    "codename": "resolute",
+    "components": ["main", "universe", "updates", "security"]
+  },
+  "exact_version_mode": "prefer-exact",
+  "patch_difference_requires": [
+    "exact version unavailable",
+    "explicit operator authorization",
+    "write-ahead bootstrap transaction",
+    "all physical build and health predicates pass"
+  ],
+  "forbidden_conflicting_package_patterns": [
+    "cuda",
+    "cuda-13-3",
+    "cuda-drivers",
+    "cuda-drivers-*",
+    "nvidia-driver-*"
+  ],
+  "packages": [
+    {
+      "name": "build-essential",
+      "observed_version": "12.12ubuntu2.26.04.2",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "C and C++ compiler plus make toolchain",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^12\\.12(?:ubuntu2)?(?:[.+~].*)?$",
+      "install_order": 10,
+      "post_install_probe": ["gcc", "--version"]
+    },
+    {
+      "name": "ca-certificates",
+      "observed_version": "20260601~26.04.1",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "TLS trust for official Ubuntu, NVIDIA and Python sources",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^2026[0-9]{4}(?:[.+~].*)?$",
+      "install_order": 20,
+      "post_install_probe": ["test", "-r", "/etc/ssl/certs/ca-certificates.crt"]
+    },
+    {
+      "name": "cmake",
+      "observed_version": "4.2.3-2ubuntu2",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "llama.cpp configure",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^4\\.2\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 30,
+      "post_install_probe": ["cmake", "--version"]
+    },
+    {
+      "name": "curl",
+      "observed_version": "8.18.0-1ubuntu2.3",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "bounded operator HTTPS diagnostics",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^8\\.18\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 40,
+      "post_install_probe": ["curl", "--version"]
+    },
+    {
+      "name": "dbus-user-session",
+      "observed_version": "1.16.2-2ubuntu4",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "systemd user-manager DBus session",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^1\\.16\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 50,
+      "post_install_probe": ["test", "-d", "/usr/share/dbus-1"]
+    },
+    {
+      "name": "git",
+      "observed_version": "1:2.53.0-1ubuntu1",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "clone and exact submodule materialization",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^(?:1:)?2\\.53\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 60,
+      "post_install_probe": ["git", "--version"]
+    },
+    {
+      "name": "ninja-build",
+      "observed_version": "1.13.2-1",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "locked llama.cpp generator",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^1\\.13\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 70,
+      "post_install_probe": ["ninja", "--version"]
+    },
+    {
+      "name": "pkg-config",
+      "observed_version": "2.5.1-4",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "native dependency discovery",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^2\\.5\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 80,
+      "post_install_probe": ["pkg-config", "--version"]
+    },
+    {
+      "name": "python3.14",
+      "observed_version": "3.14.4-1ubuntu0.1",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "exact System X Python major/minor interpreter",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^3\\.14\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 90,
+      "post_install_probe": ["python3.14", "-I", "-S", "-B", "-c", "import sys; assert sys.version_info[:2] == (3, 14)"]
+    },
+    {
+      "name": "python3.14-venv",
+      "observed_version": "3.14.4-1ubuntu0.1",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "private environment creation and ensurepip",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^3\\.14\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 100,
+      "post_install_probe": ["python3.14", "-I", "-S", "-B", "-c", "import ensurepip, venv"]
+    },
+    {
+      "name": "systemd",
+      "observed_version": "259.5-0ubuntu3",
+      "source_repository_identity": "ubuntu-resolute-official",
+      "required": true,
+      "purpose": "PID 1, user manager, systemctl, journalctl and systemd-analyze",
+      "exact_version_mode": "prefer-exact",
+      "compatible_version_regex": "^259\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 110,
+      "post_install_probe": ["systemctl", "--version"]
+    },
+    {
+      "name": "cuda-toolkit-13-3",
+      "observed_version": "13.3.1-1",
+      "source_repository_identity": "nvidia-cuda-wsl-ubuntu-x86_64",
+      "required": true,
+      "purpose": "toolkit-only CUDA compiler, libraries and development headers",
+      "exact_version_mode": "exact-major-minor-prefer-exact-package",
+      "compatible_version_regex": "^13\\.3\\.[0-9]+(?:[.+~:-].*)?$",
+      "install_order": 120,
+      "post_install_probe": ["/usr/local/cuda-13.3/bin/nvcc", "--version"]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://system-x.invalid/schemas/bootstrap-machine-result-v1.json",
+  "title": "System X bootstrap machine result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "receipt_id", "recorded_utc", "operation", "status", "state", "changed", "details", "errors", "warnings"],
+  "properties": {
+    "schema": {"const": "system-x.bootstrap.result.v1"},
+    "version": {"const": 1},
+    "receipt_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "recorded_utc": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"},
+    "operation": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"enum": ["ok", "blocked", "failed-clean", "fail-closed"]},
+    "state": {"enum": ["CLONED", "HOST_INSPECTED", "HOST_PLAN_READY", "HOST_READY", "SUBMODULES_READY", "PYTHON_ENVIRONMENTS_READY", "LLAMA_SERVER_BUILT", "RUNTIME_INITIALIZED", "CREDENTIAL_READY", "SERVICE_REGISTERED", "WAITING_FOR_MODEL", "READY", "FAILED_CLEAN", "FAIL_CLOSED"]},
+    "changed": {"type": "boolean"},
+    "details": {"type": "object"},
+    "errors": {"type": "array", "items": {"type": "object"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

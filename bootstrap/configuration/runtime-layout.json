@@ -1,0 +1,110 @@
+{
+  "identity": "system-x.bootstrap.runtime-layout.v1",
+  "version": 1,
+  "entry_count": 60,
+  "creation_operation": "initialize-runtime",
+  "expected_type": "directory",
+  "groups": [
+    {
+      "owner_component": "INSPECTOR",
+      "cleanup_owner": "INSPECTOR",
+      "mode": "0700",
+      "secret": false,
+      "paths": [
+        "INSPECTOR/MODEL-TEST", "INSPECTOR/RUNTIME", "INSPECTOR/RUNTIME/logs",
+        "INSPECTOR/RUNTIME/locks", "INSPECTOR/RUNTIME/status", "INSPECTOR/RUNTIME/transactions",
+        "INSPECTOR/RUNTIME/results", "INSPECTOR/RUNTIME/results/inspection",
+        "INSPECTOR/RUNTIME/results/decision", "INSPECTOR/RUNTIME/results/handoff",
+        "INSPECTOR/RUNTIME/results/publication", "INSPECTOR/RUNTIME/results/qualification",
+        "INSPECTOR/RUNTIME/results/promotion", "INSPECTOR/RUNTIME/results/retirement",
+        "INSPECTOR/RUNTIME/results/deployment", "INSPECTOR/RUNTIME/staging", "INSPECTOR/RUNTIME/tmp",
+        "INSPECTOR/capabilities", "INSPECTOR/capabilities/records", "INSPECTOR/capabilities/bindings"
+      ]
+    },
+    {
+      "owner_component": "model-api-gguf:model-catalogue",
+      "cleanup_owner": "model-api-gguf:model-catalogue",
+      "mode": "0755",
+      "secret": false,
+      "paths": ["model-api-gguf/MODEL", "model-api-gguf/MODEL/SUPERMODEL", "model-api-gguf/MODEL/R2S3"]
+    },
+    {
+      "owner_component": "model-api-gguf:runtime",
+      "cleanup_owner": "model-api-gguf:runtime",
+      "mode": "0755",
+      "secret": false,
+      "paths": [
+        "model-api-gguf/RUNTIME", "model-api-gguf/RUNTIME/cache", "model-api-gguf/RUNTIME/tmp",
+        "model-api-gguf/RUNTIME/logs", "model-api-gguf/RUNTIME/status", "model-api-gguf/RUNTIME/pids",
+        "model-api-gguf/RUNTIME/locks", "model-api-gguf/RUNTIME/transactions", "model-api-gguf/RUNTIME/api",
+        "model-api-gguf/RUNTIME/api/backend", "model-api-gguf/RUNTIME/api/backend/cache",
+        "model-api-gguf/RUNTIME/api/logs", "model-api-gguf/RUNTIME/api/status",
+        "model-api-gguf/RUNTIME/api/pids", "model-api-gguf/RUNTIME/api/locks",
+        "model-api-gguf/RUNTIME/api/transactions"
+      ]
+    },
+    {
+      "owner_component": "model-api-gguf:api",
+      "cleanup_owner": "model-api-gguf:api",
+      "mode": "0700",
+      "secret": false,
+      "paths": [
+        "model-api-gguf/RUNTIME/api/database", "model-api-gguf/RUNTIME/api/replacement-staging",
+        "model-api-gguf/RUNTIME/api/retirement-staging"
+      ]
+    },
+    {
+      "owner_component": "model-api-gguf:credential-store",
+      "cleanup_owner": "model-api-gguf:credential-store",
+      "mode": "0700",
+      "secret": true,
+      "paths": ["model-api-gguf/RUNTIME/api/auth", "model-api-gguf/RUNTIME/api/auth/handoff"]
+    },
+    {
+      "owner_component": "model-api-gguf:service-control",
+      "cleanup_owner": "model-api-gguf:service-control",
+      "mode": "0700",
+      "secret": false,
+      "paths": [
+        "model-api-gguf/RUNTIME/service_control", "model-api-gguf/RUNTIME/service_control/logs",
+        "model-api-gguf/RUNTIME/service_control/pids", "model-api-gguf/RUNTIME/service_control/locks",
+        "model-api-gguf/RUNTIME/service_control/status", "model-api-gguf/RUNTIME/service_control/transactions",
+        "model-api-gguf/RUNTIME/service_control/recovery",
+        "model-api-gguf/RUNTIME/service_control/recovery/status",
+        "model-api-gguf/RUNTIME/service_control/recovery/transactions",
+        "model-api-gguf/RUNTIME/service_control/recovery/history",
+        "model-api-gguf/RUNTIME/service_control/recovery/fail-closed",
+        "model-api-gguf/RUNTIME/service_control/platform_adapters",
+        "model-api-gguf/RUNTIME/service_control/platform_adapters/linux-systemd-user",
+        "model-api-gguf/RUNTIME/service_control/platform_adapters/linux-systemd-user/transactions"
+      ]
+    },
+    {
+      "owner_component": "model-api-native",
+      "cleanup_owner": "model-api-native",
+      "mode": "0755",
+      "secret": false,
+      "paths": ["model-api-native/MODEL"]
+    },
+    {
+      "owner_component": "model-api-native",
+      "cleanup_owner": "model-api-native",
+      "mode": "0700",
+      "secret": false,
+      "paths": ["model-api-native/RUNTIME"]
+    }
+  ],
+  "registry": {
+    "database": "model-api-gguf/RUNTIME/api/database/model_registry.sqlite3",
+    "mode": "0600",
+    "schema_identity": "system-x.gguf-model-registry.v1",
+    "schema_version": 2,
+    "initial_rows": "schema metadata only; no model or runtime history",
+    "source_call": "RegistryStore.initialize"
+  },
+  "source_contract_sha256": {
+    "model-api-gguf/api_service/src/system_x_gguf_api/registry_store.py": "d44cfc29b16fcf80ea40f0a6543d78b23f07672baeecde448d24afddfe2f0b45",
+    "model-api-gguf/api_service/src/system_x_gguf_api/registry_types.py": "2c5fab07724dda9759119ef217f32267c5b312cb192104625447d95ad9377840"
+  },
+  "completion_marker": "model-api-gguf/RUNTIME/status/bootstrap-runtime-layout.json"
+}

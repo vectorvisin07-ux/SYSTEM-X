@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-gguf-deployment-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "deployment_id",
+    "transaction_id",
+    "created_utc",
+    "completed_utc",
+    "result_class",
+    "reason_code",
+    "deployment_mode",
+    "required_capability_profile",
+    "retirement_policy",
+    "input_identity",
+    "source_candidate",
+    "incumbent_snapshot",
+    "candidate_identity",
+    "child_results",
+    "final_model_state",
+    "promotion_result",
+    "rollback_result",
+    "retirement_result",
+    "connection_receipt",
+    "cleanup",
+    "warnings",
+    "result_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-gguf-deployment-result.v1"
+    },
+    "deployment_id": {
+      "type": "string",
+      "pattern": "^deployment-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "completed_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result_class": {
+      "enum": [
+        "DEPLOYMENT_COMPLETE",
+        "DEPLOYMENT_ROLLED_BACK",
+        "DEPLOYMENT_FAILED_CLEAN",
+        "DEPLOYMENT_FAIL_CLOSED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deployment_mode": {
+      "enum": [
+        "install-first",
+        "add",
+        "replace-default"
+      ]
+    },
+    "required_capability_profile": {
+      "enum": [
+        "CORE_CHAT",
+        "EXTENDED_CHAT",
+        "AGENT",
+        "FULL_PRODUCT"
+      ]
+    },
+    "retirement_policy": {
+      "enum": [
+        "retain-incumbent",
+        "retire-incumbent-after-acceptance"
+      ]
+    },
+    "input_identity": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_candidate": {
+      "$ref": "#/$defs/object"
+    },
+    "incumbent_snapshot": {
+      "$ref": "#/$defs/object"
+    },
+    "candidate_identity": {
+      "$ref": "#/$defs/object"
+    },
+    "child_results": {
+      "$ref": "#/$defs/object"
+    },
+    "final_model_state": {
+      "$ref": "#/$defs/object"
+    },
+    "promotion_result": {},
+    "rollback_result": {},
+    "retirement_result": {},
+    "connection_receipt": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "cleanup": {
+      "$ref": "#/$defs/object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "result_identity": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "object": {
+      "type": "object"
+    }
+  }
+}

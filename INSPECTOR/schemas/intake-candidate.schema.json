@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-intake-candidate.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target_name",
+    "root_type",
+    "metadata_manifest",
+    "entry_count",
+    "aggregate_declared_file_bytes",
+    "intake_snapshot_identity",
+    "snapshot_basis",
+    "format_classification"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-intake-candidate.v1"
+    },
+    "target_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "root_type": {
+      "enum": [
+        "regular_file",
+        "regular_directory"
+      ]
+    },
+    "metadata_manifest": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "entry_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "aggregate_declared_file_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "intake_snapshot_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "snapshot_basis": {
+      "const": "filesystem_metadata_only"
+    },
+    "format_classification": {
+      "const": "not_performed"
+    }
+  }
+}

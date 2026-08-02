@@ -1,0 +1,42 @@
+{
+  "identity": "system-x.bootstrap.llama-cuda-build.v1",
+  "version": 1,
+  "source": {
+    "path": "model-api-gguf/llama.cpp",
+    "origin": "https://github.com/ggml-org/llama.cpp",
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a"
+  },
+  "build_directory": "model-api-gguf/llama.cpp/build",
+  "binary": "model-api-gguf/llama.cpp/build/bin/llama-server",
+  "generator": "Ninja",
+  "build_type": "Release",
+  "target": "llama-server",
+  "cuda_toolkit_major_minor": "13.3",
+  "target_compute_capability": "86",
+  "cmake_options": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "CMAKE_CUDA_ARCHITECTURES": "75-virtual;80-virtual;86-real;89-real;90-virtual;120a-real;121a-real",
+    "CMAKE_CUDA_COMPILER": "/usr/local/cuda-13.3/bin/nvcc",
+    "CUDAToolkit_ROOT": "/usr/local/cuda-13.3",
+    "GGML_CUDA": "ON",
+    "GGML_CUDA_FA": "ON",
+    "GGML_CUDA_FA_ALL_QUANTS": "OFF",
+    "GGML_CUDA_FORCE_CUBLAS": "OFF",
+    "GGML_CUDA_FORCE_MMQ": "OFF",
+    "GGML_CUDA_GRAPHS": "ON",
+    "GGML_CUDA_NCCL": "ON",
+    "GGML_CUDA_NO_PEER_COPY": "OFF",
+    "GGML_CUDA_NO_VMM": "OFF",
+    "GGML_NATIVE": "OFF",
+    "LLAMA_BUILD_SERVER": "ON"
+  },
+  "single_gpu_nccl_required": false,
+  "no_model_verification": [
+    "llama-server --version exits zero",
+    "llama-server --list-devices exits zero",
+    "CUDA0 is listed",
+    "dynamic libraries are resolved",
+    "no listener or residual process remains"
+  ],
+  "physical_profile_evidence_sha256": "c45e3966bb15bffb9bc06e4af9f23f8b14892f2a616ea8b544e8309d0892a279"
+}

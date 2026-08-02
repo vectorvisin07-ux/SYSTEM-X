@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-gguf-retirement-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "retirement_id",
+    "transaction_id",
+    "created_utc",
+    "completed_utc",
+    "result_class",
+    "reason_codes",
+    "input",
+    "target",
+    "replacement",
+    "prestate",
+    "request_activity_proof",
+    "alias_transaction",
+    "quarantine",
+    "registry_removal",
+    "catalogue_removal",
+    "recovery",
+    "poststate",
+    "later_request",
+    "waiting_for_model_health",
+    "quarantine_deletion",
+    "states_observed",
+    "validity_predicate",
+    "result_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-gguf-retirement-result.v1"
+    },
+    "retirement_id": {
+      "type": "string",
+      "pattern": "^retirement-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "completed_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result_class": {
+      "enum": [
+        "RETIREMENT_COMPLETE",
+        "RETIREMENT_WAITING_FOR_MODEL",
+        "RETIREMENT_FAILED_CLEAN",
+        "RETIREMENT_FAIL_CLOSED"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_model_id",
+        "artifact_identity",
+        "managed_location_identity",
+        "expected_registry_generation",
+        "retirement_reason",
+        "last_model_policy"
+      ],
+      "properties": {
+        "public_model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_identity": {
+          "type": "string",
+          "pattern": "^(bundle-|sha256:)[0-9a-f]{64}$"
+        },
+        "managed_location_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "expected_registry_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retirement_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "last_model_policy": {
+          "enum": [
+            "REJECT",
+            "ENTER_WAITING_FOR_MODEL"
+          ]
+        }
+      }
+    },
+    "target": {
+      "type": "object"
+    },
+    "replacement": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "prestate": {
+      "type": "object"
+    },
+    "request_activity_proof": {
+      "type": "object"
+    },
+    "alias_transaction": {
+      "type": "object"
+    },
+    "quarantine": {
+      "type": "object"
+    },
+    "registry_removal": {
+      "type": "object"
+    },
+    "catalogue_removal": {
+      "type": "object"
+    },
+    "recovery": {
+      "type": "object"
+    },
+    "poststate": {
+      "type": "object"
+    },
+    "later_request": {
+      "type": "object"
+    },
+    "waiting_for_model_health": {
+      "type": "object"
+    },
+    "quarantine_deletion": {
+      "type": "object"
+    },
+    "states_observed": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "PREPARING",
+          "TARGET_VERIFIED",
+          "REPLACEMENT_VERIFIED",
+          "REQUEST_ACTIVITY_CLEARED",
+          "RETIREMENT_INTENT_RECORDED",
+          "DEFAULT_ALIAS_CLEARING",
+          "DEFAULT_ALIAS_CLEARED",
+          "QUARANTINING",
+          "QUARANTINED",
+          "REGISTRY_REMOVAL_OBSERVING",
+          "REGISTRY_REMOVAL_OBSERVED",
+          "CATALOGUE_REMOVAL_OBSERVED",
+          "RECOVERY_RECONCILING",
+          "DEFAULT_RELOADING",
+          "MANAGER_RESTARTING",
+          "POST_RETIREMENT_VERIFYING",
+          "QUARANTINE_DELETING",
+          "COMPLETE",
+          "WAITING_FOR_MODEL",
+          "RESTORING_LOCATION",
+          "FAILED_CLEAN",
+          "FAIL_CLOSED"
+        ]
+      }
+    },
+    "validity_predicate": {
+      "type": "object"
+    },
+    "result_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

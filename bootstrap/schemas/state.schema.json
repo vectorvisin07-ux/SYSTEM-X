@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://system-x.invalid/schemas/bootstrap-state-v1.json",
+  "title": "System X bootstrap state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "state", "stable_state", "generation", "completed_operations", "last_receipt_id", "updated_utc"],
+  "properties": {
+    "schema": {"const": "system-x.bootstrap.state.v1"},
+    "version": {"const": 1},
+    "state": {"enum": ["CLONED", "HOST_INSPECTED", "HOST_PLAN_READY", "HOST_READY", "SUBMODULES_READY", "PYTHON_ENVIRONMENTS_READY", "LLAMA_SERVER_BUILT", "RUNTIME_INITIALIZED", "CREDENTIAL_READY", "SERVICE_REGISTERED", "WAITING_FOR_MODEL", "READY", "FAILED_CLEAN", "FAIL_CLOSED"]},
+    "stable_state": {"enum": ["CLONED", "HOST_INSPECTED", "HOST_PLAN_READY", "HOST_READY", "SUBMODULES_READY", "PYTHON_ENVIRONMENTS_READY", "LLAMA_SERVER_BUILT", "RUNTIME_INITIALIZED", "CREDENTIAL_READY", "SERVICE_REGISTERED", "WAITING_FOR_MODEL", "READY"]},
+    "generation": {"type": "integer", "minimum": 0},
+    "completed_operations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "last_receipt_id": {"type": ["string", "null"]},
+    "updated_utc": {"type": ["string", "null"]}
+  }
+}

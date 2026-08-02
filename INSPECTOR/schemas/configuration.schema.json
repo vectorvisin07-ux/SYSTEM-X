@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-configuration.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intake_root",
+    "runtime_root",
+    "intake_bounds",
+    "record_policy",
+    "result_roots"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-configuration.v1"
+    },
+    "intake_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "intake_bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_directory_depth",
+        "maximum_entry_count",
+        "maximum_relative_path_bytes",
+        "maximum_component_bytes"
+      ],
+      "properties": {
+        "maximum_directory_depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "maximum_entry_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "maximum_relative_path_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "maximum_component_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        }
+      }
+    },
+    "record_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status_file_mode",
+        "transaction_file_mode",
+        "log_file_mode"
+      ],
+      "properties": {
+        "status_file_mode": {
+          "const": "0600"
+        },
+        "transaction_file_mode": {
+          "const": "0600"
+        },
+        "log_file_mode": {
+          "const": "0600"
+        }
+      }
+    },
+    "result_roots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection",
+        "decision",
+        "handoff",
+        "publication"
+      ],
+      "properties": {
+        "inspection": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "handoff": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publication": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

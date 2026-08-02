@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://system-x.invalid/schemas/bootstrap-receipt-v1.json",
+  "title": "System X bootstrap operation receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "receipt_id", "recorded_utc", "operation", "prestate", "prestate_generation", "poststate", "plan_identity", "changed", "details"],
+  "properties": {
+    "schema": {"const": "system-x.bootstrap.receipt.v1"},
+    "version": {"const": 1},
+    "receipt_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "recorded_utc": {"type": "string"},
+    "operation": {"type": "string", "minLength": 1},
+    "prestate": {"type": "string"},
+    "prestate_generation": {"type": "integer", "minimum": 0},
+    "poststate": {"type": "string"},
+    "plan_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "changed": {"type": "boolean"},
+    "details": {"type": "object"}
+  }
+}

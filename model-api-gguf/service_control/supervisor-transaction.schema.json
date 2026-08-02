@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.service-supervisor-transaction.v1",
+  "title": "System X Service Supervisor Transaction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "supervisor_transaction_id",
+    "profile_identity",
+    "profile_path",
+    "state_path",
+    "initial_desired_state",
+    "initial_desired_state_generation",
+    "supervisor_identity",
+    "start_utc",
+    "stop_utc",
+    "api_controller",
+    "branch_controller",
+    "started_api_transaction_id",
+    "observed_router_transaction_id",
+    "observed_model_child",
+    "initial_service_readiness_state",
+    "last_service_readiness_state",
+    "warm_model_identity",
+    "final_reason",
+    "final_state",
+    "controller_stop_result",
+    "cleanup_result",
+    "startup_reconciliation",
+    "recovery_transaction_ids"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.service-supervisor-transaction.v1"
+    },
+    "supervisor_transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "profile_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "profile_path": {"type": "string", "minLength": 1},
+    "state_path": {"type": "string", "minLength": 1},
+    "initial_desired_state": {"enum": ["RUNNING", "STOPPED"]},
+    "initial_desired_state_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supervisor_identity": {"type": "object"},
+    "start_utc": {"type": "string"},
+    "stop_utc": {"type": ["string", "null"]},
+    "api_controller": {"type": "object"},
+    "branch_controller": {"type": "object"},
+    "started_api_transaction_id": {"type": ["string", "null"]},
+    "observed_router_transaction_id": {"type": ["string", "null"]},
+    "observed_model_child": {"type": ["object", "null"]},
+    "initial_service_readiness_state": {
+      "enum": [
+        "SUPERVISOR_STARTING",
+        "API_STARTING",
+        "BACKEND_STARTING",
+        "MODEL_LOADING",
+        "WAITING_FOR_MODEL",
+        "MODEL_CANDIDATE_LOADING",
+        "READY",
+        "DEGRADED",
+        "STOPPED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "last_service_readiness_state": {
+      "enum": [
+        "SUPERVISOR_STARTING",
+        "API_STARTING",
+        "BACKEND_STARTING",
+        "MODEL_LOADING",
+        "WAITING_FOR_MODEL",
+        "MODEL_CANDIDATE_LOADING",
+        "READY",
+        "DEGRADED",
+        "STOPPED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "warm_model_identity": {"type": ["object", "null"]},
+    "final_reason": {"type": ["string", "null"]},
+    "final_state": {
+      "enum": ["STOPPED", "FAULTED", null]
+    },
+    "controller_stop_result": {"type": ["object", "null"]},
+    "cleanup_result": {"type": ["object", "null"]},
+    "startup_reconciliation": {"type": ["object", "null"]},
+    "recovery_transaction_ids": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-branch-capability.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capability_record_id",
+    "capability_record_identity",
+    "created_utc",
+    "branch_identity",
+    "supported_physical_format",
+    "availability",
+    "runtime_engine",
+    "installed_tuple",
+    "accepted_evidence",
+    "supported_evidence",
+    "unsupported_primary_artifact_roles",
+    "unproven_valid_policy",
+    "reason_code"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-branch-capability.v1"
+    },
+    "capability_record_id": {
+      "type": "string",
+      "pattern": "^capability-[0-9a-f]{24}$"
+    },
+    "capability_record_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch_identity": {
+      "enum": [
+        "model-api-gguf",
+        "model-api-native"
+      ]
+    },
+    "supported_physical_format": {
+      "enum": [
+        "GGUF",
+        "NATIVE"
+      ]
+    },
+    "availability": {
+      "enum": [
+        "AVAILABLE",
+        "UNAVAILABLE"
+      ]
+    },
+    "runtime_engine": {
+      "enum": [
+        "llama-server",
+        "vLLM"
+      ]
+    },
+    "installed_tuple": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/installedTuple"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accepted_evidence": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "basename",
+          "sha256"
+        ],
+        "properties": {
+          "basename": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "supported_evidence": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ggufSupportedEvidence"
+        },
+        {
+          "$ref": "#/$defs/nativeSupportedEvidence"
+        }
+      ]
+    },
+    "unsupported_primary_artifact_roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "unproven_valid_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "root",
+        "path",
+        "byte_count",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "enum": [
+            "branch",
+            "user_config"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "identity",
+        "file_count",
+        "byte_count",
+        "files"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        }
+      }
+    },
+    "platformRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "adapter_identity",
+        "registered",
+        "enabled"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapter_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registered": {
+          "const": true
+        },
+        "enabled": {
+          "const": true
+        }
+      }
+    },
+    "installedTuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_commit",
+        "accepted_tag",
+        "clean_worktree_required",
+        "components",
+        "manifests",
+        "platform_registration"
+      ],
+      "properties": {
+        "source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "accepted_tag": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "clean_worktree_required": {
+          "const": true
+        },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "manifests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/manifest"
+          }
+        },
+        "platform_registration": {
+          "$ref": "#/$defs/platformRegistration"
+        }
+      }
+    },
+    "ggufSupportedEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported_exact_artifact_identities",
+        "accepted_format_versions",
+        "accepted_architectures",
+        "accepted_primary_model_types",
+        "accepted_modalities",
+        "accepted_tensor_type_evidence",
+        "accepted_tokenizer_evidence",
+        "accepted_chat_template_evidence",
+        "accepted_runtime_capabilities",
+        "public_model_id",
+        "accepted_capability_manifest_identity"
+      ],
+      "properties": {
+        "supported_exact_artifact_identities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
+        "accepted_format_versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "accepted_architectures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "accepted_primary_model_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "accepted_modalities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "accepted_tensor_type_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "accepted_tokenizer_evidence": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "accepted_chat_template_evidence": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "accepted_runtime_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "public_model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accepted_capability_manifest_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "nativeSupportedEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supported_artifact_identities"
+      ],
+      "properties": {
+        "supported_artifact_identities": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    }
+  }
+}

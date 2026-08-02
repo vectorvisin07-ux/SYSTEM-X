@@ -1,0 +1,140 @@
+{
+  "schema": "system-x.repository-manifest.v2",
+  "generated_utc": "2026-08-02T19:29:06Z",
+  "repository": {
+    "root": ".",
+    "projection": "explicit-sanitized-git-index",
+    "branch": "main",
+    "remote": "https://github.com/vectorvisin07-ux/SYSTEM-X.git",
+    "private_repository_required": true,
+    "initial_commit_count": 1
+  },
+  "approved_projection": {
+    "ordinary_regular_file_count": 186,
+    "source_regular_file_count": 182,
+    "control_file_count": 4,
+    "gitlink_count": 1,
+    "total_index_entry_count": 187,
+    "approved_path_manifest_format": "repository-relative UTF-8 paths, bytewise sorted, NUL terminated",
+    "approved_path_manifest_sha256": "0d5856dcaee28ce225e8a687fe8ef61847d3193f61dec798b04fc4b475206af6",
+    "case_insensitive_collision_count": 0,
+    "malformed_path_count": 0
+  },
+  "tracked_source": {
+    "regular_file_count": 182,
+    "regular_file_bytes": 3238090,
+    "canonical_record_manifest_sha256": "096e33c2ca191530a87ee5e032f3b68d2004a195bf16a8292565f62e5e5db304",
+    "canonical_record_fields": ["blob_sha1", "bytes", "mode", "path", "sha256"],
+    "class_counts": {
+      "AUTHORED_SOURCE": 109,
+      "PORTABLE_CONFIGURATION": 11,
+      "SCHEMA": 30,
+      "TEST_SOURCE": 32
+    },
+    "class_bytes": {
+      "AUTHORED_SOURCE": 2440827,
+      "PORTABLE_CONFIGURATION": 29667,
+      "SCHEMA": 155133,
+      "TEST_SOURCE": 612463
+    },
+    "prebootstrap_source_unchanged": true,
+    "omitted_source_path_count": 0
+  },
+  "portable_bootstrap": {
+    "root": "bootstrap",
+    "version": "1.0.0",
+    "entrypoint": "bootstrap/run_bootstrap.py",
+    "standard_library_import_only": true,
+    "configuration_identities": [
+      "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
+      "system-x.bootstrap.ubuntu-package-lock.resolute.v1",
+      "system-x.bootstrap.cuda-wsl-toolkit-13.3.v1",
+      "system-x.bootstrap.python-environments.cp314.v1",
+      "system-x.bootstrap.llama-cuda-build.v1",
+      "system-x.bootstrap.runtime-layout.v1",
+      "system-x.bootstrap.credential-initialization.v1",
+      "system-x.bootstrap.service-registration.linux-systemd-user.v1"
+    ],
+    "operations": [
+      "identify",
+      "inspect-host",
+      "plan",
+      "apply-host",
+      "initialize-submodules",
+      "build-environments",
+      "build-llama-server",
+      "initialize-runtime",
+      "initialize-credentials",
+      "register-platform-service",
+      "verify",
+      "status"
+    ],
+    "state_root": ".system-x-bootstrap-state",
+    "state_root_tracked": false,
+    "pre_model_health_target": "WAITING_FOR_MODEL"
+  },
+  "submodules": [
+    {
+      "path": "model-api-gguf/llama.cpp",
+      "origin": "https://github.com/ggml-org/llama.cpp",
+      "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+      "index_mode": "160000",
+      "treatment": "exact-gitlink-only"
+    }
+  ],
+  "excluded_exact_roots": [
+    {"path": ".system-x-bootstrap-state", "class": "MUTABLE_BOOTSTRAP_STATE"},
+    {"path": "INSPECTOR/.venv", "class": "VIRTUAL_ENVIRONMENT"},
+    {"path": "INSPECTOR/MODEL-TEST", "class": "HOST_SPECIFIC_STATE"},
+    {"path": "INSPECTOR/RUNTIME", "class": "MUTABLE_RUNTIME"},
+    {"path": "INSPECTOR/capabilities", "class": "MUTABLE_RUNTIME"},
+    {"path": "INSPECTOR/environment.lock.json", "class": "HOST_SPECIFIC_OBSERVATION"},
+    {"path": "model-api-gguf/MODEL", "class": "MODEL_ARTIFACT"},
+    {"path": "model-api-gguf/RUNTIME", "class": "MUTABLE_RUNTIME_AND_SECRET_STATE"},
+    {"path": "model-api-gguf/api_service/.venv", "class": "VIRTUAL_ENVIRONMENT"},
+    {"path": "model-api-gguf/api_service/environment.lock.json", "class": "HOST_SPECIFIC_OBSERVATION"},
+    {"path": "model-api-gguf/llama.cpp/build", "class": "GENERATED_BUILD"},
+    {"path": "model-api-native/MODEL", "class": "MODEL_ARTIFACT"},
+    {"path": "model-api-native/RUNTIME", "class": "MUTABLE_RUNTIME"},
+    {"path": "model-api-native/vLLM", "class": "HOST_SPECIFIC_STATE"}
+  ],
+  "credential_state": {
+    "tracked": false,
+    "raw_values_present_in_manifest": false,
+    "raw_content_hashes_present_in_manifest": false,
+    "protected_paths": [
+      "model-api-gguf/RUNTIME/api/auth/credentials.sqlite3",
+      "model-api-gguf/RUNTIME/api/auth/pepper.bin",
+      "model-api-gguf/RUNTIME/api/auth/handoff/local-primary.key"
+    ],
+    "future_default": "generate-new-local-credential"
+  },
+  "external_generated_state": [
+    {
+      "path_relative_to_home": ".config/systemd/user/system-x-current-test.service",
+      "class": "GENERATED_SERVICE_STATE",
+      "tracked": false,
+      "regeneration_source": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py"
+    },
+    {
+      "path_relative_to_home": ".config/systemd/user/default.target.wants/system-x-current-test.service",
+      "class": "GENERATED_ENABLEMENT_LINK",
+      "tracked": false
+    }
+  ],
+  "separate_products": [
+    {"identity": "system-x-chat", "tracked": false, "modified_by_publication": false},
+    {"identity": "UNCENSORED-ENV", "tracked": false, "modified_by_publication": false}
+  ],
+  "content_assertions": {
+    "credentials": "absent",
+    "raw_secrets": "absent",
+    "model_bytes_as_ordinary_blobs": "absent",
+    "mutable_runtime": "absent",
+    "runtime_databases": "absent",
+    "virtual_environments": "absent",
+    "compiled_build_output": "absent",
+    "OpenClaw_history": "absent",
+    "systemd_generated_files": "absent"
+  }
+}

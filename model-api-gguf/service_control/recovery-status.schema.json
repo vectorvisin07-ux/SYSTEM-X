@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.service-recovery-status.v1",
+  "title": "System X Service Recovery Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_identity",
+    "desired_state",
+    "desired_state_generation",
+    "recovery_state",
+    "primary_reason_code",
+    "current_attempt",
+    "attempts_in_window",
+    "next_delay_seconds",
+    "fail_closed_latched",
+    "fail_closed_transaction_id",
+    "last_recovery_transaction_id",
+    "last_recovered_utc",
+    "observed_identities",
+    "updated_utc"
+  ],
+  "properties": {
+    "schema_version": {"const": "system-x.service-recovery-status.v1"},
+    "profile_identity": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "desired_state": {"enum": ["RUNNING", "STOPPED"]},
+    "desired_state_generation": {"type": "integer", "minimum": 1},
+    "recovery_state": {
+      "enum": ["IDLE", "DETECTED", "DELAYING", "RECONCILING", "RESTARTING_API", "RESTARTING_ROUTER", "RELOADING_MODEL", "VERIFYING", "RECOVERED", "FAIL_CLOSED", "STOPPED"]
+    },
+    "primary_reason_code": {"type": "string", "minLength": 1},
+    "current_attempt": {"type": "integer", "minimum": 0},
+    "attempts_in_window": {"type": "integer", "minimum": 0},
+    "next_delay_seconds": {"type": "number", "minimum": 0},
+    "fail_closed_latched": {"type": "boolean"},
+    "fail_closed_transaction_id": {"type": ["string", "null"]},
+    "last_recovery_transaction_id": {"type": ["string", "null"]},
+    "last_recovered_utc": {"type": ["string", "null"]},
+    "observed_identities": {"type": "object"},
+    "updated_utc": {"type": "string", "minLength": 1}
+  }
+}

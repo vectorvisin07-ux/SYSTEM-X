@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-branch-decision.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "transaction_id",
+    "decision_timestamp_utc",
+    "decision_basis_identity",
+    "result_identity",
+    "inspection",
+    "capability",
+    "selected_branch",
+    "handoff_allowed",
+    "spawn_allowed",
+    "reason_code",
+    "reason_codes",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-branch-decision.v1"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^decision-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_timestamp_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_basis_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "result_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "inspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection_id",
+        "inspection_result_identity",
+        "artifact_identity",
+        "physical_format",
+        "source_target_name"
+      ],
+      "properties": {
+        "inspection_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inspection_result_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "artifact_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "physical_format": {
+          "enum": [
+            "GGUF",
+            "NATIVE",
+            "UNKNOWN",
+            "CONTRADICTORY",
+            "CORRUPT",
+            "INCOMPLETE"
+          ]
+        },
+        "source_target_name": {
+          "type": "string"
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch_identity",
+        "binding_identity",
+        "capability_record_id",
+        "capability_record_identity",
+        "capability_result",
+        "evaluated"
+      ],
+      "properties": {
+        "branch_identity": {
+          "enum": [
+            "model-api-gguf",
+            "model-api-native",
+            null
+          ]
+        },
+        "binding_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_record_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_record_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_result": {
+          "enum": [
+            "SUPPORTED",
+            "RUNTIME_SMOKE_REQUIRED",
+            "UNSUPPORTED",
+            "UNAVAILABLE",
+            "AMBIGUOUS",
+            null
+          ]
+        },
+        "evaluated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "selected_branch": {
+      "enum": [
+        "model-api-gguf",
+        "model-api-native",
+        null
+      ]
+    },
+    "handoff_allowed": {
+      "type": "boolean"
+    },
+    "spawn_allowed": {
+      "type": "boolean"
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

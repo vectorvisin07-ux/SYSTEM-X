@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.platform-service-adapter-status.v1",
+  "title": "System X Platform Service Adapter Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "adapter_identity",
+    "adapter_version",
+    "configuration_identity",
+    "registered",
+    "enabled",
+    "active",
+    "automatic_activation_supported",
+    "required_host_capability_result",
+    "profile_identity",
+    "desired_state",
+    "desired_state_generation",
+    "supervisor_status_summary",
+    "supervisor_process_identity",
+    "last_activation_result",
+    "last_failure_reason",
+    "reconciliation_reason",
+    "resolved_paths",
+    "observed_utc"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.platform-service-adapter-status.v1"
+    },
+    "adapter_identity": {
+      "enum": [
+        "system-x.foreground-process-host.v1",
+        "system-x.linux-systemd-user-service.v1"
+      ]
+    },
+    "adapter_version": {"const": "1.0.0"},
+    "configuration_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "registered": {"type": "boolean"},
+    "enabled": {"type": "boolean"},
+    "active": {"type": "boolean"},
+    "automatic_activation_supported": {"type": "boolean"},
+    "required_host_capability_result": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "required",
+        "missing",
+        "foreground_activation_supported",
+        "registration_supported",
+        "enable_disable_supported",
+        "restart_supported",
+        "unregister_supported"
+      ],
+      "properties": {
+        "available": {"type": "boolean"},
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "missing": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "foreground_activation_supported": {"type": "boolean"},
+        "registration_supported": {"type": "boolean"},
+        "enable_disable_supported": {"type": "boolean"},
+        "restart_supported": {"type": "boolean"},
+        "unregister_supported": {"type": "boolean"}
+      }
+    },
+    "profile_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "desired_state": {"enum": ["RUNNING", "STOPPED"]},
+    "desired_state_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supervisor_status_summary": {
+      "type": ["object", "null"]
+    },
+    "supervisor_process_identity": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/processIdentity"}
+      ]
+    },
+    "last_activation_result": {
+      "type": ["object", "null"]
+    },
+    "last_failure_reason": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "reconciliation_reason": {
+      "type": ["string", "null"],
+      "maxLength": 128
+    },
+    "resolved_paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "status", "active_pid", "active_lock"],
+      "properties": {
+        "manifest": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "minLength": 1},
+        "active_pid": {"type": "string", "minLength": 1},
+        "active_lock": {"type": "string", "minLength": 1}
+      }
+    },
+    "observed_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
+    "configured_public_base_url": {"type": ["string", "null"]},
+    "public_host": {"type": ["string", "null"]},
+    "public_port": {"type": ["integer", "null"]},
+    "private_endpoint_configured": {"type": "boolean"},
+    "default_model_alias": {"type": ["string", "null"]},
+    "manager_registered": {"type": "boolean"},
+    "manager_enabled": {"type": "boolean"},
+    "manager_active": {"type": "boolean"},
+    "manager_main_pid": {"type": ["integer", "null"]},
+    "manager_last_result": {"type": ["string", "null"]},
+    "system_x_readiness_state": {"type": ["string", "null"]},
+    "system_x_inference_ready": {"type": "boolean"}
+  },
+  "$defs": {
+    "processIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "process_start_identity",
+        "pgid",
+        "sid",
+        "executable",
+        "argv_sha256"
+      ],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "process_start_identity": {"type": "string", "minLength": 1},
+        "pgid": {"type": "integer", "minimum": 1},
+        "sid": {"type": "integer", "minimum": 1},
+        "executable": {"type": "string", "minLength": 1},
+        "argv_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

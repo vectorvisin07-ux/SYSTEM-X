@@ -1,0 +1,518 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-handoff-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "handoff_id",
+    "transaction_id",
+    "created_utc",
+    "completed_utc",
+    "status",
+    "decision",
+    "inspection",
+    "capability",
+    "source",
+    "staging",
+    "publication",
+    "identity_match",
+    "registry_observation",
+    "alias_protection",
+    "runtime_protection",
+    "cleanup_ownership",
+    "result_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-handoff-result.v1"
+    },
+    "handoff_id": {
+      "type": "string",
+      "pattern": "^handoff-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "completed_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "PUBLISHED_TO_BRANCH"
+    },
+    "decision": {
+      "$ref": "#/$defs/decision"
+    },
+    "qualification": {
+      "$ref": "#/$defs/qualification"
+    },
+    "inspection": {
+      "$ref": "#/$defs/inspection"
+    },
+    "capability": {
+      "$ref": "#/$defs/capability"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "staging": {
+      "$ref": "#/$defs/staging"
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    },
+    "identity_match": {
+      "$ref": "#/$defs/identityMatch"
+    },
+    "registry_observation": {
+      "$ref": "#/$defs/registryObservation"
+    },
+    "alias_protection": {
+      "$ref": "#/$defs/aliasProtection"
+    },
+    "runtime_protection": {
+      "$ref": "#/$defs/runtimeProtection"
+    },
+    "cleanup_ownership": {
+      "$ref": "#/$defs/cleanupOwnership"
+    },
+    "result_identity": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "mode": {
+      "type": "string",
+      "pattern": "^[0-7]{4}$"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "result_identity",
+        "decision_basis_identity",
+        "capability_result",
+        "selected_branch",
+        "handoff_allowed",
+        "spawn_allowed"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "decision_basis_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "capability_result": {
+          "enum": [
+            "SUPPORTED",
+            "RUNTIME_SMOKE_REQUIRED"
+          ]
+        },
+        "selected_branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "handoff_allowed": {
+          "type": "boolean"
+        },
+        "spawn_allowed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualification_id",
+        "result_identity",
+        "result_class",
+        "requested_profile"
+      ],
+      "properties": {
+        "qualification_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "result_class": {
+          "const": "SUPPORTED_FOR_CURRENT_TUPLE"
+        },
+        "requested_profile": {
+          "enum": [
+            "CORE_CHAT",
+            "EXTENDED_CHAT",
+            "AGENT",
+            "FULL_PRODUCT"
+          ]
+        }
+      }
+    },
+    "inspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection_id",
+        "result_identity",
+        "physical_format",
+        "artifact_identity",
+        "artifact_size"
+      ],
+      "properties": {
+        "inspection_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "physical_format": {
+          "const": "GGUF"
+        },
+        "artifact_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifact_size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_id",
+        "record_identity",
+        "binding_identity",
+        "binding_generation",
+        "installed_tuple_verified"
+      ],
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "record_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "binding_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "binding_generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "installed_tuple_verified": {
+          "const": true
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intake_root_identity",
+        "relative_name",
+        "device",
+        "inode",
+        "mode",
+        "link_count",
+        "size_bytes",
+        "sha256",
+        "pre_copy_identity",
+        "post_copy_identity",
+        "unchanged_during_handoff"
+      ],
+      "properties": {
+        "intake_root_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "relative_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inode": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/mode"
+        },
+        "link_count": {
+          "const": 1
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pre_copy_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "post_copy_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "unchanged_during_handoff": {
+          "const": true
+        }
+      }
+    },
+    "staging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch_relative_path",
+        "transfer_method",
+        "device",
+        "inode",
+        "mode",
+        "link_count",
+        "size_bytes",
+        "sha256",
+        "complete_write",
+        "file_fsync",
+        "directory_fsync"
+      ],
+      "properties": {
+        "branch_relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transfer_method": {
+          "enum": [
+            "reflink_clone",
+            "bounded_stream_copy"
+          ]
+        },
+        "device": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inode": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/mode"
+        },
+        "link_count": {
+          "const": 1
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "complete_write": {
+          "const": true
+        },
+        "file_fsync": {
+          "const": true
+        },
+        "directory_fsync": {
+          "const": true
+        }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "managed_relative_path",
+        "method",
+        "device",
+        "inode",
+        "mode",
+        "link_count",
+        "size_bytes",
+        "sha256",
+        "staging_inode_preserved",
+        "parent_directory_fsync",
+        "collision_absent"
+      ],
+      "properties": {
+        "managed_relative_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "const": "same_filesystem_atomic_no_overwrite_rename"
+        },
+        "device": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inode": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mode": {
+          "$ref": "#/$defs/mode"
+        },
+        "link_count": {
+          "const": 1
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "staging_inode_preserved": {
+          "const": true
+        },
+        "parent_directory_fsync": {
+          "const": true
+        },
+        "collision_absent": {
+          "const": true
+        }
+      }
+    },
+    "identityMatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_equals_decision",
+        "staged_equals_source",
+        "published_equals_staged"
+      ],
+      "properties": {
+        "source_equals_decision": {
+          "const": true
+        },
+        "staged_equals_source": {
+          "const": true
+        },
+        "published_equals_staged": {
+          "const": true
+        }
+      }
+    },
+    "registryObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state_at_handoff_completion",
+        "readiness_claimed",
+        "next_mini_required"
+      ],
+      "properties": {
+        "state_at_handoff_completion": {
+          "enum": [
+            "DELEGATED_NOT_OBSERVED",
+            "NOT_YET_OBSERVED",
+            "REGISTERED",
+            "PROBING",
+            "READY",
+            "REJECTED",
+            "ERROR"
+          ]
+        },
+        "readiness_claimed": {
+          "const": false
+        },
+        "next_mini_required": {
+          "const": true
+        }
+      }
+    },
+    "aliasProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_alias",
+        "default_target_before",
+        "default_target_after",
+        "unchanged"
+      ],
+      "properties": {
+        "default_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_target_before": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_target_after": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unchanged": {
+          "const": true
+        }
+      }
+    },
+    "runtimeProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service_was_running",
+        "service_remained_running",
+        "lifecycle_operation_count"
+      ],
+      "properties": {
+        "service_was_running": {
+          "const": true
+        },
+        "service_remained_running": {
+          "const": true
+        },
+        "lifecycle_operation_count": {
+          "const": 0
+        }
+      }
+    },
+    "cleanupOwnership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "staging",
+        "published_artifact"
+      ],
+      "properties": {
+        "source": {
+          "const": "caller_or_packet_owned"
+        },
+        "staging": {
+          "const": "handoff_transaction_owned"
+        },
+        "published_artifact": {
+          "const": "branch_owned_after_success"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,424 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-service-publication.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "publication_id",
+    "transaction_id",
+    "created_utc",
+    "publication_basis_identity",
+    "result_identity",
+    "handoff",
+    "registry",
+    "public_service",
+    "request",
+    "correlation",
+    "restoration",
+    "security"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-service-publication.v1"
+    },
+    "publication_id": {
+      "type": "string",
+      "pattern": "^publication-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publication_basis_identity": {
+      "$ref": "#/$defs/sha256"
+    },
+    "result_identity": {
+      "$ref": "#/$defs/sha256"
+    },
+    "handoff": {
+      "$ref": "#/$defs/handoff"
+    },
+    "registry": {
+      "$ref": "#/$defs/registry"
+    },
+    "public_service": {
+      "$ref": "#/$defs/publicService"
+    },
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "correlation": {
+      "$ref": "#/$defs/correlation"
+    },
+    "restoration": {
+      "$ref": "#/$defs/restoration"
+    },
+    "security": {
+      "$ref": "#/$defs/security"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handoff_id",
+        "handoff_result_identity",
+        "decision_id",
+        "decision_result_identity",
+        "inspection_id",
+        "inspection_result_identity",
+        "artifact_identity",
+        "selected_branch"
+      ],
+      "properties": {
+        "handoff_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "handoff_result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "inspection_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inspection_result_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifact_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "selected_branch": {
+          "const": "model-api-gguf"
+        }
+      }
+    },
+    "progressionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation",
+        "event_type"
+      ],
+      "properties": {
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_identity",
+        "schema_version",
+        "generation",
+        "managed_location_present",
+        "managed_location_state",
+        "bundle_id",
+        "model_version_id",
+        "public_identity_mode",
+        "capability_manifest_identity",
+        "progression_evidence"
+      ],
+      "properties": {
+        "schema_identity": {
+          "const": "system-x.gguf-model-registry.v1"
+        },
+        "schema_version": {
+          "const": 2
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "managed_location_present": {
+          "const": true
+        },
+        "managed_location_state": {
+          "const": "READY"
+        },
+        "bundle_id": {
+          "type": "string",
+          "pattern": "^bundle-[0-9a-f]{64}$"
+        },
+        "model_version_id": {
+          "type": "string",
+          "pattern": "^sx-gguf-[a-z0-9][a-z0-9-]*$"
+        },
+        "public_identity_mode": {
+          "enum": [
+            "DISTINCT_LOCATION_SCOPED_VERSION",
+            "EXISTING_IMMUTABLE_VERSION_REUSED"
+          ]
+        },
+        "capability_manifest_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "progression_evidence": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/progressionEvent"
+          }
+        }
+      }
+    },
+    "publicService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_identity",
+        "base_url",
+        "readiness_state",
+        "health_http_status",
+        "model_list_http_status",
+        "model_detail_http_status",
+        "public_model_id",
+        "aliases"
+      ],
+      "properties": {
+        "profile_identity": {
+          "$ref": "#/$defs/sha256"
+        },
+        "base_url": {
+          "type": "string",
+          "pattern": "^http://[0-9.]+:[0-9]+$"
+        },
+        "readiness_state": {
+          "const": "READY"
+        },
+        "health_http_status": {
+          "const": 200
+        },
+        "model_list_http_status": {
+          "const": 200
+        },
+        "model_detail_http_status": {
+          "const": 200
+        },
+        "public_model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "nullableTokenCount": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "http_status",
+        "operation_state",
+        "finish_reason",
+        "response_model_id",
+        "content_nonempty",
+        "final_content_bytes",
+        "final_content_sha256",
+        "input_tokens",
+        "output_tokens",
+        "operation_record_correlated"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "pattern": "^sx_req_[0-9a-f]{32}$"
+        },
+        "http_status": {
+          "const": 200
+        },
+        "operation_state": {
+          "enum": [
+            "completed",
+            "incomplete",
+            "requires_action"
+          ]
+        },
+        "finish_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "response_model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_nonempty": {
+          "const": true
+        },
+        "final_content_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "final_content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "input_tokens": {
+          "$ref": "#/$defs/nullableTokenCount"
+        },
+        "output_tokens": {
+          "$ref": "#/$defs/nullableTokenCount"
+        },
+        "operation_record_correlated": {
+          "const": true
+        }
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspector_transaction_id",
+        "request_id",
+        "operation_record_schema",
+        "api_service_transaction_id",
+        "router_transaction_id",
+        "artifact_version_id",
+        "non_secret_key_id"
+      ],
+      "properties": {
+        "inspector_transaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sx_req_[0-9a-f]{32}$"
+        },
+        "operation_record_schema": {
+          "const": "system-x.operation-record.v1"
+        },
+        "api_service_transaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "router_transaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_version_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "non_secret_key_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      }
+    },
+    "restoration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_alias",
+        "default_target_before",
+        "default_target_after",
+        "restoration_required",
+        "restoration_performed",
+        "final_warm_target",
+        "final_warm_health",
+        "final_public_health"
+      ],
+      "properties": {
+        "default_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_target_before": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_target_after": {
+          "type": "string",
+          "minLength": 1
+        },
+        "restoration_required": {
+          "type": "boolean"
+        },
+        "restoration_performed": {
+          "type": "boolean"
+        },
+        "final_warm_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "final_warm_health": {
+          "const": "ready"
+        },
+        "final_public_health": {
+          "const": "READY"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outbound_provider_request",
+        "raw_key_persisted",
+        "private_endpoint_published",
+        "physical_model_path_published",
+        "prompt_persisted",
+        "generated_content_persisted"
+      ],
+      "properties": {
+        "outbound_provider_request": {
+          "const": false
+        },
+        "raw_key_persisted": {
+          "const": false
+        },
+        "private_endpoint_published": {
+          "const": false
+        },
+        "physical_model_path_published": {
+          "const": false
+        },
+        "prompt_persisted": {
+          "const": false
+        },
+        "generated_content_persisted": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-capability-binding.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "branch_identity",
+    "capability_record_id",
+    "capability_record_identity",
+    "binding_generation",
+    "updated_utc",
+    "binding_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-capability-binding.v1"
+    },
+    "branch_identity": {
+      "enum": [
+        "model-api-gguf",
+        "model-api-native"
+      ]
+    },
+    "capability_record_id": {
+      "type": "string",
+      "pattern": "^capability-[0-9a-f]{24}$"
+    },
+    "capability_record_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "binding_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updated_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "binding_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

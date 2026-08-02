@@ -1,0 +1,743 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-inspection-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "inspection_id",
+    "transaction_id",
+    "created_utc",
+    "source",
+    "artifact",
+    "classification",
+    "format",
+    "normalized",
+    "evidence",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-inspection-result.v1"
+    },
+    "inspection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "artifact": {
+      "$ref": "#/$defs/artifact"
+    },
+    "classification": {
+      "$ref": "#/$defs/classification"
+    },
+    "format": {
+      "$ref": "#/$defs/format"
+    },
+    "normalized": {
+      "$ref": "#/$defs/normalized"
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {
+        "type": "string",
+        "maxLength": 4096
+      }
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_name",
+        "candidate_kind",
+        "relative_path",
+        "realpath",
+        "device",
+        "inode",
+        "intake_snapshot_identity",
+        "pre_inspection_snapshot_identity",
+        "post_inspection_snapshot_identity"
+      ],
+      "properties": {
+        "candidate_name": {
+          "type": "string"
+        },
+        "candidate_kind": {
+          "enum": [
+            "regular_file",
+            "regular_directory"
+          ]
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "realpath": {
+          "type": "string"
+        },
+        "device": {
+          "type": "integer"
+        },
+        "inode": {
+          "type": "integer"
+        },
+        "intake_snapshot_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "pre_inspection_snapshot_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "post_inspection_snapshot_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "manifestEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "byte_count",
+        "sha256"
+      ],
+      "properties": {
+        "relative_path": {
+          "type": "string"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "algorithm",
+        "byte_count",
+        "file_count",
+        "content_manifest_identity",
+        "files",
+        "file_manifest_truncated"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "algorithm": {
+          "const": "sha256"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_manifest_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "$ref": "#/$defs/manifestEntry"
+          }
+        },
+        "file_manifest_truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminal_class",
+        "detected_family",
+        "inspection_confidence",
+        "reason_codes"
+      ],
+      "properties": {
+        "terminal_class": {
+          "enum": [
+            "GGUF",
+            "NATIVE",
+            "UNKNOWN",
+            "CONTRADICTORY",
+            "CORRUPT",
+            "INCOMPLETE"
+          ]
+        },
+        "detected_family": {
+          "enum": [
+            "GGUF",
+            "NATIVE",
+            "mixed",
+            "unknown"
+          ]
+        },
+        "inspection_confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "format": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "endianness",
+        "definition_identity",
+        "gguf",
+        "native"
+      ],
+      "properties": {
+        "version": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "endianness": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "definition_identity": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "gguf": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ggufSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "native": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/nativeSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "sourceDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "relative_path",
+        "byte_count",
+        "sha256",
+        "token_count",
+        "token_identity",
+        "chat_template_present",
+        "chat_template_identity"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "byte_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "token_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "token_identity": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "chat_template_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "chat_template_identity": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "histogram": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "quantization": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "general_file_type",
+            "quantization_version",
+            "tensor_type_histogram",
+            "mixed_tensor_types"
+          ],
+          "properties": {
+            "kind": {
+              "const": "gguf"
+            },
+            "general_file_type": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "quantization_version": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "tensor_type_histogram": {
+              "$ref": "#/$defs/histogram"
+            },
+            "mixed_tensor_types": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "quantization_config",
+            "declared_dtype",
+            "dtype_histogram",
+            "mixed_dtypes"
+          ],
+          "properties": {
+            "kind": {
+              "const": "native"
+            },
+            "quantization_config": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number",
+                      "integer",
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "maxProperties": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "declared_dtype": {
+              "$ref": "#/$defs/nullableString"
+            },
+            "dtype_histogram": {
+              "$ref": "#/$defs/histogram"
+            },
+            "mixed_dtypes": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "ggufSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tensor_count",
+        "metadata_count",
+        "alignment",
+        "tensor_data_offset",
+        "tensor_data_byte_count",
+        "architecture",
+        "model_type",
+        "general_file_type",
+        "quantization_version",
+        "tensor_type_histogram",
+        "tokenizer_metadata_present",
+        "tokenizer_token_count",
+        "tokenizer_token_identity",
+        "chat_template_present",
+        "chat_template_identity",
+        "tensor_name_count",
+        "tensor_name_identity",
+        "tensor_payload_bytes_read"
+      ],
+      "properties": {
+        "tensor_count": {
+          "type": "integer"
+        },
+        "metadata_count": {
+          "type": "integer"
+        },
+        "alignment": {
+          "type": "integer"
+        },
+        "tensor_data_offset": {
+          "type": "integer"
+        },
+        "tensor_data_byte_count": {
+          "type": "integer"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "model_type": {
+          "type": "string"
+        },
+        "general_file_type": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "quantization_version": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tensor_type_histogram": {
+          "$ref": "#/$defs/histogram"
+        },
+        "tokenizer_metadata_present": {
+          "type": "boolean"
+        },
+        "tokenizer_token_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tokenizer_token_identity": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "chat_template_present": {
+          "type": "boolean"
+        },
+        "chat_template_identity": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "tensor_name_count": {
+          "type": "integer"
+        },
+        "tensor_name_identity": {
+          "type": "string"
+        },
+        "tensor_payload_bytes_read": {
+          "const": 0
+        }
+      }
+    },
+    "nativeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_type",
+        "architectures",
+        "quantization",
+        "declared_dtype",
+        "configuration_source",
+        "tokenizer_source",
+        "weight_format",
+        "shard_count",
+        "tensor_count",
+        "tensor_bytes",
+        "dtype_histogram",
+        "payload_deserialized",
+        "code_executed"
+      ],
+      "properties": {
+        "model_type": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "architectures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quantization": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "maxProperties": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "declared_dtype": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "configuration_source": {
+          "type": "string"
+        },
+        "tokenizer_source": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weight_format": {
+          "type": "string"
+        },
+        "shard_count": {
+          "type": "integer"
+        },
+        "tensor_count": {
+          "type": "integer"
+        },
+        "tensor_bytes": {
+          "type": "integer"
+        },
+        "dtype_histogram": {
+          "$ref": "#/$defs/histogram"
+        },
+        "payload_deserialized": {
+          "const": false
+        },
+        "code_executed": {
+          "const": false
+        }
+      }
+    },
+    "normalized": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "physical_format",
+        "format_version",
+        "model_type",
+        "architectures",
+        "task",
+        "modalities",
+        "quantization",
+        "configuration_source",
+        "tokenizer_source",
+        "weight_format",
+        "shard_count",
+        "artifact_size",
+        "artifact_identity",
+        "inspection_confidence",
+        "reason_codes"
+      ],
+      "properties": {
+        "physical_format": {
+          "enum": [
+            "GGUF",
+            "NATIVE",
+            "unknown",
+            "contradictory"
+          ]
+        },
+        "format_version": {},
+        "model_type": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "architectures": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "task": {
+          "type": "string"
+        },
+        "modalities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quantization": {
+          "$ref": "#/$defs/quantization"
+        },
+        "configuration_source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sourceDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokenizer_source": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceDescriptor"
+          }
+        },
+        "weight_format": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "shard_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "artifact_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "inspection_confidence": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "source_kind",
+        "relative_path",
+        "field",
+        "byte_offset",
+        "encoded_length",
+        "value_type",
+        "bounded_summary",
+        "value_sha256",
+        "validation_state"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "source_kind": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "field": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "byte_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "encoded_length": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "value_type": {
+          "type": "string"
+        },
+        "bounded_summary": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value_sha256": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "validation_state": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

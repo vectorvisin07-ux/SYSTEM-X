@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.platform-service-adapter-manifest.v1",
+  "title": "System X Platform Service Adapter Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "adapter_identity",
+    "adapter_version",
+    "supported_platform_family",
+    "required_host_capabilities",
+    "activation_method",
+    "automatic_activation_supported",
+    "supervisor_entrypoint",
+    "configuration_reference",
+    "configuration_identity",
+    "registered",
+    "enabled",
+    "active",
+    "manifest_generation",
+    "registered_utc",
+    "updated_utc",
+    "last_activation_result",
+    "last_failure_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.platform-service-adapter-manifest.v1"
+    },
+    "adapter_identity": {
+      "enum": [
+        "system-x.foreground-process-host.v1",
+        "system-x.linux-systemd-user-service.v1"
+      ]
+    },
+    "adapter_version": {
+      "const": "1.0.0"
+    },
+    "supported_platform_family": {
+      "enum": ["portable-process-host", "linux-systemd-user"]
+    },
+    "required_host_capabilities": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "foreground_process_execution",
+          "structured_argv",
+          "process_identity_observation",
+          "filesystem_atomic_replacement",
+          "operator_controlled_signal_relay",
+          "linux_systemd_pid1",
+          "systemd_user_manager",
+          "user_unit_registration",
+          "manager_enable_disable",
+          "manager_start_stop_status",
+          "manager_main_pid_observation",
+          "manager_restart_on_failure",
+          "manager_owned_journal"
+        ]
+      }
+    },
+    "activation_method": {
+      "enum": ["foreground-process", "systemd-user-unit"]
+    },
+    "automatic_activation_supported": {"type": "boolean"},
+    "supervisor_entrypoint": {
+      "$ref": "#/$defs/fileIdentity"
+    },
+    "configuration_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_path",
+        "state_path",
+        "supervisor_runtime_root",
+        "profile_identity"
+      ],
+      "properties": {
+        "profile_path": {"type": "string", "minLength": 1},
+        "state_path": {"type": "string", "minLength": 1},
+        "supervisor_runtime_root": {"type": "string", "minLength": 1},
+        "profile_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "configuration_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "registered": {"const": true},
+    "enabled": {"type": "boolean"},
+    "active": {"type": "boolean"},
+    "manifest_generation": {"type": "integer", "minimum": 1},
+    "registered_utc": {"$ref": "#/$defs/timestamp"},
+    "updated_utc": {"$ref": "#/$defs/timestamp"},
+    "last_activation_result": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/activationResult"}
+      ]
+    },
+    "last_failure_reason": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "native_service": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
+    "fileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "activationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "ok",
+        "reason_code",
+        "message",
+        "timestamp_utc",
+        "supervisor_exit_status"
+      ],
+      "properties": {
+        "operation": {"enum": ["start", "stop", "restart"]},
+        "ok": {"type": "boolean"},
+        "reason_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "message": {"type": "string", "maxLength": 4096},
+        "timestamp_utc": {"$ref": "#/$defs/timestamp"},
+        "supervisor_exit_status": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,566 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-transaction.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "transaction_id",
+    "operation",
+    "start_utc",
+    "finish_utc",
+    "state",
+    "reason_code",
+    "input_target_name",
+    "intake_snapshot_identity",
+    "owner_identity",
+    "status_record_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-transaction.v1"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operation": {
+      "enum": [
+        "validate-intake",
+        "inspect",
+        "decide",
+        "qualify-gguf",
+        "promote-gguf",
+        "retire-gguf",
+        "handoff",
+        "publish-service"
+        ,"deploy-gguf"
+        ,"initialize-connection"
+      ]
+    },
+    "start_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "finish_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "VALIDATING_INTAKE",
+        "HASHING_ARTIFACT",
+        "INSPECTING_FORMAT",
+        "PERSISTING_RESULT",
+        "RESOLVING_CAPABILITY",
+        "DECIDING",
+        "VALIDATING_HANDOFF",
+        "STAGING_ARTIFACT",
+        "VERIFYING_STAGED_ARTIFACT",
+        "PUBLISHING_ARTIFACT",
+        "VALIDATED",
+        "STAGED",
+        "STAGED_IDENTITY_VERIFIED",
+        "PUBLISHED_TO_MANAGED_ROOT",
+        "HANDOFF_RECORD_PUBLISHED",
+        "VALIDATING_PUBLICATION",
+        "OBSERVING_REGISTRY",
+        "VERIFYING_PUBLIC_SERVICE",
+        "ISSUING_PROOF_REQUEST",
+        "CORRELATING_REQUEST",
+        "RESTORING_DEFAULT",
+        "PUBLISHING_SERVICE_RESULT",
+        "INSPECTING",
+        "CLASSIFIED",
+        "QUALIFYING",
+        "QUALIFIED",
+        "HANDING_OFF",
+        "REGISTERED",
+        "PROBING",
+        "PUBLISHING_CANDIDATE",
+        "GENERATING_CONNECTION_RECEIPT",
+        "PUBLISHING_DEPLOYMENT_RESULT",
+        "VALIDATING_QUALIFICATION",
+        "SNAPSHOTTING_INCUMBENT",
+        "STAGING_CANDIDATE",
+        "WAITING_FOR_REGISTRATION",
+        "PROBING_CANDIDATE",
+        "CANDIDATE_READY",
+        "PREPARING",
+        "CANDIDATE_STAGED",
+        "CANDIDATE_REGISTERED",
+        "CANDIDATE_PROBING",
+        "CANDIDATE_REQUEST_PROVEN",
+        "PROMOTING_DEFAULT",
+        "DEFAULT_PROMOTED",
+        "TARGET_VERIFIED",
+        "REPLACEMENT_VERIFIED",
+        "REQUEST_ACTIVITY_CLEARED",
+        "RETIREMENT_INTENT_RECORDED",
+        "DEFAULT_ALIAS_CLEARING",
+        "DEFAULT_ALIAS_CLEARED",
+        "QUARANTINING",
+        "QUARANTINED",
+        "REGISTRY_REMOVAL_OBSERVING",
+        "REGISTRY_REMOVAL_OBSERVED",
+        "CATALOGUE_REMOVAL_OBSERVED",
+        "RECOVERY_RECONCILING",
+        "DEFAULT_RELOADING",
+        "MANAGER_RESTARTING",
+        "POST_RETIREMENT_VERIFYING",
+        "QUARANTINE_DELETING",
+        "WAITING_FOR_MODEL",
+        "RESTORING_LOCATION",
+        "STABILITY_OBSERVING",
+        "RESTART_VERIFYING",
+        "ROLLING_BACK",
+        "ROLLED_BACK",
+        "RUNNING_PROFILE",
+        "CANCELLING_REQUEST",
+        "RESTORING_INCUMBENT",
+        "CLEANING_CANDIDATE",
+        "COMPLETE",
+        "REJECTED",
+        "FAILED_CLEAN",
+        "FAIL_CLOSED",
+        "COMPLETED",
+        "FAILED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_target_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "intake_snapshot_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "owner_identity": {
+      "type": "object"
+    },
+    "status_record_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifact_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "terminal_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "inspection_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "inspection_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "inspection_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capability_record_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "handoff_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "handoff_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "handoff_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_candidate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "managed_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "staging_relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "managed_relative_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transfer_method": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "commit_phase": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication_device": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "publication_inode": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "publication_size": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "publication_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication_mode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication_link_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "handoff_record_candidate": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "publication_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "publication_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_http_status": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "public_model_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifact_version_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "proof_evidence": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "qualification_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_artifact_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requested_profile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "incumbent_snapshot": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "registry_states_observed": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "qualification_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "qualification_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "qualification_record_candidate": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "result_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "states_observed": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "intended_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "irreversible_action_begun": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "irreversible_action_observed": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_basis_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_runtime": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "retirement_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_basis_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_request_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_runtime": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "deployment_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_mode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retirement_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_input_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_runtime": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "deployment_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connection_receipt_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connection_receipt_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connection_status_previous_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://system-x.invalid/schemas/bootstrap-host-plan-v1.json",
+  "title": "System X bounded host plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "already_satisfied", "would_install", "would_create", "would_build", "would_register", "would_generate", "would_leave_external", "blockers", "forbidden_installed", "python_ready", "cuda_toolkit_ready", "unrelated_packages_preserved", "network_used", "mutation_performed", "plan_identity"],
+  "properties": {
+    "schema": {"const": "system-x.bootstrap.host-plan.v1"},
+    "version": {"const": 1},
+    "already_satisfied": {"type": "array"},
+    "would_install": {"type": "array"},
+    "would_create": {"type": "array", "items": {"type": "string"}},
+    "would_build": {"type": "array", "items": {"type": "string"}},
+    "would_register": {"type": "array", "items": {"type": "string"}},
+    "would_generate": {"type": "array", "items": {"type": "string"}},
+    "would_leave_external": {"type": "array", "items": {"type": "string"}},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "forbidden_installed": {"type": "array", "items": {"type": "string"}},
+    "python_ready": {"type": "boolean"},
+    "cuda_toolkit_ready": {"type": "boolean"},
+    "unrelated_packages_preserved": {"const": true},
+    "network_used": {"const": false},
+    "mutation_performed": {"const": false},
+    "plan_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

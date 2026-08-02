@@ -1,0 +1,54 @@
+{
+  "identity": "system-x.bootstrap.cuda-wsl-toolkit-13.3.v1",
+  "version": 1,
+  "driver_boundary": "Windows owns the NVIDIA display driver; WSL Ubuntu installs CUDA Toolkit only",
+  "repository": {
+    "identity": "nvidia-cuda-wsl-ubuntu-x86_64",
+    "base_url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/",
+    "inrelease_url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/InRelease",
+    "packages_url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/Packages.gz",
+    "signing_fingerprint": "EB693B3035CD5710E231E123A4B469963BF863CC",
+    "source_line": "deb [signed-by=/usr/share/keyrings/cuda-wsl-ubuntu-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/ /"
+  },
+  "keyring_package": {
+    "name": "cuda-keyring",
+    "version": "1.1-1",
+    "url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb",
+    "bytes": 4328,
+    "sha256": "eea6cc5f0eaeb99082d054b8c05ae206a378e31e88048df0310d59f651dceed2"
+  },
+  "toolkit_package": {
+    "name": "cuda-toolkit-13-3",
+    "version": "13.3.1-1",
+    "major_minor": "13.3",
+    "sha256": "a85f2431d90ba05c906094204a96e6b95f395be3ac101528560ce5b97d99d173",
+    "direct_dependencies": [
+      "cuda-compiler-13-3",
+      "cuda-documentation-13-3",
+      "cuda-libraries-13-3",
+      "cuda-libraries-dev-13-3",
+      "cuda-nvml-dev-13-3",
+      "cuda-tools-13-3"
+    ]
+  },
+  "toolkit_root": "/usr/local/cuda-13.3",
+  "nvcc": "/usr/local/cuda-13.3/bin/nvcc",
+  "required_bridge_paths": [
+    "/dev/dxg",
+    "/usr/lib/wsl/lib/libcuda.so.1",
+    "/usr/lib/wsl/lib/nvidia-smi"
+  ],
+  "forbidden_package_patterns": [
+    "cuda",
+    "cuda-13-3",
+    "cuda-drivers",
+    "cuda-drivers-*",
+    "nvidia-driver-*"
+  ],
+  "acceptance": {
+    "driver_api_initializes": true,
+    "gpu_visible_to_nvidia_smi": true,
+    "nvcc_compile_required_for_build_ready": true,
+    "llama_server_cuda0_required_for_build_ready": true
+  }
+}

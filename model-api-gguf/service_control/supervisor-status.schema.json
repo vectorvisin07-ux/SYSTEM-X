@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.service-supervisor-status.v1",
+  "title": "System X Service Supervisor Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_identity",
+    "desired_state",
+    "desired_state_generation",
+    "supervisor_state",
+    "service_readiness_state",
+    "model_service_state",
+    "service_operational",
+    "inference_ready",
+    "reason_code",
+    "supervisor_identity",
+    "supervisor_transaction_id",
+    "observed_api_service",
+    "observed_private_router",
+    "observed_model_child",
+    "warm_model_identity",
+    "recovery_status",
+    "last_observed_utc",
+    "stop_reason",
+    "fault_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.service-supervisor-status.v1"
+    },
+    "profile_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "desired_state": {
+      "enum": ["RUNNING", "STOPPED"]
+    },
+    "desired_state_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supervisor_state": {
+      "enum": ["STARTING", "RUNNING", "STOPPING", "STOPPED", "FAULTED"]
+    },
+    "service_readiness_state": {
+      "enum": [
+        "SUPERVISOR_STARTING",
+        "API_STARTING",
+        "BACKEND_STARTING",
+        "MODEL_LOADING",
+        "WAITING_FOR_MODEL",
+        "MODEL_CANDIDATE_LOADING",
+        "READY",
+        "DEGRADED",
+        "STOPPED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "model_service_state": {
+      "enum": [
+        "WAITING_FOR_MODEL",
+        "MODEL_CANDIDATE_LOADING",
+        "READY",
+        "DEGRADED",
+        "STOPPED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "service_operational": {"type": "boolean"},
+    "inference_ready": {"type": "boolean"},
+    "reason_code": {"type": ["string", "null"]},
+    "supervisor_identity": {
+      "$ref": "#/$defs/processIdentity"
+    },
+    "supervisor_transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "observed_api_service": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/runtimeIdentity"}
+      ]
+    },
+    "observed_private_router": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/runtimeIdentity"}
+      ]
+    },
+    "observed_model_child": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "identity"],
+      "properties": {
+        "present": {"type": "boolean"},
+        "identity": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "object"}
+          ]
+        }
+      }
+    },
+    "warm_model_identity": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/warmIdentity"}
+      ]
+    },
+    "recovery_status": {
+      "type": ["object", "null"]
+    },
+    "last_observed_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
+    "stop_reason": {
+      "type": ["string", "null"]
+    },
+    "fault_reason": {
+      "type": ["string", "null"]
+    }
+  },
+  "$defs": {
+    "processIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "process_start_identity",
+        "pgid",
+        "sid",
+        "executable",
+        "argv_sha256"
+      ],
+      "properties": {
+        "pid": {"type": "integer", "minimum": 1},
+        "process_start_identity": {"type": "string", "minLength": 1},
+        "pgid": {"type": "integer", "minimum": 1},
+        "sid": {"type": "integer", "minimum": 1},
+        "executable": {"type": "string", "minLength": 1},
+        "argv_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "runtimeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lifecycle_state",
+        "active",
+        "consistent",
+        "transaction_id",
+        "pid",
+        "process_start_identity",
+        "pgid",
+        "sid",
+        "endpoint",
+        "listener_owned"
+      ],
+      "properties": {
+        "lifecycle_state": {"type": ["string", "null"]},
+        "active": {"type": "boolean"},
+        "consistent": {"type": "boolean"},
+        "transaction_id": {"type": ["string", "null"]},
+        "pid": {"type": ["integer", "null"]},
+        "process_start_identity": {"type": ["string", "null"]},
+        "pgid": {"type": ["integer", "null"]},
+        "sid": {"type": ["integer", "null"]},
+        "endpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["host", "port"],
+          "properties": {
+            "host": {"type": "string"},
+            "port": {"type": "integer", "minimum": 1, "maximum": 65535}
+          }
+        },
+        "listener_owned": {"type": "boolean"}
+      }
+    },
+    "warmIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requested_alias",
+        "resolved_public_model_id",
+        "artifact_version_id",
+        "registry_generation",
+        "capability_manifest_identity",
+        "router_transaction_id",
+        "model_child_pid",
+        "model_child_start_identity",
+        "model_child_parent",
+        "model_child_process_group",
+        "model_child_session",
+        "warm_since_utc",
+        "last_verified_utc",
+        "health_state"
+      ],
+      "properties": {
+        "requested_alias": {"type": "string", "minLength": 1},
+        "resolved_public_model_id": {"type": "string", "minLength": 1},
+        "artifact_version_id": {"type": "string", "minLength": 1},
+        "registry_generation": {"type": "integer", "minimum": 0},
+        "capability_manifest_identity": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "router_transaction_id": {"type": "string", "minLength": 1},
+        "model_child_pid": {"type": "integer", "minimum": 1},
+        "model_child_start_identity": {"type": "string", "minLength": 1},
+        "model_child_parent": {"type": "integer", "minimum": 1},
+        "model_child_process_group": {"type": "integer", "minimum": 1},
+        "model_child_session": {"type": "integer", "minimum": 1},
+        "warm_since_utc": {"type": "string", "minLength": 1},
+        "last_verified_utc": {"type": "string", "minLength": 1},
+        "health_state": {"enum": ["ready", "stopped"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.service-operating-profile.v1",
+  "title": "System X Service Operating Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "public_endpoint",
+    "private_router_endpoint",
+    "default_model_alias",
+    "startup_model_policy",
+    "automatic_recovery_enabled",
+    "graceful_shutdown",
+    "recovery_delay"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.service-operating-profile.v1"
+    },
+    "public_endpoint": {
+      "$ref": "#/$defs/endpoint"
+    },
+    "private_router_endpoint": {
+      "$ref": "#/$defs/endpoint"
+    },
+    "default_model_alias": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^/\\\\\\u0000-\\u001F\\u007F]+$"
+    },
+    "startup_model_policy": {
+      "const": "always_warm"
+    },
+    "automatic_recovery_enabled": {
+      "type": "boolean"
+    },
+    "graceful_shutdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600
+        }
+      }
+    },
+    "recovery_delay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "initial_seconds",
+        "maximum_seconds",
+        "multiplier"
+      ],
+      "properties": {
+        "initial_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "maximum_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 86400
+        },
+        "multiplier": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 16
+        }
+      }
+    },
+    "recovery_loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_attempts_in_window",
+        "attempt_window_seconds",
+        "stable_reset_seconds"
+      ],
+      "properties": {
+        "maximum_attempts_in_window": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 3
+        },
+        "attempt_window_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 60
+        },
+        "stable_reset_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 30
+        }
+      }
+    }
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port"
+      ],
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    }
+  }
+}

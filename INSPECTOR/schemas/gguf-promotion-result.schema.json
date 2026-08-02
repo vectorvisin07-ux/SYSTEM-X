@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-gguf-promotion-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "promotion_id",
+    "transaction_id",
+    "created_utc",
+    "completed_utc",
+    "qualification",
+    "installed_tuple",
+    "candidate",
+    "incumbent",
+    "states_observed",
+    "registry_progression",
+    "alias_promotion",
+    "pre_promotion_proofs",
+    "post_promotion_proofs",
+    "stability_observation",
+    "restart_verification",
+    "rollback",
+    "service_final",
+    "result_class",
+    "reason_codes",
+    "validity_predicate",
+    "result_identity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-gguf-promotion-result.v1"
+    },
+    "promotion_id": {
+      "type": "string",
+      "pattern": "^promotion-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}$"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "completed_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "qualification": {
+      "type": "object"
+    },
+    "installed_tuple": {
+      "type": "object"
+    },
+    "candidate": {
+      "type": "object"
+    },
+    "incumbent": {
+      "type": "object"
+    },
+    "states_observed": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "PREPARING",
+          "CANDIDATE_STAGED",
+          "CANDIDATE_REGISTERED",
+          "CANDIDATE_PROBING",
+          "CANDIDATE_READY",
+          "CANDIDATE_REQUEST_PROVEN",
+          "PROMOTING_DEFAULT",
+          "DEFAULT_PROMOTED",
+          "STABILITY_OBSERVING",
+          "RESTART_VERIFYING",
+          "COMPLETE",
+          "ROLLING_BACK",
+          "ROLLED_BACK",
+          "FAILED_CLEAN",
+          "FAIL_CLOSED"
+        ]
+      }
+    },
+    "registry_progression": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "alias_promotion": {
+      "type": "object"
+    },
+    "pre_promotion_proofs": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "post_promotion_proofs": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "stability_observation": {
+      "type": "object"
+    },
+    "restart_verification": {
+      "type": "object"
+    },
+    "rollback": {
+      "type": "object"
+    },
+    "service_final": {
+      "type": "object"
+    },
+    "result_class": {
+      "enum": [
+        "PROMOTION_COMPLETE",
+        "PROMOTION_ROLLED_BACK",
+        "PROMOTION_FAILED_CLEAN",
+        "PROMOTION_FAIL_CLOSED"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "validity_predicate": {
+      "type": "object"
+    },
+    "result_identity": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+# BEGIN OPENCLAW SYSMIN.01 X.E SANITIZED-BOUNDARY
+# Exact secret and mutable runtime roots
+/.system-x-bootstrap-state/
+/model-api-gguf/RUNTIME/api/auth/
+/INSPECTOR/RUNTIME/
+/INSPECTOR/capabilities/
+/model-api-gguf/RUNTIME/
+/model-api-native/RUNTIME/
+
+# Model admission roots and model-weight formats
+/model-api-gguf/MODEL/
+/model-api-native/MODEL/
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Private environments and host-specific environment observations
+/INSPECTOR/.venv/
+/model-api-gguf/api_service/.venv/
+/INSPECTOR/environment.lock.json
+/model-api-gguf/api_service/environment.lock.json
+/INSPECTOR/MODEL-TEST/
+/model-api-native/vLLM/
+**/.env
+**/.env.*
+!**/.env.example
+
+# Exact generated third-party build root
+/model-api-gguf/llama.cpp/build/
+
+# Safe generated caches, bytecode, distributions, databases and compiled output
+**/__pycache__/
+*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
+**/dist/
+**/*.egg-info/
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Coverage and editor-local residue
+.coverage
+htmlcov/
+*~
+*.swp
+*.swo
+# END OPENCLAW SYSMIN.01 X.E SANITIZED-BOUNDARY

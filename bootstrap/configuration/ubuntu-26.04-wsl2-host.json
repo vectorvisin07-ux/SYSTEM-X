@@ -1,0 +1,38 @@
+{
+  "identity": "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
+  "version": 1,
+  "operating_system": {
+    "id": "ubuntu",
+    "version_id": "26.04",
+    "codename": "resolute"
+  },
+  "architecture": "x86_64",
+  "kernel_environment": "WSL2",
+  "pid1": "systemd",
+  "python": {
+    "implementation": "CPython",
+    "major_minor": "3.14",
+    "executable": "python3.14",
+    "venv_required": true,
+    "ensurepip_required": true
+  },
+  "gpu": {
+    "deployment_name": "NVIDIA GeForce RTX 3060",
+    "compute_capability": "8.6",
+    "minimum_memory_mib": 12288,
+    "driver_owner": "Windows",
+    "required_bridge_paths": [
+      "/dev/dxg",
+      "/usr/lib/wsl/lib/libcuda.so.1",
+      "/usr/lib/wsl/lib/nvidia-smi"
+    ]
+  },
+  "package_manager": "apt",
+  "service_manager": "systemd-user",
+  "compatibility_policy": {
+    "ubuntu_release": "exact",
+    "python_major_minor": "exact",
+    "cuda_major_minor": "exact",
+    "ubuntu_direct_package_versions": "prefer-exact; recorded patch difference only"
+  }
+}

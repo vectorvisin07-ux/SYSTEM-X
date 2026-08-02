@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-machine-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "ok",
+    "reason_code",
+    "message",
+    "timestamp_utc",
+    "inspector_root",
+    "transaction_id",
+    "data",
+    "paths"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-machine-result.v1"
+    },
+    "operation": {
+      "enum": [
+        "identify",
+        "validate-config",
+        "layout",
+        "status",
+        "list-intake",
+        "validate-intake",
+        "inspect",
+        "capabilities",
+        "decide",
+        "qualify-gguf",
+        "promote-gguf",
+        "retire-gguf",
+        "handoff",
+        "publish-service",
+        "deploy-gguf",
+        "show-connection",
+        "unknown"
+      ]
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inspector_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transaction_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "type": "object"
+    },
+    "paths": {
+      "type": "object"
+    }
+  }
+}

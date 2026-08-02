@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.inspector-status.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "reason_code",
+    "updated_utc",
+    "inspector_root",
+    "active_transaction_id",
+    "last_transaction_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.inspector-status.v1"
+    },
+    "state": {
+      "enum": [
+        "IDLE",
+        "VALIDATING_INTAKE",
+        "HASHING_ARTIFACT",
+        "INSPECTING_FORMAT",
+        "PERSISTING_RESULT",
+        "RESOLVING_CAPABILITY",
+        "DECIDING",
+        "VALIDATING_HANDOFF",
+        "STAGING_ARTIFACT",
+        "VERIFYING_STAGED_ARTIFACT",
+        "PUBLISHING_ARTIFACT",
+        "VALIDATING_PUBLICATION",
+        "OBSERVING_REGISTRY",
+        "VERIFYING_PUBLIC_SERVICE",
+        "ISSUING_PROOF_REQUEST",
+        "CORRELATING_REQUEST",
+        "RESTORING_DEFAULT",
+        "PUBLISHING_SERVICE_RESULT",
+        "INSPECTING",
+        "CLASSIFIED",
+        "QUALIFYING",
+        "QUALIFIED",
+        "HANDING_OFF",
+        "REGISTERED",
+        "PROBING",
+        "PUBLISHING_CANDIDATE",
+        "GENERATING_CONNECTION_RECEIPT",
+        "PUBLISHING_DEPLOYMENT_RESULT",
+        "VALIDATING_QUALIFICATION",
+        "SNAPSHOTTING_INCUMBENT",
+        "STAGING_CANDIDATE",
+        "WAITING_FOR_REGISTRATION",
+        "PROBING_CANDIDATE",
+        "CANDIDATE_READY",
+        "PREPARING",
+        "CANDIDATE_STAGED",
+        "CANDIDATE_REGISTERED",
+        "CANDIDATE_PROBING",
+        "CANDIDATE_REQUEST_PROVEN",
+        "PROMOTING_DEFAULT",
+        "DEFAULT_PROMOTED",
+        "TARGET_VERIFIED",
+        "REPLACEMENT_VERIFIED",
+        "REQUEST_ACTIVITY_CLEARED",
+        "RETIREMENT_INTENT_RECORDED",
+        "DEFAULT_ALIAS_CLEARING",
+        "DEFAULT_ALIAS_CLEARED",
+        "QUARANTINING",
+        "QUARANTINED",
+        "REGISTRY_REMOVAL_OBSERVING",
+        "REGISTRY_REMOVAL_OBSERVED",
+        "CATALOGUE_REMOVAL_OBSERVED",
+        "RECOVERY_RECONCILING",
+        "DEFAULT_RELOADING",
+        "MANAGER_RESTARTING",
+        "POST_RETIREMENT_VERIFYING",
+        "QUARANTINE_DELETING",
+        "WAITING_FOR_MODEL",
+        "RESTORING_LOCATION",
+        "STABILITY_OBSERVING",
+        "RESTART_VERIFYING",
+        "ROLLING_BACK",
+        "ROLLED_BACK",
+        "RUNNING_PROFILE",
+        "CANCELLING_REQUEST",
+        "RESTORING_INCUMBENT",
+        "CLEANING_CANDIDATE",
+        "COMPLETE",
+        "REJECTED",
+        "FAILED_CLEAN",
+        "FAIL_CLOSED",
+        "FAILED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inspector_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "active_transaction_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_transaction_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
