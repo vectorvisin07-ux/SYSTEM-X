@@ -1,0 +1,448 @@
+{
+  "assertions": {
+    "all_direct_package_versions_exact_observed": true,
+    "all_direct_packages_installed": true,
+    "cuda_toolkit_exact": true,
+    "gpu_exact": true,
+    "linux_display_driver_packages_absent": true,
+    "llama_cuda_13_3": true,
+    "llama_lock_exact": true,
+    "nvcc_exact": true,
+    "python_lock_3_14": true,
+    "required_wsl_cuda_bridges_present": true,
+    "systemd_pid1": true,
+    "target_default_uid_1100": true,
+    "target_ext4": true,
+    "target_registration_on_i_drive": true,
+    "ubuntu_26_04": true,
+    "wsl2_kernel": true,
+    "x86_64": true
+  },
+  "cuda_wsl_law": {
+    "driver_owner": "Windows",
+    "installed_forbidden_driver_packages": [],
+    "linux_nvidia_display_driver_packages": "prohibited",
+    "nvcc": "/usr/local/cuda-13.3/bin/nvcc",
+    "required_bridge_paths": {
+      "/dev/dxg": true,
+      "/usr/lib/wsl/lib/libcuda.so.1": true,
+      "/usr/lib/wsl/lib/nvidia-smi": true
+    },
+    "toolkit_root": "/usr/local/cuda-13.3",
+    "ubuntu_payload": "CUDA Toolkit only"
+  },
+  "direct_ubuntu_packages": [
+    {
+      "compatible_patch_regex": "^12\\.12(?:ubuntu2)?(?:[.+~].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "12.12ubuntu2.26.04.2",
+      "name": "build-essential",
+      "observed_version": "12.12ubuntu2.26.04.2",
+      "purpose": "C and C++ compiler plus make toolchain",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^2026[0-9]{4}(?:[.+~].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "20260601~26.04.1",
+      "name": "ca-certificates",
+      "observed_version": "20260601~26.04.1",
+      "purpose": "TLS trust for official Ubuntu, NVIDIA and Python sources",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^4\\.2\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "4.2.3-2ubuntu2",
+      "name": "cmake",
+      "observed_version": "4.2.3-2ubuntu2",
+      "purpose": "llama.cpp configure",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^8\\.18\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "8.18.0-1ubuntu2.3",
+      "name": "curl",
+      "observed_version": "8.18.0-1ubuntu2.3",
+      "purpose": "bounded operator HTTPS diagnostics",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^1\\.16\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "1.16.2-2ubuntu4",
+      "name": "dbus-user-session",
+      "observed_version": "1.16.2-2ubuntu4",
+      "purpose": "systemd user-manager DBus session",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^(?:1:)?2\\.53\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "1:2.53.0-1ubuntu1",
+      "name": "git",
+      "observed_version": "1:2.53.0-1ubuntu1",
+      "purpose": "version control, authenticated publication, and ordinary-clone verification",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^1\\.13\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "1.13.2-1",
+      "name": "ninja-build",
+      "observed_version": "1.13.2-1",
+      "purpose": "locked llama.cpp generator",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^2\\.5\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "2.5.1-4",
+      "name": "pkg-config",
+      "observed_version": "2.5.1-4",
+      "purpose": "native dependency discovery",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^3\\.14\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "3.14.4-1ubuntu0.1",
+      "name": "python3.14",
+      "observed_version": "3.14.4-1ubuntu0.1",
+      "purpose": "exact System X Python major/minor interpreter",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^3\\.14\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "3.14.4-1ubuntu0.1",
+      "name": "python3.14-venv",
+      "observed_version": "3.14.4-1ubuntu0.1",
+      "purpose": "private environment creation and ensurepip",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^259\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "259.5-0ubuntu3",
+      "name": "systemd",
+      "observed_version": "259.5-0ubuntu3",
+      "purpose": "PID 1, user manager, systemctl, journalctl and systemd-analyze",
+      "source_repository_identity": "ubuntu-resolute-official"
+    },
+    {
+      "compatible_patch_regex": "^13\\.3\\.[0-9]+(?:[.+~:-].*)?$",
+      "exact_observed_match": true,
+      "hard_required_identity": true,
+      "installed_state": "installed",
+      "lock_observed_version": "13.3.1-1",
+      "name": "cuda-toolkit-13-3",
+      "observed_version": "13.3.1-1",
+      "purpose": "toolkit-only CUDA compiler, libraries and development headers",
+      "source_repository_identity": "nvidia-cuda-wsl-ubuntu-x86_64"
+    }
+  ],
+  "evidence": {
+    "cuda_lock_sha256": "5078a5b09b8c4623affc348918e0488df64412a51bb4d67ed54a09e24909f295",
+    "current_target_probe": true,
+    "historical_index_sha256": "c5de0da688f88fff03589aee0f577c4815368b2d62ed80cb6300c2b5a5f2d3da",
+    "live_package_lock_sha256": "b4a385295dac37083bf77e74f756e33223f9819849522e4bdc1d7b614d8fcabf",
+    "llama_build_lock_sha256": "6929ab13b17ca5083f7d09b3e799f676256587234a17da924232a28316d6663f",
+    "python_environments_lock_sha256": "b4bb658ba4e0264c11a5f16c273f918a06cf2c185ade92e0f48ce29293eed2b4"
+  },
+  "identity_semantics": {
+    "accepted_observed_version": "the version physically accepted and recorded by current evidence",
+    "compatible_patch_level_policy": "a different patch requires lock-compatible validation and explicit packet/operator authority",
+    "current_host_observation": "read-only physical observation of Ubuntu-26.04 during this packet",
+    "hard_required_identity": "names, major/minor versions, architecture and policy boundaries that must match",
+    "optional_operator_tooling": "not a runtime dependency unless explicitly listed as direct"
+  },
+  "llama_cpp": {
+    "build_type": "Release",
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+    "compute_capability": "86",
+    "cuda_enabled": true,
+    "generator": "Ninja",
+    "origin": "https://github.com/ggml-org/llama.cpp",
+    "tag": "b10092",
+    "target": "llama-server"
+  },
+  "observed_accepted_identities": {
+    "cmake": "4.2.3",
+    "compute_capability": "8.6",
+    "cuda_toolkit_package": "13.3.1-1",
+    "g++": "15.2.0",
+    "gcc": "15.2.0",
+    "git": "2.53.0",
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "ninja": "1.13.2",
+    "nvcc": "13.3.73",
+    "python": "3.14.4",
+    "windows_driver_observation": "595.97"
+  },
+  "python_environments": [
+    {
+      "artifacts": [],
+      "dependency_declarations": [],
+      "environment_identity": "inspector",
+      "installation_method": "stdlib-venv-without-pip",
+      "owner_component": "INSPECTOR",
+      "post_install_import_roots": [
+        "system_x_inspector"
+      ],
+      "python_requirement": "CPython==3.14.*",
+      "relative_destination": "INSPECTOR/.venv",
+      "resolved_lock": "bootstrap/configuration/python-environments.lock.json#inspector",
+      "source_paths": [
+        "INSPECTOR"
+      ],
+      "system_site_packages": false,
+      "user_site": "disabled"
+    },
+    {
+      "artifacts": [
+        {
+          "filename": "annotated_doc-0.0.4-py3-none-any.whl",
+          "name": "annotated-doc",
+          "sha256": "571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.0.4"
+        },
+        {
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "name": "annotated-types",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.8.0"
+        },
+        {
+          "filename": "anyio-4.14.2-py3-none-any.whl",
+          "name": "anyio",
+          "sha256": "9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494",
+          "source_domain": "files.pythonhosted.org",
+          "version": "4.14.2"
+        },
+        {
+          "filename": "attrs-26.1.0-py3-none-any.whl",
+          "name": "attrs",
+          "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+          "source_domain": "files.pythonhosted.org",
+          "version": "26.1.0"
+        },
+        {
+          "filename": "certifi-2026.7.22-py3-none-any.whl",
+          "name": "certifi",
+          "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+          "source_domain": "files.pythonhosted.org",
+          "version": "2026.7.22"
+        },
+        {
+          "filename": "click-8.4.2-py3-none-any.whl",
+          "name": "click",
+          "sha256": "e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76",
+          "source_domain": "files.pythonhosted.org",
+          "version": "8.4.2"
+        },
+        {
+          "filename": "fastapi-0.139.2-py3-none-any.whl",
+          "name": "fastapi",
+          "sha256": "b9ad015a835173d59865e2f5d8296fbc2b317bf56a2ba1a5bfbdd03de2fd4b1c",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.139.2"
+        },
+        {
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "name": "h11",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.16.0"
+        },
+        {
+          "filename": "httpcore-1.0.9-py3-none-any.whl",
+          "name": "httpcore",
+          "sha256": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
+          "source_domain": "files.pythonhosted.org",
+          "version": "1.0.9"
+        },
+        {
+          "filename": "httpx-0.28.1-py3-none-any.whl",
+          "name": "httpx",
+          "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.28.1"
+        },
+        {
+          "filename": "idna-3.18-py3-none-any.whl",
+          "name": "idna",
+          "sha256": "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2",
+          "source_domain": "files.pythonhosted.org",
+          "version": "3.18"
+        },
+        {
+          "filename": "jsonschema-4.26.0-py3-none-any.whl",
+          "name": "jsonschema",
+          "sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+          "source_domain": "files.pythonhosted.org",
+          "version": "4.26.0"
+        },
+        {
+          "filename": "jsonschema_specifications-2025.9.1-py3-none-any.whl",
+          "name": "jsonschema-specifications",
+          "sha256": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
+          "source_domain": "files.pythonhosted.org",
+          "version": "2025.9.1"
+        },
+        {
+          "filename": "pip-26.1.2-py3-none-any.whl",
+          "name": "pip",
+          "sha256": "382ff9f685ee3bc25864f820aa50505825f10f5458ffff07e30a6d96e5715cab",
+          "source_domain": "files.pythonhosted.org",
+          "version": "26.1.2"
+        },
+        {
+          "filename": "pydantic-2.13.4-py3-none-any.whl",
+          "name": "pydantic",
+          "sha256": "45a282cde31d808236fd7ea9d919b128653c8b38b393d1c4ab335c62924d9aba",
+          "source_domain": "files.pythonhosted.org",
+          "version": "2.13.4"
+        },
+        {
+          "filename": "pydantic_core-2.46.4-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "name": "pydantic-core",
+          "sha256": "7a5f930472650a82629163023e630d160863fce524c616f4e5186e5de9d9a49b",
+          "source_domain": "files.pythonhosted.org",
+          "version": "2.46.4"
+        },
+        {
+          "filename": "referencing-0.37.0-py3-none-any.whl",
+          "name": "referencing",
+          "sha256": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.37.0"
+        },
+        {
+          "filename": "rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "name": "rpds-py",
+          "sha256": "dc319e5a1de4b6913aac94bf6a2f9e847371e0a140a43dd4991db1a09bc2d504",
+          "source_domain": "files.pythonhosted.org",
+          "version": "2026.6.3"
+        },
+        {
+          "filename": "starlette-1.3.1-py3-none-any.whl",
+          "name": "starlette",
+          "sha256": "c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6",
+          "source_domain": "files.pythonhosted.org",
+          "version": "1.3.1"
+        },
+        {
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "name": "typing-extensions",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "source_domain": "files.pythonhosted.org",
+          "version": "4.16.0"
+        },
+        {
+          "filename": "typing_inspection-0.4.2-py3-none-any.whl",
+          "name": "typing-inspection",
+          "sha256": "4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.4.2"
+        },
+        {
+          "filename": "uvicorn-0.51.0-py3-none-any.whl",
+          "name": "uvicorn",
+          "sha256": "5d38af6cd620f2ae3849fb44fd4879e0890aa1febe8d47eb355fb45d93fe6a5b",
+          "source_domain": "files.pythonhosted.org",
+          "version": "0.51.0"
+        },
+        {
+          "filename": "watchfiles-1.2.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "name": "watchfiles",
+          "sha256": "054dc20fd2e3132b4c3883b4a00d72fd6e1f56fdaf89fccd12e8057d74cd74d7",
+          "source_domain": "files.pythonhosted.org",
+          "version": "1.2.0"
+        }
+      ],
+      "dependency_declarations": [
+        {
+          "path": "model-api-gguf/api_service/requirements.in",
+          "sha256": "d4865cbaa25917c8d3f3e9b65fbdb574e6474afeb4b73b633bb09ee818339677"
+        },
+        {
+          "path": "model-api-gguf/api_service/requirements.lock",
+          "sha256": "c6293b88a7edf3354a83f1efb772c8a275fac4ee2880a1359256d88a85f95d5e"
+        }
+      ],
+      "environment_identity": "gguf-api",
+      "installation_method": "venv-pip-require-hashes-only-binary",
+      "owner_component": "model-api-gguf",
+      "post_install_import_roots": [
+        "fastapi",
+        "httpx",
+        "jsonschema",
+        "pydantic",
+        "pydantic_core",
+        "starlette",
+        "uvicorn",
+        "watchfiles",
+        "system_x_gguf_api.application"
+      ],
+      "python_requirement": "CPython==3.14.*",
+      "relative_destination": "model-api-gguf/api_service/.venv",
+      "resolved_lock": "bootstrap/configuration/python-environments.lock.json#gguf-api",
+      "source_paths": [
+        "model-api-gguf/api_service/src"
+      ],
+      "system_site_packages": false,
+      "user_site": "disabled"
+    }
+  ],
+  "schema": "system-x.dependency-lock.v1",
+  "target_host": {
+    "architecture": "x86_64",
+    "distribution_registration": {
+      "BasePath": "I:\\UBUNTU-ENV",
+      "DefaultUid": 1100,
+      "DistributionName": "Ubuntu-26.04",
+      "Flags": 15,
+      "Version": 2
+    },
+    "init": "systemd",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "root_mount": "/dev/sde ext4 rw,relatime,discard,errors=remount-ro,data=ordered",
+    "ubuntu": "Ubuntu 26.04 LTS",
+    "wsl": "WSL2",
+    "wsl_product_versions": {
+      "DXCore version": "10.0.26100.1-240331-1435.ge-release",
+      "Direct3D version": "1.611.1-81528511",
+      "Kernel version": "6.18.33.2-2",
+      "MSRDC version": "1.2.6676",
+      "WSL version": "2.7.10.0",
+      "WSLg version": "1.0.73.2",
+      "Windows version": "10.0.26200.8973"
+    }
+  }
+}

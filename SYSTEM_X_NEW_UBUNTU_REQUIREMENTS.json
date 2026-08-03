@@ -1,11 +1,6 @@
 {
-  "schema": "system-x.new-ubuntu-requirements.v2",
-  "generated_utc": "2026-08-02T19:29:06Z",
-  "scope": "Portable reconstruction contract for a later clean Ubuntu clone; this record does not claim that the new host has been installed.",
   "bootstrap": {
-    "version": "1.0.0",
     "entrypoint": "python3 -B -I -S bootstrap/run_bootstrap.py",
-    "standard_library_first": true,
     "no_network_or_mutation_at_import": true,
     "ordered_operations": [
       "identify",
@@ -20,21 +15,51 @@
       "register-platform-service --authorize",
       "verify --level waiting-for-model",
       "status"
-    ]
+    ],
+    "standard_library_first": true,
+    "version": "1.0.0"
   },
-  "host_profile": {
-    "identity": "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
-    "operating_system": {"id": "ubuntu", "version_id": "26.04", "codename": "resolute"},
-    "architecture": "x86_64",
-    "kernel_environment": "WSL2",
-    "pid1": "systemd",
-    "service_manager": "systemd-user",
-    "active_user": {"non_root": true, "owns_clone": true, "owns_user_service": true},
-    "lock": "bootstrap/configuration/ubuntu-26.04-wsl2-host.json"
+  "credentials": {
+    "default": "generate-new",
+    "handoff": "model-api-gguf/RUNTIME/api/auth/handoff/local-primary.key",
+    "import_encrypted": "blocked until a separate encrypted bundle and explicit SIR authorization exist",
+    "lock": "bootstrap/configuration/credential-initialization.json",
+    "raw_key_in_logs_or_results": false,
+    "schema": {
+      "identity": "system-x.api-credentials.v1",
+      "version": 1
+    },
+    "tracked_in_git": false
   },
+  "current_host_read_only_proof": {
+    "cuda_toolkit": "13.3",
+    "gpu": "NVIDIA GeForce RTX 3060 compute capability 8.6",
+    "host_plan_blocker_count": 0,
+    "host_plan_install_count": 0,
+    "host_plan_mutation_performed": false,
+    "python": "3.14.4",
+    "ubuntu": "26.04 resolute",
+    "wsl": 2
+  },
+  "external_and_untracked": [
+    "credentials and credential databases",
+    "model artifacts",
+    "runtime databases, logs, locks, status and transactions",
+    "private Python environments",
+    "llama.cpp build output",
+    "systemd-generated unit and enablement link",
+    "Windows NVIDIA display driver and WSL driver bridge",
+    "OpenClaw evidence/history",
+    "system-x-chat",
+    "UNCENSORED-ENV"
+  ],
+  "generated_utc": "2026-08-03T16:31:00Z",
   "host_packages": {
-    "lock": "bootstrap/configuration/ubuntu-package.lock.json",
+    "default_version_policy": "prefer exact observed Ubuntu package version",
     "direct_package_count": 12,
+    "dist_upgrade": "prohibited",
+    "lock": "bootstrap/configuration/ubuntu-package.lock.json",
+    "package_removal": "prohibited",
     "packages_in_install_order": [
       "build-essential",
       "ca-certificates",
@@ -49,113 +74,205 @@
       "systemd",
       "cuda-toolkit-13-3"
     ],
-    "default_version_policy": "prefer exact observed Ubuntu package version",
     "patch_difference_policy": "only when exact is unavailable, explicitly authorized, recorded in a write-ahead transaction, and every build and health predicate passes",
-    "unrelated_upgrade": "prohibited",
-    "dist_upgrade": "prohibited",
-    "package_removal": "prohibited"
+    "unrelated_upgrade": "prohibited"
   },
-  "wsl_cuda": {
-    "lock": "bootstrap/configuration/cuda-wsl.lock.json",
-    "driver_boundary": "Windows owns the NVIDIA display driver; Linux inside WSL installs no NVIDIA display driver",
-    "required_bridge_paths": ["/dev/dxg", "/usr/lib/wsl/lib/libcuda.so.1", "/usr/lib/wsl/lib/nvidia-smi"],
-    "repository": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/",
-    "repository_signing_fingerprint": "EB693B3035CD5710E231E123A4B469963BF863CC",
-    "keyring_package": {"name": "cuda-keyring", "version": "1.1-1", "sha256": "eea6cc5f0eaeb99082d054b8c05ae206a378e31e88048df0310d59f651dceed2"},
-    "toolkit_package": {"name": "cuda-toolkit-13-3", "version": "13.3.1-1", "major_minor": "13.3"},
-    "forbidden_package_patterns": ["cuda", "cuda-13-3", "cuda-drivers", "cuda-drivers-*", "nvidia-driver-*"],
-    "required_acceptance": ["driver API initializes", "GPU visible through nvidia-smi", "nvcc compiles", "llama-server --list-devices reports CUDA0"]
-  },
-  "python_environments": {
-    "lock": "bootstrap/configuration/python-environments.lock.json",
-    "interpreter": "CPython 3.14",
-    "system_site_packages": false,
-    "user_site": "disabled",
-    "environments": [
-      {
-        "identity": "inspector",
-        "destination": "INSPECTOR/.venv",
-        "method": "python3.14 -m venv --without-pip",
-        "resolved_external_package_count": 0,
-        "import_proof": ["system_x_inspector"]
-      },
-      {
-        "identity": "gguf-api",
-        "destination": "model-api-gguf/api_service/.venv",
-        "method": "venv plus pip --require-hashes --only-binary=:all: --no-deps",
-        "package_index": "https://pypi.org/simple",
-        "resolved_artifact_hash_count": 23,
-        "declarations": ["model-api-gguf/api_service/requirements.in", "model-api-gguf/api_service/requirements.lock"],
-        "import_proof": ["fastapi", "httpx", "jsonschema", "pydantic", "pydantic_core", "starlette", "uvicorn", "watchfiles", "system_x_gguf_api.application"]
-      }
-    ]
+  "host_profile": {
+    "active_user": {
+      "non_root": true,
+      "owns_clone": true,
+      "owns_user_service": true
+    },
+    "architecture": "x86_64",
+    "identity": "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
+    "kernel_environment": "WSL2",
+    "lock": "bootstrap/configuration/ubuntu-26.04-wsl2-host.json",
+    "operating_system": {
+      "codename": "resolute",
+      "id": "ubuntu",
+      "version_id": "26.04"
+    },
+    "pid1": "systemd",
+    "service_manager": "systemd-user"
   },
   "llama_cpp": {
-    "lock": "bootstrap/configuration/llama-build.lock.json",
-    "path": "model-api-gguf/llama.cpp",
-    "origin": "https://github.com/ggml-org/llama.cpp",
-    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
-    "representation_in_git": "submodule gitlink only",
-    "generator": "Ninja",
     "build_type": "Release",
-    "target": "llama-server",
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
     "cuda_architectures": "75-virtual;80-virtual;86-real;89-real;90-virtual;120a-real;121a-real",
-    "target_compute_capability": "86",
-    "model_free_verification": ["--version", "--list-devices", "CUDA0 visible", "ldd has no unresolved libraries"]
-  },
-  "runtime": {
-    "lock": "bootstrap/configuration/runtime-layout.json",
-    "directory_entry_count": 60,
-    "collision_policy": "fail closed on symlink, wrong type, wrong mode, traversal, or existing unknown state",
-    "registry_database": "model-api-gguf/RUNTIME/api/database/model_registry.sqlite3",
-    "registry_schema": {"identity": "system-x.gguf-model-registry.v1", "version": 2},
-    "initial_registry_state": "schema metadata only; no model or runtime history"
-  },
-  "credentials": {
-    "lock": "bootstrap/configuration/credential-initialization.json",
-    "schema": {"identity": "system-x.api-credentials.v1", "version": 1},
-    "default": "generate-new",
-    "import_encrypted": "blocked until a separate encrypted bundle and explicit SIR authorization exist",
-    "tracked_in_git": false,
-    "raw_key_in_logs_or_results": false,
-    "handoff": "model-api-gguf/RUNTIME/api/auth/handoff/local-primary.key"
+    "generator": "Ninja",
+    "lock": "bootstrap/configuration/llama-build.lock.json",
+    "model_free_verification": [
+      "--version",
+      "--list-devices",
+      "CUDA0 visible",
+      "ldd has no unresolved libraries"
+    ],
+    "origin": "https://github.com/ggml-org/llama.cpp",
+    "path": "model-api-gguf/llama.cpp",
+    "representation_in_git": "ordinary vendored source at the completed R1 tip; exact gitlink retained only during verified publication batches",
+    "target": "llama-server",
+    "target_compute_capability": "86"
   },
   "platform_service": {
-    "lock": "bootstrap/configuration/service-registration.json",
     "adapter_identity": "system-x.linux-systemd-user-service.v1",
     "adapter_version": "1.0.0",
-    "service_name": "system-x-current-test.service",
-    "initial_desired_state": "STOPPED",
-    "unit_relative_to_home": ".config/systemd/user/system-x-current-test.service",
     "enablement_link_relative_to_home": ".config/systemd/user/default.target.wants/system-x-current-test.service",
-    "old_generated_unit_copied": false
+    "initial_desired_state": "STOPPED",
+    "lock": "bootstrap/configuration/service-registration.json",
+    "old_generated_unit_copied": false,
+    "service_name": "system-x-current-test.service",
+    "unit_relative_to_home": ".config/systemd/user/system-x-current-test.service"
   },
+  "portable_repository": {
+    "direct_package_names": [
+      "build-essential",
+      "ca-certificates",
+      "cmake",
+      "curl",
+      "dbus-user-session",
+      "git",
+      "ninja-build",
+      "pkg-config",
+      "python3.14",
+      "python3.14-venv",
+      "systemd",
+      "cuda-toolkit-13-3"
+    ],
+    "environment_reconstruction": "two private CPython 3.14 environments from committed locks",
+    "generated_state_in_git": false,
+    "llama_source_identity": {
+      "clean": true,
+      "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+      "origin": "https://github.com/ggml-org/llama.cpp",
+      "tag": "b10092",
+      "tree": "cfbb48d88cfd7f0530f27e08b0112dd66c001816"
+    },
+    "llama_source_provider": "vendored",
+    "model_admission_in_publication": false,
+    "ordinary_clone_after_completed_r1": true,
+    "recursive_submodule_required_after_completed_r1": false,
+    "target_host": {
+      "architecture": "x86_64",
+      "distribution_registration": {
+        "BasePath": "I:\\UBUNTU-ENV",
+        "DefaultUid": 1100,
+        "DistributionName": "Ubuntu-26.04",
+        "Flags": 15,
+        "Version": 2
+      },
+      "init": "systemd",
+      "kernel": "6.18.33.2-microsoft-standard-WSL2",
+      "root_mount": "/dev/sde ext4 rw,relatime,discard,errors=remount-ro,data=ordered",
+      "ubuntu": "Ubuntu 26.04 LTS",
+      "wsl": "WSL2",
+      "wsl_product_versions": {
+        "DXCore version": "10.0.26100.1-240331-1435.ge-release",
+        "Direct3D version": "1.611.1-81528511",
+        "Kernel version": "6.18.33.2-2",
+        "MSRDC version": "1.2.6676",
+        "WSL version": "2.7.10.0",
+        "WSLg version": "1.0.73.2",
+        "Windows version": "10.0.26200.8973"
+      }
+    }
+  },
+  "python_environments": {
+    "environments": [
+      {
+        "destination": "INSPECTOR/.venv",
+        "identity": "inspector",
+        "import_proof": [
+          "system_x_inspector"
+        ],
+        "method": "python3.14 -m venv --without-pip",
+        "resolved_external_package_count": 0
+      },
+      {
+        "declarations": [
+          "model-api-gguf/api_service/requirements.in",
+          "model-api-gguf/api_service/requirements.lock"
+        ],
+        "destination": "model-api-gguf/api_service/.venv",
+        "identity": "gguf-api",
+        "import_proof": [
+          "fastapi",
+          "httpx",
+          "jsonschema",
+          "pydantic",
+          "pydantic_core",
+          "starlette",
+          "uvicorn",
+          "watchfiles",
+          "system_x_gguf_api.application"
+        ],
+        "method": "venv plus pip --require-hashes --only-binary=:all: --no-deps",
+        "package_index": "https://pypi.org/simple",
+        "resolved_artifact_hash_count": 23
+      }
+    ],
+    "interpreter": "CPython 3.14",
+    "lock": "bootstrap/configuration/python-environments.lock.json",
+    "system_site_packages": false,
+    "user_site": "disabled"
+  },
+  "runtime": {
+    "collision_policy": "fail closed on symlink, wrong type, wrong mode, traversal, or existing unknown state",
+    "directory_entry_count": 60,
+    "initial_registry_state": "schema metadata only; no model or runtime history",
+    "lock": "bootstrap/configuration/runtime-layout.json",
+    "registry_database": "model-api-gguf/RUNTIME/api/database/model_registry.sqlite3",
+    "registry_schema": {
+      "identity": "system-x.gguf-model-registry.v1",
+      "version": 2
+    }
+  },
+  "schema": "system-x.new-ubuntu-requirements.v2",
+  "scope": "Portable reconstruction contract for a later clean Ubuntu clone; this record does not claim that the new host has been installed.",
   "verification": {
-    "levels": ["source-only", "host-ready", "build-ready", "service-process-ready", "waiting-for-model", "full-ready"],
-    "new_host_pre_model_target": "WAITING_FOR_MODEL",
+    "inference_ready_at_pre_model_target": false,
+    "levels": [
+      "source-only",
+      "host-ready",
+      "build-ready",
+      "service-process-ready",
+      "waiting-for-model",
+      "full-ready"
+    ],
     "model_required_for_core_service_health": false,
-    "inference_ready_at_pre_model_target": false
+    "new_host_pre_model_target": "WAITING_FOR_MODEL"
   },
-  "external_and_untracked": [
-    "credentials and credential databases",
-    "model artifacts",
-    "runtime databases, logs, locks, status and transactions",
-    "private Python environments",
-    "llama.cpp build output",
-    "systemd-generated unit and enablement link",
-    "Windows NVIDIA display driver and WSL driver bridge",
-    "OpenClaw evidence/history",
-    "system-x-chat",
-    "UNCENSORED-ENV"
-  ],
-  "current_host_read_only_proof": {
-    "ubuntu": "26.04 resolute",
-    "wsl": 2,
-    "python": "3.14.4",
-    "cuda_toolkit": "13.3",
-    "gpu": "NVIDIA GeForce RTX 3060 compute capability 8.6",
-    "host_plan_blocker_count": 0,
-    "host_plan_install_count": 0,
-    "host_plan_mutation_performed": false
+  "wsl_cuda": {
+    "driver_boundary": "Windows owns the NVIDIA display driver; Linux inside WSL installs no NVIDIA display driver",
+    "forbidden_package_patterns": [
+      "cuda",
+      "cuda-13-3",
+      "cuda-drivers",
+      "cuda-drivers-*",
+      "nvidia-driver-*"
+    ],
+    "keyring_package": {
+      "name": "cuda-keyring",
+      "sha256": "eea6cc5f0eaeb99082d054b8c05ae206a378e31e88048df0310d59f651dceed2",
+      "version": "1.1-1"
+    },
+    "lock": "bootstrap/configuration/cuda-wsl.lock.json",
+    "repository": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/",
+    "repository_signing_fingerprint": "EB693B3035CD5710E231E123A4B469963BF863CC",
+    "required_acceptance": [
+      "driver API initializes",
+      "GPU visible through nvidia-smi",
+      "nvcc compiles",
+      "llama-server --list-devices reports CUDA0"
+    ],
+    "required_bridge_paths": [
+      "/dev/dxg",
+      "/usr/lib/wsl/lib/libcuda.so.1",
+      "/usr/lib/wsl/lib/nvidia-smi"
+    ],
+    "toolkit_package": {
+      "major_minor": "13.3",
+      "name": "cuda-toolkit-13-3",
+      "version": "13.3.1-1"
+    }
   }
 }

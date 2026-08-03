@@ -1,4 +1,4 @@
-# BEGIN OPENCLAW SYSMIN.01 X.E SANITIZED-BOUNDARY
+# BEGIN OPENCLAW SYSMIN.02.PUSH.R1 PORTABLE-BOUNDARY
 # Exact secret and mutable runtime roots
 /.system-x-bootstrap-state/
 /model-api-gguf/RUNTIME/api/auth/
@@ -11,6 +11,11 @@
 /model-api-gguf/MODEL/
 /model-api-native/MODEL/
 *.gguf
+# Exact upstream llama.cpp vocabulary fixtures are source-controlled test data,
+# not admitted production models. They are authenticated by the vendor manifest.
+!/model-api-gguf/llama.cpp/models/ggml-vocab-*.gguf
+!/.vendor-staging/llama.cpp/models/ggml-vocab-*.gguf
+
 *.safetensors
 *.pt
 *.pth
@@ -29,6 +34,8 @@
 
 # Exact generated third-party build root
 /model-api-gguf/llama.cpp/build/
+/.vendor-staging/llama.cpp/build/
+/.vendor-staging/llama.cpp/.git/
 
 # Safe generated caches, bytecode, distributions, databases and compiled output
 **/__pycache__/

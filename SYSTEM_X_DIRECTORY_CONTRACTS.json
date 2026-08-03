@@ -1,0 +1,233 @@
+{
+  "generated_utc": "2026-08-03T16:31:00Z",
+  "git_stores_empty_directories": false,
+  "reconstruction_contracts": {
+    "cache_bytecode_temp": {
+      "reconstruction": "created incidentally by interpreters, tests, compilers and runtime operations",
+      "repository_payload": false
+    },
+    "cuda_and_host_toolchain": {
+      "cuda": "cuda-toolkit-13-3 only; Linux NVIDIA display driver packages forbidden",
+      "repository_payload": false,
+      "ubuntu": "26.04 LTS on WSL2 x86_64 with systemd",
+      "verification": "bootstrap identify/inspect-host/plan/apply-host and physical nvcc/GPU checks"
+    },
+    "generated_build": {
+      "build_type": "Release",
+      "compute_capability": "86",
+      "cuda_option": "GGML_CUDA=ON",
+      "expected_smoke": "no-model process smoke only; no model admission",
+      "generator": "Ninja",
+      "path": "model-api-gguf/llama.cpp/build",
+      "source_commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+      "source_origin": "https://github.com/ggml-org/llama.cpp",
+      "source_tag": "b10092",
+      "target": "llama-server"
+    },
+    "models": {
+      "admission": "physical inspection and explicit Inspector admission; never automatic download",
+      "repository_payload": false,
+      "roots": [
+        "INSPECTOR/MODEL-TEST",
+        "model-api-gguf/MODEL",
+        "model-api-native/MODEL"
+      ],
+      "upstream_fixture_exception": "only exact files tracked by pinned upstream llama.cpp source are vendor source"
+    },
+    "python_environments": [
+      {
+        "locks": [
+          "INSPECTOR/environment.lock.json",
+          "bootstrap/configuration/python-environments.lock.json"
+        ],
+        "owner_component": "Inspector",
+        "path": "INSPECTOR/.venv",
+        "post_build": "committed import checks and source-only Inspector tests",
+        "python": "CPython 3.14 private environment",
+        "rebuild": "python3.14 -m venv followed by the committed bootstrap environment operation",
+        "system_site_packages": false
+      },
+      {
+        "locks": [
+          "model-api-gguf/api_service/environment.lock.json",
+          "model-api-gguf/api_service/requirements.in",
+          "model-api-gguf/api_service/requirements.lock",
+          "bootstrap/configuration/python-environments.lock.json"
+        ],
+        "owner_component": "System X API service",
+        "path": "model-api-gguf/api_service/.venv",
+        "post_build": "committed import checks and API source tests",
+        "python": "CPython 3.14 private environment",
+        "rebuild": "python3.14 -m venv followed by exact committed wheel/hash installation",
+        "system_site_packages": false
+      }
+    ],
+    "runtime_and_databases": {
+      "initialization": "bootstrap creates only empty current-schema runtime/databases when explicitly executed",
+      "repository_payload": false,
+      "roots": [
+        "INSPECTOR/RUNTIME",
+        "INSPECTOR/capabilities",
+        "model-api-gguf/RUNTIME",
+        "model-api-native/RUNTIME"
+      ],
+      "schemas": "tracked schemas and bootstrap runtime-layout configuration"
+    },
+    "secrets": {
+      "classes": [
+        "local API key handoff",
+        "pepper",
+        "credential verifier database",
+        "tokens",
+        "private keys"
+      ],
+      "operation": "fresh local generation/import through bootstrap/runtime operations",
+      "raw_value_committed": false,
+      "repository_payload": false,
+      "required_mode": "owner-only where generated"
+    }
+  },
+  "required_empty_directories": [
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/locks",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/logs",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/results/deployment",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/results/promotion",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/results/retirement",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/staging",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "INSPECTOR/RUNTIME/tmp",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/api/backend/cache",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/api/replacement-staging",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/api/retirement-staging",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/cache/host-bootstrap-method-b/nvidia",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/cache/host-bootstrap-method-b/xdg",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/service_control/locks",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/service_control/pids",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0700",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/tmp/host-bootstrap-method-b/gnupg",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-gguf/RUNTIME/tmp/host-bootstrap-method-b/tmp",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "required empty runtime directory represented in layout contract",
+      "relative_path": "model-api-native/RUNTIME",
+      "type": "directory"
+    },
+    {
+      "classification": "REPRESENT_REQUIRED_EMPTY_DIRECTORY_IN_LAYOUT_MANIFEST",
+      "mode": "0755",
+      "reason": "untracked empty directory represented in layout contract",
+      "relative_path": "model-api-native/vLLM",
+      "type": "directory"
+    }
+  ],
+  "required_empty_directory_count": 18,
+  "required_generated_roots": {
+    "gguf_api_environment": "model-api-gguf/api_service/.venv",
+    "gguf_build": "model-api-gguf/llama.cpp/build",
+    "gguf_models": "model-api-gguf/MODEL",
+    "gguf_runtime": "model-api-gguf/RUNTIME",
+    "inspector_capability_records": "INSPECTOR/capabilities",
+    "inspector_environment": "INSPECTOR/.venv",
+    "inspector_runtime": "INSPECTOR/RUNTIME",
+    "native_models": "model-api-native/MODEL",
+    "native_runtime": "model-api-native/RUNTIME"
+  },
+  "schema": "system-x.directory-contracts.v1",
+  "special_file_count": 0,
+  "special_files": []
+}
