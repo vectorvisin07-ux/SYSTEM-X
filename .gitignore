@@ -14,7 +14,6 @@
 # Exact upstream llama.cpp vocabulary fixtures are source-controlled test data,
 # not admitted production models. They are authenticated by the vendor manifest.
 !/model-api-gguf/llama.cpp/models/ggml-vocab-*.gguf
-!/.vendor-staging/llama.cpp/models/ggml-vocab-*.gguf
 
 *.safetensors
 *.pt
@@ -34,8 +33,6 @@
 
 # Exact generated third-party build root
 /model-api-gguf/llama.cpp/build/
-/.vendor-staging/llama.cpp/build/
-/.vendor-staging/llama.cpp/.git/
 
 # Safe generated caches, bytecode, distributions, databases and compiled output
 **/__pycache__/
@@ -65,4 +62,4 @@ htmlcov/
 *~
 *.swp
 *.swo
-# END OPENCLAW SYSMIN.01 X.E SANITIZED-BOUNDARY
+# END OPENCLAW SYSMIN.02.PUSH.R1 PORTABLE-BOUNDARY

@@ -1,14 +1,14 @@
 {
   "approved_projection": {
     "approved_path_manifest_format": "repository-relative UTF-8 paths, bytewise sorted, NUL terminated",
-    "approved_path_manifest_sha256": "0d5856dcaee28ce225e8a687fe8ef61847d3193f61dec798b04fc4b475206af6",
+    "approved_path_manifest_sha256": "23767cb41aaf6aa70cc501e11acf6171204fe508eb4ccae4b8bf2cc172d488cc",
     "case_insensitive_collision_count": 0,
-    "control_file_count": 4,
-    "gitlink_count": 1,
+    "control_file_count": 18,
+    "gitlink_count": 0,
     "malformed_path_count": 0,
-    "ordinary_regular_file_count": 186,
-    "source_regular_file_count": 182,
-    "total_index_entry_count": 187
+    "ordinary_regular_file_count": 3443,
+    "source_regular_file_count": 3425,
+    "total_index_entry_count": 3443
   },
   "content_assertions": {
     "OpenClaw_history": "absent",
@@ -103,7 +103,7 @@
       "tracked": false
     }
   ],
-  "generated_utc": "2026-08-03T16:31:00Z",
+  "generated_utc": "2026-08-03T17:38:57+00:00",
   "portable_bootstrap": {
     "configuration_identities": [
       "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
@@ -138,8 +138,9 @@
     "version": "1.0.0"
   },
   "r1_portable_publication": {
-    "first_party_portable_files": 186,
+    "first_party_portable_files": 200,
     "generated_private_model_runtime_state_in_git": false,
+    "llama_complete_vendored_manifest_sha256": "67e0de2dab224c6e941b1dc8de3ab4a0156b966e377c21ec4e6a11c34e7c287d",
     "llama_identity": {
       "clean": true,
       "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
@@ -156,10 +157,12 @@
       "SYSTEM_X_DIRECTORY_CONTRACTS.json",
       "SYSTEM_X_EVIDENCE_INDEX.json"
     ],
+    "ordinary_clone_requires_submodule_operation": false,
     "policy": "complete reproducible portable source tree",
     "raw_openclaw_outputs_in_git": false,
     "source_parent": "08f144e8c2e702eccfa923ca8a600f9b7367c244",
-    "transition_state_at_this_manifest_commit": "gitlink retained pending remotely verified vendor batches"
+    "temporary_vendor_staging_path_present": false,
+    "transition_state_at_this_manifest_commit": "complete ordinary vendored source at final path"
   },
   "repository": {
     "branch": "main",
@@ -182,15 +185,7 @@
       "tracked": false
     }
   ],
-  "submodules": [
-    {
-      "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
-      "index_mode": "160000",
-      "origin": "https://github.com/ggml-org/llama.cpp",
-      "path": "model-api-gguf/llama.cpp",
-      "treatment": "exact-gitlink-only"
-    }
-  ],
+  "submodules": [],
   "tracked_source": {
     "canonical_record_fields": [
       "blob_sha1",
@@ -213,7 +208,11 @@
       "TEST_SOURCE": 32
     },
     "omitted_source_path_count": 0,
-    "prebootstrap_source_unchanged": true,
+    "prepublication_first_party_changes": [
+      "bootstrap/system_x_bootstrap/llama.py",
+      "bootstrap/system_x_bootstrap/paths.py",
+      "bootstrap/tests/test_bootstrap.py"
+    ],
     "regular_file_bytes": 3238090,
     "regular_file_count": 182
   }

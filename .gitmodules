@@ -1,3 +1,0 @@
-[submodule "model-api-gguf/llama.cpp"]
-	path = model-api-gguf/llama.cpp
-	url = https://github.com/ggml-org/llama.cpp

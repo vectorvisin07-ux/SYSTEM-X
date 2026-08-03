@@ -233,7 +233,7 @@ class BootstrapMatrix(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
 
-    def test_02_self_relative_root_discovery(self) -> None:
+    def test_02_self_relative_vendored_root_discovery_without_gitmodules(self) -> None:
         self.assertEqual(discover_repository_root(REPOSITORY_ROOT / "INSPECTOR"), REPOSITORY_ROOT)
 
     def test_03_ubuntu_2604_pass(self) -> None:

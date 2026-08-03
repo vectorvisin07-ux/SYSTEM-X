@@ -12,7 +12,6 @@ from .errors import BootstrapError, ErrorCode
 ROOT_MARKERS = (
     "SYSTEM_X_REPOSITORY_MANIFEST.json",
     "SYSTEM_X_NEW_UBUNTU_REQUIREMENTS.json",
-    ".gitmodules",
 )
 
 
@@ -30,6 +29,8 @@ def discover_repository_root(start: Path | str | None = None) -> Path:
     for candidate in _candidate_ancestors(origin):
         if all((candidate / marker).is_file() for marker in ROOT_MARKERS):
             if not (candidate / "model-api-gguf").is_dir():
+                continue
+            if not (candidate / "bootstrap/configuration").is_dir():
                 continue
             return candidate
     raise BootstrapError(
