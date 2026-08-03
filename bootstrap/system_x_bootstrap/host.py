@@ -73,7 +73,7 @@ class HostInspector:
         python = self._python_facts()
         tools = self._tool_facts()
         gpu = self._gpu_facts()
-        submodule = self._submodule_facts()
+        llama_source = self._third_party_source_facts()
 
         unit = self.mapped("/home")
         service_unit = Path.home() / ".config" / "systemd" / "user" / "system-x-current-test.service"
@@ -110,7 +110,7 @@ class HostInspector:
             "python": python,
             "tools": tools,
             "gpu": gpu,
-            "submodule": submodule,
+            "llama_source": llama_source,
             "runtime": {
                 "root_present": (self.repository_root / "model-api-gguf" / "RUNTIME").is_dir(),
                 "credential_database_present": (
@@ -216,18 +216,29 @@ class HostInspector:
             "display_driver_owner": "Windows",
         }
 
-    def _submodule_facts(self) -> dict[str, Any]:
+    def _third_party_source_facts(self) -> dict[str, Any]:
         path = self.repository_root / "model-api-gguf" / "llama.cpp"
-        if not path.is_dir():
-            return {"present": False}
-        origin = self._run(("git", "-C", str(path), "remote", "get-url", "origin"))
-        head = self._run(("git", "-C", str(path), "rev-parse", "HEAD"))
-        status = self._run(("git", "-C", str(path), "status", "--porcelain=v1", "--untracked-files=all"))
+        identity_path = self.repository_root / "model-api-gguf" / "LLAMA_CPP_SOURCE_IDENTITY.json"
+        identity: dict[str, Any] = {}
+        if identity_path.is_file() and not identity_path.is_symlink():
+            try:
+                value = json.loads(identity_path.read_text(encoding="utf-8"))
+                if isinstance(value, dict):
+                    identity = value
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                identity = {}
         return {
-            "present": origin.returncode == 0 and head.returncode == 0,
-            "origin": _first_line(origin),
-            "commit": _first_line(head),
-            "clean": status.returncode == 0 and not status.stdout,
+            "present": path.is_dir(),
+            "mode": "vendored",
+            "identity_present": bool(identity),
+            "origin": identity.get("origin"),
+            "tag": identity.get("tag"),
+            "commit": identity.get("commit"),
+            "tree": identity.get("upstream_tree"),
+            "tracked_file_count": identity.get("tracked_file_count"),
+            "nested_git_present": (path / ".git").exists() or (path / ".git").is_symlink(),
+            "build_output_present": (path / "build").exists() or (path / "build").is_symlink(),
+            "network_used": False,
         }
 
 

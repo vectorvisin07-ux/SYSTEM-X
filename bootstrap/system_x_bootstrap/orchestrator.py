@@ -16,7 +16,7 @@ from .credentials import credential_status, initialize_credentials
 from .environments import build_environments, environment_status
 from .errors import BootstrapError, ErrorCode
 from .host import HostInspector
-from .llama import build_llama_server, initialize_submodules, inspect_submodule
+from .llama import build_llama_server, initialize_submodules, inspect_vendored_source
 from .packages import apply_host, build_host_plan
 from .paths import RepositoryPaths
 from .result import MachineResult
@@ -98,7 +98,7 @@ class BootstrapOrchestrator:
             item["environment_identity"]: environment_status(self.paths, environment_lock, item)
             for item in environment_lock["environments"]
         }
-        submodule = inspect_submodule(self.paths, self.configs["llama-build.lock.json"], self.runner)
+        llama_source = inspect_vendored_source(self.paths, self.configs["llama-build.lock.json"])
         layout_entries = expand_runtime_layout(self.paths, self.configs["runtime-layout.json"])
         runtime_physical = any((self.paths.root / item["path"]).exists() for item in layout_entries)
         credential = credential_status(self.paths, self.configs["credential-initialization.json"])
@@ -110,8 +110,8 @@ class BootstrapOrchestrator:
         plan["would_build"].extend(
             [f"private environment {name}" for name, state in environment_states.items() if state == "absent"]
         )
-        if not submodule["exact"]:
-            plan["would_create"].append("exact llama.cpp submodule checkout")
+        if not llama_source["exact"]:
+            plan["blockers"].append("vendored llama.cpp source identity mismatch")
         binary = self.paths.root / self.configs["llama-build.lock.json"]["binary"]
         if not binary.is_file():
             plan["would_build"].append("locked CUDA llama-server")
@@ -127,7 +127,7 @@ class BootstrapOrchestrator:
         if external_states:
             plan["would_leave_external"].append("pre-existing unbound private environments")
         plan["component_observations"] = {
-            "submodule": submodule,
+            "llama_source": llama_source,
             "environments": environment_states,
             "runtime": runtime_status(self.paths, self.configs["runtime-layout.json"]),
             "credential": credential["state"],
@@ -143,7 +143,7 @@ class BootstrapOrchestrator:
         details = {
             "persistent_state": state.as_dict(),
             "incomplete_transactions": [path.name for path in incomplete_transactions(self.paths.transaction_directory)],
-            "submodule": inspect_submodule(self.paths, self.configs["llama-build.lock.json"], self.runner),
+            "llama_source": inspect_vendored_source(self.paths, self.configs["llama-build.lock.json"]),
             "environments": {
                 item["environment_identity"]: environment_status(self.paths, environment_lock, item)
                 for item in environment_lock["environments"]

@@ -3,8 +3,12 @@
   "version": 1,
   "source": {
     "path": "model-api-gguf/llama.cpp",
+    "mode": "vendored",
     "origin": "https://github.com/ggml-org/llama.cpp",
-    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a"
+    "tag": "b10092",
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+    "tree": "cfbb48d88cfd7f0530f27e08b0112dd66c001816",
+    "identity_record": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json"
   },
   "build_directory": "model-api-gguf/llama.cpp/build",
   "binary": "model-api-gguf/llama.cpp/build/bin/llama-server",

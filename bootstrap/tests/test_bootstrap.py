@@ -42,8 +42,10 @@ from system_x_bootstrap.host import (
 )
 from system_x_bootstrap.llama import (
     _cache_matches,
+    _canonical_manifest,
     cmake_arguments,
-    inspect_submodule,
+    initialize_submodules,
+    inspect_vendored_source,
     verify_llama_no_model,
 )
 from system_x_bootstrap.packages import build_host_plan, validate_apt_simulation
@@ -97,6 +99,59 @@ class ActiveTransaction:
 
     def claim_created_path(self, relative: str) -> Path:
         raise AssertionError(f"fixture unexpectedly claimed {relative}")
+
+
+def vendored_fixture(root: Path, base_lock: dict[str, object]) -> tuple[RepositoryPaths, dict[str, object], Path, Path]:
+    source = root / "model-api-gguf/llama.cpp"
+    identity_path = root / "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json"
+    source.mkdir(parents=True)
+    payloads = {
+        "LICENSE": b"public fixture license\n",
+        "src/main.cpp": b"int main() { return 0; }\n",
+        "scripts/tool.sh": b"#!/bin/sh\nexit 0\n",
+    }
+    files = []
+    for relative, raw in sorted(payloads.items()):
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        mode = "100755" if relative.endswith(".sh") else "100644"
+        if mode == "100755":
+            path.chmod(0o755)
+        blob = hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
+        files.append({
+            "path": relative,
+            "mode": mode,
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "git_blob_oid": blob,
+        })
+    lock = copy.deepcopy(base_lock)
+    source_lock = lock["source"]
+    assert isinstance(source_lock, dict)
+    source_lock.update({
+        "mode": "vendored",
+        "tag": "b10092",
+        "tree": "f" * 40,
+        "identity_record": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
+    })
+    identity = {
+        "schema": "system-x.llama-cpp-source-identity.v1",
+        "version": 1,
+        "origin": source_lock["origin"],
+        "tag": source_lock["tag"],
+        "commit": source_lock["commit"],
+        "upstream_tree": source_lock["tree"],
+        "tracked_file_count": len(files),
+        "tracked_byte_count": sum(item["bytes"] for item in files),
+        "complete_vendored_manifest_sha256": hashlib.sha256(_canonical_manifest(files)).hexdigest(),
+        "license_identities": [{"path": "LICENSE", "sha256": files[0]["sha256"]}],
+        "source_patch_count": 0,
+        "build_output_excluded": True,
+        "files": files,
+    }
+    identity_path.write_text(json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return repository_paths(root), lock, source, identity_path
 
 
 class GitRunner:
@@ -267,20 +322,71 @@ class BootstrapMatrix(unittest.TestCase):
                 cuda_lock=self.configs["cuda-wsl.lock.json"],
             )
 
-    def test_20_exact_submodule_pass(self) -> None:
-        self.assertTrue(inspect_submodule(self.paths, self.configs["llama-build.lock.json"], GitRunner(self.configs["llama-build.lock.json"]))["exact"])
+    def test_20_vendored_source_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, _, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            result = inspect_vendored_source(paths, lock)
+            self.assertTrue(result["exact"])
+            self.assertEqual(result["state"], "VENDORED_SOURCE_VERIFIED")
 
-    def test_21_wrong_submodule_origin_block(self) -> None:
-        runner = GitRunner(self.configs["llama-build.lock.json"], origin="https://example.invalid/llama.cpp")
-        self.assertFalse(inspect_submodule(self.paths, self.configs["llama-build.lock.json"], runner)["exact"])
+    def test_21_missing_vendored_file_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / "LICENSE").unlink()
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
 
-    def test_22_wrong_submodule_commit_block(self) -> None:
-        runner = GitRunner(self.configs["llama-build.lock.json"], commit="0" * 40)
-        self.assertFalse(inspect_submodule(self.paths, self.configs["llama-build.lock.json"], runner)["exact"])
+    def test_22_extra_vendored_file_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / "extra.txt").write_text("extra\n", encoding="utf-8")
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
 
-    def test_23_dirty_submodule_block(self) -> None:
-        runner = GitRunner(self.configs["llama-build.lock.json"], dirty=True)
-        self.assertFalse(inspect_submodule(self.paths, self.configs["llama-build.lock.json"], runner)["exact"])
+    def test_23_content_mismatch_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / "src/main.cpp").write_text("changed\n", encoding="utf-8")
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
+
+    def test_23a_mode_mismatch_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / "LICENSE").chmod(0o755)
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
+
+    def test_23b_identity_record_mismatch_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, _, identity_path = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            identity = json.loads(identity_path.read_text(encoding="utf-8"))
+            identity["commit"] = "0" * 40
+            identity_path.write_text(json.dumps(identity, sort_keys=True) + "\n", encoding="utf-8")
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
+
+    def test_23c_nested_git_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / ".git").mkdir()
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
+
+    def test_23d_build_output_block(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, source, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            (source / "build").mkdir()
+            self.assertFalse(inspect_vendored_source(paths, lock)["exact"])
+
+    def test_23e_vendored_mode_never_calls_network_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, _, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            def forbidden(*args, **kwargs):
+                raise AssertionError("network attempted in vendored mode")
+            self.assertTrue(inspect_vendored_source(paths, lock, forbidden)["exact"])
+
+    def test_23f_initialize_submodules_is_verification_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, lock, _, _ = vendored_fixture(Path(temporary), self.configs["llama-build.lock.json"])
+            transaction = ActiveTransaction()
+            result = initialize_submodules(paths, lock, transaction=transaction, authorized=True)
+            self.assertFalse(result["changed"])
+            self.assertEqual(result["state"], "VENDORED_SOURCE_VERIFIED")
 
     def test_24_cmake_profile_round_trip(self) -> None:
         lock = self.configs["llama-build.lock.json"]
@@ -357,9 +463,19 @@ class BootstrapMatrix(unittest.TestCase):
             def __call__(self, argv, *, cwd=None, env=None, timeout=60):
                 raw = "sxk_v1_" + "a" * 32 + "_" + "B" * 43
                 return CommandResult(tuple(argv), 0, raw + "\n", "")
-        with self.assertRaises(BootstrapError) as caught:
-            _credential_command(self.paths, self.configs["credential-initialization.json"], ("inspect",), RawRunner())
-        self.assertEqual(caught.exception.code, ErrorCode.SECRET_POLICY_VIOLATION)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            root.mkdir()
+            paths = repository_paths(root)
+            contract = copy.deepcopy(self.configs["credential-initialization.json"])
+            python = root / contract["python_environment"]
+            python.parent.mkdir(parents=True)
+            python.write_text("fixture\n", encoding="utf-8")
+            python.chmod(0o755)
+            (root / contract["source_root"]).mkdir(parents=True)
+            with self.assertRaises(BootstrapError) as caught:
+                _credential_command(paths, contract, ("inspect",), RawRunner())
+            self.assertEqual(caught.exception.code, ErrorCode.SECRET_POLICY_VIOLATION)
 
     def adapter_fixture(self) -> tuple[dict[str, object], list[tuple[str, ...]]]:
         temporary = tempfile.TemporaryDirectory()
@@ -434,12 +550,21 @@ class BootstrapMatrix(unittest.TestCase):
         self.assertNotIn("restart", flattened)
 
     def test_34_model_load_absent(self) -> None:
-        runner = GitRunner(self.configs["llama-build.lock.json"])
-        result = verify_llama_no_model(self.paths, self.configs["llama-build.lock.json"], runner)
-        self.assertFalse(result["model_loaded"])
-        flattened = [value for call in runner.calls for value in call]
-        self.assertNotIn("--model", flattened)
-        self.assertFalse(any(value.endswith(".gguf") for value in flattened))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repo"
+            root.mkdir()
+            paths = repository_paths(root)
+            lock = copy.deepcopy(self.configs["llama-build.lock.json"])
+            binary = root / lock["binary"]
+            binary.parent.mkdir(parents=True)
+            binary.write_text("fixture\n", encoding="utf-8")
+            binary.chmod(0o755)
+            runner = GitRunner(lock)
+            result = verify_llama_no_model(paths, lock, runner)
+            self.assertFalse(result["model_loaded"])
+            flattened = [value for call in runner.calls for value in call]
+            self.assertNotIn("--model", flattened)
+            self.assertFalse(any(value.endswith(".gguf") for value in flattened))
 
     def test_35_network_absent_for_inspect_and_plan(self) -> None:
         package_lock = self.configs["ubuntu-package.lock.json"]
@@ -558,6 +683,8 @@ class BootstrapMatrix(unittest.TestCase):
     def test_40_no_absolute_old_host_path_in_persistent_source(self) -> None:
         forbidden = ("".join(("/", "home", "/", "user", "/")), "OPEN" + "CLAW", "UNCENSORED" + "-ENV")
         for path in BOOTSTRAP_ROOT.rglob("*"):
+            if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+                continue
             if path.is_file() and not path.is_symlink():
                 text = path.read_text(encoding="utf-8")
                 for value in forbidden:

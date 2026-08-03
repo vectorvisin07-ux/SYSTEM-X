@@ -10,7 +10,7 @@ from .credentials import credential_status
 from .environments import environment_status, validate_environment_lock
 from .errors import BootstrapError, ErrorCode
 from .host import HostInspector, cuda_toolkit_ready, host_blockers, python_ready
-from .llama import inspect_submodule, verify_llama_no_model
+from .llama import inspect_vendored_source, verify_llama_no_model
 from .paths import RepositoryPaths
 from .runtime import expand_runtime_layout, runtime_status
 from .service import service_status, verify_service_source_contract
@@ -35,13 +35,19 @@ def verify_source(
     validate_environment_lock(paths, configs["python-environments.lock.json"])
     entries = expand_runtime_layout(paths, configs["runtime-layout.json"])
     verify_service_source_contract(paths, configs["service-registration.json"])
-    submodule = inspect_submodule(paths, configs["llama-build.lock.json"], runner)
-    if not submodule["exact"]:
-        raise BootstrapError(ErrorCode.SUBMODULE_MISMATCH, "source-only verification requires the exact clean llama.cpp checkout")
+    source = inspect_vendored_source(paths, configs["llama-build.lock.json"])
+    if not source["exact"]:
+        raise BootstrapError(
+            ErrorCode.INTEGRITY_FAILURE,
+            "source-only verification requires the exact vendored llama.cpp tree",
+            context={"reason": source["reason"]},
+        )
     return {
         "configuration_count": len(configs),
         "runtime_entry_count": len(entries),
-        "submodule_commit": submodule["commit"],
+        "third_party_mode": "vendored",
+        "source_state": source["state"],
+        "source_commit": source["commit"],
         "model_required": False,
     }
 
