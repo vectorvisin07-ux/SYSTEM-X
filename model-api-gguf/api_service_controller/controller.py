@@ -161,8 +161,8 @@ DEPENDENCY_FILES = {
         "40b0d4ed2d4f8b54bf064884cec4ea4c727e297a1ad1a874bc9f930344769452",
     ),
     "src/system_x_gguf_api/model_registry.py": (
-        24310,
-        "053e9d43b887502f1d67362c1d7573f312a013bdf0eb7551ce8881186792cc94",
+        24490,
+        "80944b3c1058091fead1436d31140cff476ec8c255bfe405386f3ae5577b834b",
     ),
     "src/system_x_gguf_api/openai_adapter.py": (
         24174,
