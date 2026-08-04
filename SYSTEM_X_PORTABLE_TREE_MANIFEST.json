@@ -9,7 +9,7 @@
     "unknown_portable_path_count": 0,
     "vendor_staging_absent": true
   },
-  "claim": "normalized vendored source inputs plus separately enumerated generated documentation/manifests",
+  "claim": "normalized vendored source plus completed first-party source-only closure receipt and separately enumerated generated documentation/manifests",
   "files": [
     {
       "authority": "current-authoritative-live-source",
@@ -973,7 +973,7 @@
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 10425,
+      "bytes": 10363,
       "class": "TEST_SOURCE",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -986,8 +986,8 @@
         "source": true,
         "test": true
       },
-      "sha256": "535638756038bf7aa37ff963933170a03dc51f3e9389cdeed17cf0ffd350b6d7",
-      "source_git_blob_oid": "1387eda2cd881125a29f4b379f7327b4ea39ba9d",
+      "sha256": "266a334bd7b1953b693a836696084dde6fea1f45119e17f0f633374969bd7fac",
+      "source_git_blob_oid": "83c5d6afd02f41673ce463e8fddd893c4ec97985",
       "source_owner": "System X Inspector",
       "type": "regular"
     },
@@ -1213,7 +1213,7 @@
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 5853,
+      "bytes": 5948,
       "class": "TEST_SOURCE",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -1226,8 +1226,8 @@
         "source": true,
         "test": true
       },
-      "sha256": "8858d59a97d9b456c8a67cb4a07b3f4cd7cc34984ac91bb2e0a52c4c1ecf311d",
-      "source_git_blob_oid": "949215fedd143d15a3e8922074900cfdd823a4d0",
+      "sha256": "bcb6cccbefc9fc4b5217eb3ecf4935c85814b2d8959968e7542b47da377287da",
+      "source_git_blob_oid": "46d65f5025a16cda51391629bb0826a0a7d3429f",
       "source_owner": "System X Inspector",
       "type": "regular"
     },
@@ -68592,30 +68592,37 @@
       "type": "regular"
     }
   ],
-  "final_accounted_path_count": 3443,
+  "final_accounted_path_count": 3444,
   "final_vendor_identity_path": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
   "first_party_frozen_file_count_before_generated_docs": 186,
-  "frozen_input_total_bytes_without_removed_gitmodules": 165051355,
-  "generated_utc": "2026-08-04T11:53:46Z",
-  "phase": "rebuild-normalized-vendored-source",
+  "frozen_input_total_bytes_without_removed_gitmodules": 165051388,
+  "generated_utc": "2026-08-04T15:16:52Z",
+  "phase": "rebuild-first-party-source-closure",
+  "rebuild_03_receipt": {
+    "closure_result": "FIRST_PARTY_SOURCE_CLOSURE_COMPLETE",
+    "path": "docs/rebuild/receipts/REBUILD_03.json",
+    "predecessor_commit": "5102167104a072b0c2bd1f11ac038fe3ed895e76",
+    "schema": "system-x.rebuild-source-closure-receipt.v1"
+  },
   "required_final_identity_path": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
   "required_final_identity_path_count": 1,
-  "required_final_path_count": 3443,
+  "required_final_path_count": 3444,
   "required_generated_paths": [
     "README.md",
-    "THIRD_PARTY_NOTICES.md",
-    "docs/INSTALLATION.md",
-    "docs/DEPENDENCIES.md",
-    "docs/REPOSITORY_LAYOUT.md",
-    "docs/GENERATED_PRIVATE_AND_MODEL_STATE.md",
-    "docs/BUILD_AND_RUNTIME.md",
-    "docs/HISTORY_AND_ACCEPTANCE.md",
-    "docs/TROUBLESHOOTING.md",
-    "SYSTEM_X_PORTABLE_TREE_MANIFEST.json",
-    "SYSTEM_X_EXCLUDED_STATE_MANIFEST.json",
     "SYSTEM_X_DEPENDENCY_LOCK.json",
     "SYSTEM_X_DIRECTORY_CONTRACTS.json",
-    "SYSTEM_X_EVIDENCE_INDEX.json"
+    "SYSTEM_X_EVIDENCE_INDEX.json",
+    "SYSTEM_X_EXCLUDED_STATE_MANIFEST.json",
+    "SYSTEM_X_PORTABLE_TREE_MANIFEST.json",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/BUILD_AND_RUNTIME.md",
+    "docs/DEPENDENCIES.md",
+    "docs/GENERATED_PRIVATE_AND_MODEL_STATE.md",
+    "docs/HISTORY_AND_ACCEPTANCE.md",
+    "docs/INSTALLATION.md",
+    "docs/REPOSITORY_LAYOUT.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/rebuild/receipts/REBUILD_03.json"
   ],
   "schema": "system-x.portable-tree-manifest.v1",
   "source_parent": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",

@@ -21,7 +21,6 @@ class SourceGateTest(unittest.TestCase):
                 *cls.package_sources,
                 *(cls.root / "schemas").glob("*.json"),
                 *(cls.root / "tests").glob("*.py"),
-                cls.root / "environment.lock.json",
             ],
             key=lambda path: path.relative_to(cls.root).as_posix(),
         )
@@ -131,6 +130,8 @@ class SourceGateTest(unittest.TestCase):
         )
 
     def test_source_freeze_manifest_is_deterministic(self) -> None:
+        self.assertFalse((self.root / "environment.lock.json").exists())
+        self.assertTrue(all(path.is_file() for path in self.all_sources))
         manifest = [
             {
                 "path": path.relative_to(self.root).as_posix(),

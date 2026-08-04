@@ -1,0 +1,418 @@
+{
+  "branch": "rebuild/b8bd-system-x",
+  "closure_result": "FIRST_PARTY_SOURCE_CLOSURE_COMPLETE",
+  "entrypoint_matrix": {
+    "api_app_construction": true,
+    "closed": 8,
+    "production_api_calls": 0,
+    "required_entrypoints": 8,
+    "route_families": {
+      "messages": 2,
+      "native": 8,
+      "openai": 3
+    },
+    "surfaces": {
+      "health": true,
+      "messages_compatible": true,
+      "model": true,
+      "openai_compatible": true,
+      "streaming": true,
+      "system_x_native": true,
+      "version": true
+    }
+  },
+  "environment_dependent_tests": {
+    "artifact_lock": "bootstrap/configuration/python-environments.lock.json#gguf-api",
+    "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+    "destination": "model-api-gguf/api_service/.venv",
+    "direct_declarations": "model-api-gguf/api_service/requirements.in",
+    "environment_identity": "gguf-api",
+    "executed": 0,
+    "passed": 0,
+    "python": "CPython 3.14.*",
+    "resolved_declarations": "model-api-gguf/api_service/requirements.lock",
+    "root_dependency_contract": "SYSTEM_X_DEPENDENCY_LOCK.json#python_environments[gguf-api]",
+    "system_site_packages": false,
+    "test_method_count": 57,
+    "test_modules": [
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 181,
+            "name": "test_atomic_promotion_idempotence_and_rollback"
+          },
+          {
+            "line": 224,
+            "name": "test_generation_and_state_conflicts_are_atomic"
+          },
+          {
+            "line": 252,
+            "name": "test_concurrent_exact_request_changes_alias_once"
+          },
+          {
+            "line": 263,
+            "name": "test_first_model_rollback_atomically_removes_default"
+          },
+          {
+            "line": 307,
+            "name": "test_explicit_retirement_clear_is_atomic_and_idempotent"
+          },
+          {
+            "line": 346,
+            "name": "test_controller_input_is_exact_bounded_and_pathless"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_alias_transaction.py",
+        "test_method_count": 6
+      },
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 57,
+            "name": "test_model_detail_keeps_unknown_planner_fields_explicit"
+          },
+          {
+            "line": 66,
+            "name": "test_default_alias_precedes_immutable_without_duplicates"
+          },
+          {
+            "line": 83,
+            "name": "test_canonical_reasoning_request_is_strict_and_bounded"
+          },
+          {
+            "line": 111,
+            "name": "test_shared_dispatch_depends_only_on_anthropic_version_presence"
+          },
+          {
+            "line": 161,
+            "name": "test_protocol_reasoning_and_output_limit_field_laws"
+          },
+          {
+            "line": 215,
+            "name": "test_messages_stream_keeps_reasoning_separate"
+          },
+          {
+            "line": 257,
+            "name": "test_active_props_precede_manifest_without_private_leak"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_mini_05_26_contracts.py",
+        "test_method_count": 7
+      },
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 29,
+            "name": "test_stopped_has_strongest_precedence"
+          },
+          {
+            "line": 40,
+            "name": "test_ownership_uncertainty_fails_closed"
+          },
+          {
+            "line": 44,
+            "name": "test_registry_failure_is_not_waiting"
+          },
+          {
+            "line": 49,
+            "name": "test_empty_healthy_registry_waits_without_recovery"
+          },
+          {
+            "line": 58,
+            "name": "test_first_candidate_loads_without_becoming_expected"
+          },
+          {
+            "line": 66,
+            "name": "test_ready_requires_exact_default_and_warm_health"
+          },
+          {
+            "line": 80,
+            "name": "test_expected_ready_target_loss_remains_recoverable"
+          },
+          {
+            "line": 90,
+            "name": "test_warm_identity_loss_remains_recoverable"
+          },
+          {
+            "line": 95,
+            "name": "test_healthy_incumbent_wins_over_unrelated_candidate"
+          },
+          {
+            "line": 107,
+            "name": "test_ready_without_default_is_degraded_not_arbitrarily_selected"
+          },
+          {
+            "line": 112,
+            "name": "test_conflicting_alias_evidence_fails_closed"
+          },
+          {
+            "line": 118,
+            "name": "test_waiting_health_has_separate_availability_and_readiness"
+          },
+          {
+            "line": 153,
+            "name": "test_candidate_count_cannot_be_negative"
+          },
+          {
+            "line": 214,
+            "name": "test_default_absence_is_retryable_no_ready_503"
+          },
+          {
+            "line": 223,
+            "name": "test_arbitrary_unknown_model_remains_404"
+          },
+          {
+            "line": 231,
+            "name": "test_all_three_empty_catalogue_shapes_are_valid"
+          },
+          {
+            "line": 248,
+            "name": "test_no_ready_protocol_mappings_are_exact"
+          },
+          {
+            "line": 260,
+            "name": "test_openapi_exposes_health_axis_and_all_no_ready_503_surfaces"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_model_lifecycle.py",
+        "test_method_count": 18
+      },
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 197,
+            "name": "test_private_listener_loss_recovers_router_and_exact_warm_target"
+          },
+          {
+            "line": 222,
+            "name": "test_model_health_loss_reloads_without_router_restart"
+          },
+          {
+            "line": 240,
+            "name": "test_waiting_and_candidate_do_not_attempt_recovery"
+          },
+          {
+            "line": 271,
+            "name": "test_degraded_without_expected_model_stays_idle"
+          },
+          {
+            "line": 291,
+            "name": "test_transient_endpoint_reuse_stays_in_one_attempt"
+          },
+          {
+            "line": 311,
+            "name": "test_transient_warm_adoption_stays_in_one_attempt"
+          },
+          {
+            "line": 332,
+            "name": "test_stopped_and_disabled_state_precede_every_recovery"
+          },
+          {
+            "line": 355,
+            "name": "test_rapid_failures_persist_fail_closed_latch"
+          },
+          {
+            "line": 378,
+            "name": "test_shutdown_fence_prevents_late_recovery"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_runtime_recovery.py",
+        "test_method_count": 9
+      },
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 40,
+            "name": "test_reasoning_only_length_is_truthful_incomplete"
+          },
+          {
+            "line": 102,
+            "name": "test_reasoning_only_stop_remains_invalid"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_streaming_reasoning_only_limit.py",
+        "test_method_count": 2
+      },
+      {
+        "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+        "methods": [
+          {
+            "line": 209,
+            "name": "test_no_ready_target_waits_or_reports_first_candidate"
+          },
+          {
+            "line": 264,
+            "name": "test_policy_alias_state_and_capability_matrix"
+          },
+          {
+            "line": 344,
+            "name": "test_exact_load_adoption_repeat_and_shutdown"
+          },
+          {
+            "line": 472,
+            "name": "test_load_adopt_switch_health_and_retention"
+          },
+          {
+            "line": 501,
+            "name": "test_model_child_identity_fail_closed"
+          },
+          {
+            "line": 538,
+            "name": "test_temporary_probe_restores_retained_warm_model"
+          },
+          {
+            "line": 553,
+            "name": "test_temporary_inference_restores_retained_warm_model"
+          },
+          {
+            "line": 575,
+            "name": "test_startup_reconciles_owned_stale_inactive_prestate"
+          },
+          {
+            "line": 631,
+            "name": "test_startup_stale_reconcile_remains_ownership_safe"
+          },
+          {
+            "line": 670,
+            "name": "test_startup_does_not_reconcile_foreign_endpoint"
+          },
+          {
+            "line": 838,
+            "name": "test_empty_candidate_and_removed_candidate_lifecycle"
+          },
+          {
+            "line": 878,
+            "name": "test_ready_gated_promotion_and_invalid_preservation"
+          },
+          {
+            "line": 963,
+            "name": "test_complete_chain_only_and_http_mapping"
+          },
+          {
+            "line": 1042,
+            "name": "test_health_uses_its_atomic_observation_snapshot"
+          },
+          {
+            "line": 1059,
+            "name": "test_public_health_schema_and_secret_path_exclusion"
+          }
+        ],
+        "module": "model-api-gguf/api_service/tests/test_warm_model.py",
+        "test_method_count": 15
+      }
+    ],
+    "user_site": "disabled"
+  },
+  "generated_utc": "2026-08-04T15:16:52Z",
+  "import_matrix": {
+    "circular_static_blockers": 0,
+    "edges": 1603,
+    "locked_external": 48,
+    "unknown_external": 0,
+    "unresolved_first_party": 0
+  },
+  "next_dependency": "REBUILD.04",
+  "predecessor_commit": "5102167104a072b0c2bd1f11ac038fe3ed895e76",
+  "predecessor_tree": "d1c2dfb13965bc1fa4cde2aa4447703b346b9e5c",
+  "rebuild_item": "REBUILD.03",
+  "repair_matrix": {
+    "architecture_changes": 0,
+    "decision": "AUTHORIZED_EXISTING_TRACKED_TEST_DEFECT_REPAIR",
+    "dependency_changes": 0,
+    "new_implementation_files": 0,
+    "paths": [
+      "INSPECTOR/tests/test_foundation.py",
+      "INSPECTOR/tests/test_source_gate.py"
+    ],
+    "regression": "complete 191-test Inspector suite and complete closure rerun passed",
+    "vendor_changes": 0
+  },
+  "schema": "system-x.rebuild-source-closure-receipt.v1",
+  "schema_matrix": {
+    "api_semantic_validation": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+    "documents": 47,
+    "duplicate_keys": 0,
+    "missing_static_references": 0,
+    "parsed": 47
+  },
+  "security_matrix": {
+    "environment_creations": 0,
+    "generated_private_model_tracked_paths": 0,
+    "model_actions": 0,
+    "package_installs": 0,
+    "raw_secret_matches": 0,
+    "service_actions": 0,
+    "unexpected_active_host_model_constants": 0,
+    "unknown_first_party_binaries": 0
+  },
+  "source_base": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
+  "source_inventory": {
+    "post_receipt_expected_first_party_files": 201,
+    "post_receipt_expected_tracked_paths": 3444,
+    "post_repair_first_party_inventory": {
+      "bytes": 63294,
+      "path": "/home/user/.cache/system-x-rebuild/REBUILD_03_20260804T145125Z_7e5d0a94/manifests/rerun2/first-party-inventory.json",
+      "sha256": "52e5c517dca23a92b827cdb2e0d05fdd4eaff26241cb63e92d1dedd9cf49f2a6"
+    },
+    "pre_receipt_first_party_files": 200,
+    "pre_receipt_tracked_paths": 3443,
+    "vendor_files": 3243
+  },
+  "syntax_matrix": {
+    "failures": 0,
+    "passed": 141,
+    "python_files": 141,
+    "unknown_encoding": 0
+  },
+  "test_matrix": {
+    "bootstrap": {
+      "baseline": 52,
+      "classification": "SOURCE_ONLY_EXECUTED_PASS",
+      "errors": 0,
+      "executed": 52,
+      "failures": 0,
+      "passed": 52
+    },
+    "gguf_api": {
+      "baseline": 57,
+      "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+      "deferred": 57,
+      "discovered": 57,
+      "executed": 0,
+      "passed": 0
+    },
+    "inspector": {
+      "baseline": 191,
+      "classification": "SOURCE_ONLY_EXECUTED_PASS",
+      "errors": 0,
+      "executed": 191,
+      "failures": 0,
+      "passed": 191
+    },
+    "service_control": {
+      "baseline": 77,
+      "classification": "SOURCE_ONLY_EXECUTED_PASS",
+      "errors": 0,
+      "executed": 77,
+      "failures": 0,
+      "passed": 77
+    }
+  },
+  "vendor_identity": {
+    "canonical_manifest_sha256": "67e0de2dab224c6e941b1dc8de3ab4a0156b966e377c21ec4e6a11c34e7c287d",
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+    "modification_count": 0,
+    "origin": "https://github.com/ggml-org/llama.cpp",
+    "path": "model-api-gguf/llama.cpp",
+    "payload_bytes": 160919633,
+    "tag": "b10092",
+    "tracked_files": 3243,
+    "tree": "cfbb48d88cfd7f0530f27e08b0112dd66c001816"
+  },
+  "version": 1
+}

@@ -1,14 +1,14 @@
 {
   "approved_projection": {
     "approved_path_manifest_format": "repository-relative strict UTF-8 paths, bytewise sorted, NUL terminated",
-    "approved_path_manifest_sha256": "23767cb41aaf6aa70cc501e11acf6171204fe508eb4ccae4b8bf2cc172d488cc",
+    "approved_path_manifest_sha256": "61189f06ec7cc09658594718e7f0f944ff8534860f528fc6b43a4a064046cee9",
     "case_insensitive_collision_count": 0,
-    "control_file_count": 14,
+    "control_file_count": 15,
     "gitlink_count": 0,
     "malformed_path_count": 0,
-    "ordinary_regular_file_count": 3443,
+    "ordinary_regular_file_count": 3444,
     "source_regular_file_count": 3429,
-    "total_index_entry_count": 3443
+    "total_index_entry_count": 3444
   },
   "content_assertions": {
     "OpenClaw_history": "absent",
@@ -103,7 +103,7 @@
       "tracked": false
     }
   ],
-  "generated_utc": "2026-08-04T11:53:46Z",
+  "generated_utc": "2026-08-04T15:16:52Z",
   "llama_source": {
     "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
     "identity_record": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
@@ -185,6 +185,28 @@
     "source_base": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
     "system_x_health_proved": false
   },
+  "rebuild_source_closure": {
+    "closure_result": "FIRST_PARTY_SOURCE_CLOSURE_COMPLETE",
+    "environment_dependent_deferred_tests": {
+      "classification": "ENVIRONMENT_DEPENDENT_DEFERRED_WITH_EXACT_LOCK",
+      "gguf_api": 57,
+      "passed": 0
+    },
+    "next_dependency": "REBUILD.04",
+    "predecessor_commit": "5102167104a072b0c2bd1f11ac038fe3ed895e76",
+    "rebuild_item": "REBUILD.03",
+    "receipt": "docs/rebuild/receipts/REBUILD_03.json",
+    "receipt_schema": "system-x.rebuild-source-closure-receipt.v1",
+    "repair_paths": [
+      "INSPECTOR/tests/test_foundation.py",
+      "INSPECTOR/tests/test_source_gate.py"
+    ],
+    "source_only_executed_tests": {
+      "bootstrap": 52,
+      "inspector": 191,
+      "service_control": 77
+    }
+  },
   "repository": {
     "branch": "rebuild/b8bd-system-x",
     "initial_commit_count": 1,
@@ -210,10 +232,10 @@
   ],
   "submodules": [],
   "tracked_source": {
-    "first_party_regular_file_count": 200,
+    "first_party_regular_file_count": 201,
     "generated_private_model_runtime_state_in_git": false,
     "gitlink_count": 0,
-    "total_index_entry_count": 3443,
+    "total_index_entry_count": 3444,
     "vendored_llama_file_count": 3243
   }
 }

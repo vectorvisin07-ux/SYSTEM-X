@@ -22,7 +22,7 @@ class FoundationTest(unittest.TestCase):
     def setUp(self) -> None:
         self.production_paths = InspectorPaths.discover()
         self.temporary = Path(
-            tempfile.mkdtemp(prefix="inspector-foundation-", dir="/tmp")
+            tempfile.mkdtemp(prefix="inspector-foundation-", dir=os.environ["TMPDIR"])
         )
         self.explicit_root = self.temporary / "INSPECTOR"
         self.explicit_root.mkdir(mode=0o700)
@@ -50,6 +50,8 @@ class FoundationTest(unittest.TestCase):
             self.paths.capability_bindings,
         ):
             path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.paths.environment_lock.write_text("{}\n", encoding="utf-8")
+        self.paths.environment_lock.chmod(0o600)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.temporary)
@@ -79,9 +81,9 @@ class FoundationTest(unittest.TestCase):
         }
 
     def test_persistent_layout_is_private_and_separate(self) -> None:
-        mapping = self.production_paths.persistent_mapping()
+        mapping = self.paths.persistent_mapping()
         for name, path in mapping.items():
-            state = physical_state(path, self.production_paths.inspector_root)
+            state = physical_state(path, self.paths.inspector_root)
             if name == "environment_lock":
                 self.assertEqual(state["state"], "regular_file")
                 continue
@@ -89,25 +91,25 @@ class FoundationTest(unittest.TestCase):
             if name not in {"inspector_root", "schema_root"}:
                 self.assertEqual(state["mode"], "0700", name)
         result_roots = {
-            self.production_paths.inspection_results,
-            self.production_paths.decision_results,
-            self.production_paths.handoff_results,
-            self.production_paths.publication_results,
-            self.production_paths.qualification_results,
-            self.production_paths.promotion_results,
-            self.production_paths.retirement_results,
-            self.production_paths.deployment_results,
+            self.paths.inspection_results,
+            self.paths.decision_results,
+            self.paths.handoff_results,
+            self.paths.publication_results,
+            self.paths.qualification_results,
+            self.paths.promotion_results,
+            self.paths.retirement_results,
+            self.paths.deployment_results,
         }
         self.assertEqual(len(result_roots), 8)
         for result_root in (
-            self.production_paths.inspection_results,
-            self.production_paths.decision_results,
-            self.production_paths.handoff_results,
-            self.production_paths.publication_results,
-            self.production_paths.qualification_results,
-            self.production_paths.promotion_results,
-            self.production_paths.retirement_results,
-            self.production_paths.deployment_results,
+            self.paths.inspection_results,
+            self.paths.decision_results,
+            self.paths.handoff_results,
+            self.paths.publication_results,
+            self.paths.qualification_results,
+            self.paths.promotion_results,
+            self.paths.retirement_results,
+            self.paths.deployment_results,
         ):
             for path in result_root.iterdir():
                 self.assertTrue(path.is_file())
