@@ -1,11 +1,15 @@
 {
   "assertions": {
+    "final_accounting_equals_required_path_count": true,
     "final_vendor_identity_path_enumerated": true,
     "frozen_portable_records_have_required_semantic_fields": true,
+    "normalized_gitlink_count_zero": true,
     "required_generated_documentation_and_manifest_paths_enumerated": true,
-    "unknown_portable_path_count": 0
+    "root_gitmodules_absent": true,
+    "unknown_portable_path_count": 0,
+    "vendor_staging_absent": true
   },
-  "claim": "frozen source inputs and required generated documentation; final tracked-tree identity is populated only after vendor switch",
+  "claim": "normalized vendored source inputs plus separately enumerated generated documentation/manifests",
   "files": [
     {
       "authority": "current-authoritative-live-source",
@@ -1229,7 +1233,7 @@
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 7235,
+      "bytes": 9844,
       "class": "PORTABLE_CONFIGURATION",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -1242,14 +1246,14 @@
         "source": true,
         "test": false
       },
-      "sha256": "99f8f40930a81112dd566c897354e56b5c12aacec3e6a736dd6a8b9f5982385e",
-      "source_git_blob_oid": "b2365a86fd06efceca92cf8a9b7ce5aac93e0c27",
+      "sha256": "1bb9e7c2648151f28414ab2718af46adb90a9a5c88c9a596c9dad0e5b7a7a0b2",
+      "source_git_blob_oid": "07f72c197d00decefbaf3f7ce5fdf7f3f8c2dbdb",
       "source_owner": "System X repository",
       "type": "regular"
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 5386,
+      "bytes": 6987,
       "class": "PORTABLE_CONFIGURATION",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -1262,8 +1266,8 @@
         "source": true,
         "test": false
       },
-      "sha256": "9952e33b6810990e45f5a7fd1a13342abe28ad80de2bb0c72f4ce605426cf9d1",
-      "source_git_blob_oid": "3b60c3d15aa5d6ca515e73949671409552770c11",
+      "sha256": "0715c5aa1a948b85a4247c9dc7a269432ba2bf6f9298f7564fdca5c3f1163017",
+      "source_git_blob_oid": "802092c9d7f665c25c76f5d8c85f71d798a603b7",
       "source_owner": "System X repository",
       "type": "regular"
     },
@@ -1789,7 +1793,7 @@
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 4232,
+      "bytes": 4247,
       "class": "PORTABLE_BOOTSTRAP_SOURCE",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -1802,8 +1806,8 @@
         "source": true,
         "test": false
       },
-      "sha256": "9ccc92b9ed69a2186931121f2e2490b640b1d305a46ac73185b852cda3cf1c27",
-      "source_git_blob_oid": "2f30578054eaee1dd9c69fac9b2564897f2477ce",
+      "sha256": "bf4f96d3eaeb6ea25c209a5765542f623966070a3a333eed0cadad61f97e25ee",
+      "source_git_blob_oid": "14df961b6e217a2a7557668f444b3a01746ef007",
       "source_owner": "System X portable bootstrap",
       "type": "regular"
     },
@@ -1929,7 +1933,7 @@
     },
     {
       "authority": "current-authoritative-live-source",
-      "bytes": 28813,
+      "bytes": 37149,
       "class": "TEST_SOURCE",
       "git_mode": "100644",
       "origin": "authoritative-live-first-party",
@@ -1942,9 +1946,29 @@
         "source": true,
         "test": true
       },
-      "sha256": "e0a485333e5356587fe9796b6f555b4d52ac8aa417ad7ba4cfa647a10c568946",
-      "source_git_blob_oid": "22eb0b60be23f3d1a990fad3de1077a8944684c0",
+      "sha256": "436c36e5c015e5b2a73d42833a273bdff380cabe39a3212bc48fbfab7c7f122a",
+      "source_git_blob_oid": "192ca742bae6201169859ca8d557bfafecaea979",
       "source_owner": "System X portable bootstrap",
+      "type": "regular"
+    },
+    {
+      "authority": "rebuild-normalized-source",
+      "bytes": 867300,
+      "class": "PORTABLE_CONFIGURATION",
+      "git_mode": "100644",
+      "origin": "rebuild-source-normalization",
+      "party": "first-party",
+      "path": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
+      "required_for": {
+        "bootstrap": true,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "9b10c1cbc7927ef875f4f8882424613723c30f129bdfa3650baa4e044f9b78fc",
+      "source_git_blob_oid": "77895c6791de20f0f2147596acab922a999fe34e",
+      "source_owner": "System X repository",
       "type": "regular"
     },
     {
@@ -3225,486 +3249,6 @@
       "sha256": "ba6aed963bf41fd630311e002d39e5b6912d5447377842e4809a36ef36a604bc",
       "source_git_blob_oid": "b3f594cfdda1213e4d81aa31ec3f2140b0925c77",
       "source_owner": "System X GGUF branch",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 1804,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/__init__.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "627bde931cb5daca6f710f6cc99960c0028d2a0ef4596fd556e70263b8b9c03f",
-      "source_git_blob_oid": "fd2711d2d5fe7eedd6ad1ef46b632cef0698a925",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 835,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/desired-state.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "041a41e4f426c0c4645459afa886f7a59156cf837e031d6670e7fd635e1e9399",
-      "source_git_blob_oid": "71be4c59050820d3b83ad814de59aef6694fccf7",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 3013,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/operating-profile.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "ee568cf0d53c67c89fd3956886499e31cef8877c24fe5a83ab652ff4a0f9f094",
-      "source_git_blob_oid": "52730494d399d9eb5fd451e2b53047fb7d1ff0f9",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 33074,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/operating_profile.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "2723a182014039a06e62b9b466072d961b6e99249d8780383038df6b35bfb6f2",
-      "source_git_blob_oid": "fb587f19a68e632bee9fa96221d4399d46b1a2c7",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 1045,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/__init__.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "dda6e9c62c6d6cb524ff94ec60cb912451d99500287124b89ee37a130f360784",
-      "source_git_blob_oid": "f52c00a53f852e6ffb3824ca081eb628c29fd039",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 4508,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/adapter-manifest.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "59a19c2ef7cd165c5b0ea3776ea86721993868bb1a3e9e283dc75d00ce0b562e",
-      "source_git_blob_oid": "999a71e74433e615e8f7011a7ae018d4ac3b815c",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 2208,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/adapter-result.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "766496a406e70eba8adc1b8206e38779f100a1d271c1f3c694753bed32a85c4d",
-      "source_git_blob_oid": "69cf7ae4c4c8f1b3926bfe90e3bb8069ca4325d2",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 4885,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/adapter-status.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "c09598dec94c3ec1aa1d64227b9ddc6d3ba6c3216d2ca841529889f7b3a01984",
-      "source_git_blob_oid": "1bd8c61a7b6248a99970f92533ae492b6c9a8171",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 6990,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/contract.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "ed44b2dc7b8bdec3246eecb6634d450846c52067ebb0f48eed3cb7978d8531b4",
-      "source_git_blob_oid": "de914496445616234adb3523c5148413f69d8d55",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 85501,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/foreground.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "a58571289bf12676972de4fd1c70bc9105b5cf3b12cd17a702d9850bfb1bbf72",
-      "source_git_blob_oid": "a0618ef0041e46aaf0320bd75f81a659d47dba22",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 83107,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "c45d4cb7fc7d8c6d8bf474a55a1d1be913a9430055d504e91e9a10f8e510a779",
-      "source_git_blob_oid": "3e4bf124fbe5531cf2a1c3867e696758af37ebcc",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 1737,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/platform_adapters/registry.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "20c2c93b37738e18aaacf44fd76bf025739eed240d606f6f8fd152b2bf1eda02",
-      "source_git_blob_oid": "079adfc5dd1813552d6037d51fb6ae1bd95cecac",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 1701,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/recovery-status.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "7b2d26ed4da883c31d4bf6e51336e52dd2f6603f6fee505ddd913eb2bf60987b",
-      "source_git_blob_oid": "314abe1d5876d185ce4070555110dedae0d96ccb",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 1991,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/recovery-transaction.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "7cb303d3f85823d19512d0e3063a54ffeafd1e51d5b367c0df53cf9670c39971",
-      "source_git_blob_oid": "ac5454535bb7556ab39328f9697c915a1f12e3c1",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 28682,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/recovery.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "b24b4d396144778e9880f596cdbd297f67af676ac2399109ab807fb37124d1a9",
-      "source_git_blob_oid": "5f76fd1bdb8160031567a3812cd592ef84db83a0",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 6463,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/supervisor-status.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "2652cf4293a0ea95414c1cd354e8ec47e950c575ecb28b114fac4b68bfec03e6",
-      "source_git_blob_oid": "d6b1a5d558efb807bc7105e3d9a1749b9f53434e",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 2978,
-      "class": "SCHEMA",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/supervisor-transaction.schema.json",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "0bb6364de32562220b7676944355eddfd662ab8e24126426508dd50908c6d3a5",
-      "source_git_blob_oid": "6e7521af5f6b00e459964605f640967af3682c5d",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 109883,
-      "class": "AUTHORED_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/supervisor.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": false
-      },
-      "sha256": "861df8221525d4e4458d0ba44200965bdf8f7b7ecad8164299618795c0440837",
-      "source_git_blob_oid": "146472f7f8357e214c4620e25e32f003ac212a09",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 12463,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_controller_reconcile.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "f7bbcc1b1f2d22ecd17af6a4f5905d353fa0cec1cbdc7282fe8c5a437987855b",
-      "source_git_blob_oid": "347a04b029d8072b38c2f6bc7d5019bb35e50b81",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 22603,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_linux_systemd_user_adapter.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "6deba679806eefd41c5e8de1f38186e0996284dbfaece3dc68b055203be3fed4",
-      "source_git_blob_oid": "2f03bd4432d7f1aff92da1ba1f29b14fcaa111c7",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 30041,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_operating_profile.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "afef6ffa0b5111e6b5b4463f80d6c88416452b025ba57e411469d8303d77b9f4",
-      "source_git_blob_oid": "6ba8fdd8b32ff01df6bd19a4c43a1fd99d749ca3",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 26038,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_platform_adapters.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "a0b5f266f078cb1f869f90109b9f4210596e6a28d9ffc23f15c22d788aac8afc",
-      "source_git_blob_oid": "83964a4ee8684be68ee8091cd243ee3fb774398b",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 7274,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_recovery.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "cce399b08814c92e437c1c54835b4ad065b3350088ccb88c28e6bea1cdf12e3a",
-      "source_git_blob_oid": "af52380c4de79a02b2adce1866f29624b8856e7c",
-      "source_owner": "System X service control",
-      "type": "regular"
-    },
-    {
-      "authority": "current-authoritative-live-source",
-      "bytes": 37349,
-      "class": "TEST_SOURCE",
-      "git_mode": "100644",
-      "origin": "authoritative-live-first-party",
-      "party": "first-party",
-      "path": "model-api-gguf/service_control/tests/test_supervisor.py",
-      "required_for": {
-        "bootstrap": false,
-        "build": true,
-        "documentation": false,
-        "source": true,
-        "test": true
-      },
-      "sha256": "448bc24f58c80ef1ddeddc79e78f9dbe3c06c054edb98b888a0bfa57abc5d4b7",
-      "source_git_blob_oid": "c2dfa3a15e8c21d0f20a3f7f3933e7b67d1308de",
-      "source_owner": "System X service control",
       "type": "regular"
     },
     {
@@ -68566,13 +68110,494 @@
       "source_git_blob_oid": "9eedabedc45b3e6fd88fae6f14a160b4d53272ec",
       "source_owner": "ggml-org/llama.cpp",
       "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 1804,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/__init__.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "627bde931cb5daca6f710f6cc99960c0028d2a0ef4596fd556e70263b8b9c03f",
+      "source_git_blob_oid": "fd2711d2d5fe7eedd6ad1ef46b632cef0698a925",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 835,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/desired-state.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "041a41e4f426c0c4645459afa886f7a59156cf837e031d6670e7fd635e1e9399",
+      "source_git_blob_oid": "71be4c59050820d3b83ad814de59aef6694fccf7",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 3013,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/operating-profile.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "ee568cf0d53c67c89fd3956886499e31cef8877c24fe5a83ab652ff4a0f9f094",
+      "source_git_blob_oid": "52730494d399d9eb5fd451e2b53047fb7d1ff0f9",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 33074,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/operating_profile.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "2723a182014039a06e62b9b466072d961b6e99249d8780383038df6b35bfb6f2",
+      "source_git_blob_oid": "fb587f19a68e632bee9fa96221d4399d46b1a2c7",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 1045,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/__init__.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "dda6e9c62c6d6cb524ff94ec60cb912451d99500287124b89ee37a130f360784",
+      "source_git_blob_oid": "f52c00a53f852e6ffb3824ca081eb628c29fd039",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 4508,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/adapter-manifest.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "59a19c2ef7cd165c5b0ea3776ea86721993868bb1a3e9e283dc75d00ce0b562e",
+      "source_git_blob_oid": "999a71e74433e615e8f7011a7ae018d4ac3b815c",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 2208,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/adapter-result.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "766496a406e70eba8adc1b8206e38779f100a1d271c1f3c694753bed32a85c4d",
+      "source_git_blob_oid": "69cf7ae4c4c8f1b3926bfe90e3bb8069ca4325d2",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 4885,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/adapter-status.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "c09598dec94c3ec1aa1d64227b9ddc6d3ba6c3216d2ca841529889f7b3a01984",
+      "source_git_blob_oid": "1bd8c61a7b6248a99970f92533ae492b6c9a8171",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 6990,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/contract.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "ed44b2dc7b8bdec3246eecb6634d450846c52067ebb0f48eed3cb7978d8531b4",
+      "source_git_blob_oid": "de914496445616234adb3523c5148413f69d8d55",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 85501,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/foreground.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "a58571289bf12676972de4fd1c70bc9105b5cf3b12cd17a702d9850bfb1bbf72",
+      "source_git_blob_oid": "a0618ef0041e46aaf0320bd75f81a659d47dba22",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 83107,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "c45d4cb7fc7d8c6d8bf474a55a1d1be913a9430055d504e91e9a10f8e510a779",
+      "source_git_blob_oid": "3e4bf124fbe5531cf2a1c3867e696758af37ebcc",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 1737,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/platform_adapters/registry.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "20c2c93b37738e18aaacf44fd76bf025739eed240d606f6f8fd152b2bf1eda02",
+      "source_git_blob_oid": "079adfc5dd1813552d6037d51fb6ae1bd95cecac",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 1701,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/recovery-status.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "7b2d26ed4da883c31d4bf6e51336e52dd2f6603f6fee505ddd913eb2bf60987b",
+      "source_git_blob_oid": "314abe1d5876d185ce4070555110dedae0d96ccb",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 1991,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/recovery-transaction.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "7cb303d3f85823d19512d0e3063a54ffeafd1e51d5b367c0df53cf9670c39971",
+      "source_git_blob_oid": "ac5454535bb7556ab39328f9697c915a1f12e3c1",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 28682,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/recovery.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "b24b4d396144778e9880f596cdbd297f67af676ac2399109ab807fb37124d1a9",
+      "source_git_blob_oid": "5f76fd1bdb8160031567a3812cd592ef84db83a0",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 6463,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/supervisor-status.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "2652cf4293a0ea95414c1cd354e8ec47e950c575ecb28b114fac4b68bfec03e6",
+      "source_git_blob_oid": "d6b1a5d558efb807bc7105e3d9a1749b9f53434e",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 2978,
+      "class": "SCHEMA",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/supervisor-transaction.schema.json",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "0bb6364de32562220b7676944355eddfd662ab8e24126426508dd50908c6d3a5",
+      "source_git_blob_oid": "6e7521af5f6b00e459964605f640967af3682c5d",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 109883,
+      "class": "AUTHORED_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/supervisor.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": false
+      },
+      "sha256": "861df8221525d4e4458d0ba44200965bdf8f7b7ecad8164299618795c0440837",
+      "source_git_blob_oid": "146472f7f8357e214c4620e25e32f003ac212a09",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 12463,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_controller_reconcile.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "f7bbcc1b1f2d22ecd17af6a4f5905d353fa0cec1cbdc7282fe8c5a437987855b",
+      "source_git_blob_oid": "347a04b029d8072b38c2f6bc7d5019bb35e50b81",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 22603,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_linux_systemd_user_adapter.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "6deba679806eefd41c5e8de1f38186e0996284dbfaece3dc68b055203be3fed4",
+      "source_git_blob_oid": "2f03bd4432d7f1aff92da1ba1f29b14fcaa111c7",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 30041,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_operating_profile.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "afef6ffa0b5111e6b5b4463f80d6c88416452b025ba57e411469d8303d77b9f4",
+      "source_git_blob_oid": "6ba8fdd8b32ff01df6bd19a4c43a1fd99d749ca3",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 26038,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_platform_adapters.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "a0b5f266f078cb1f869f90109b9f4210596e6a28d9ffc23f15c22d788aac8afc",
+      "source_git_blob_oid": "83964a4ee8684be68ee8091cd243ee3fb774398b",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 7274,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_recovery.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "cce399b08814c92e437c1c54835b4ad065b3350088ccb88c28e6bea1cdf12e3a",
+      "source_git_blob_oid": "af52380c4de79a02b2adce1866f29624b8856e7c",
+      "source_owner": "System X service control",
+      "type": "regular"
+    },
+    {
+      "authority": "current-authoritative-live-source",
+      "bytes": 37349,
+      "class": "TEST_SOURCE",
+      "git_mode": "100644",
+      "origin": "authoritative-live-first-party",
+      "party": "first-party",
+      "path": "model-api-gguf/service_control/tests/test_supervisor.py",
+      "required_for": {
+        "bootstrap": false,
+        "build": true,
+        "documentation": false,
+        "source": true,
+        "test": true
+      },
+      "sha256": "448bc24f58c80ef1ddeddc79e78f9dbe3c06c054edb98b888a0bfa57abc5d4b7",
+      "source_git_blob_oid": "c2dfa3a15e8c21d0f20a3f7f3933e7b67d1308de",
+      "source_owner": "System X service control",
+      "type": "regular"
     }
   ],
+  "final_accounted_path_count": 3443,
   "final_vendor_identity_path": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
-  "first_party_frozen_file_count_before_generated_docs": 185,
-  "frozen_input_total_bytes_without_removed_gitmodules": 164171494,
-  "generated_utc": "2026-08-03T16:31:00Z",
-  "phase": "ordered-publication-transition-pre-vendor-switch",
+  "first_party_frozen_file_count_before_generated_docs": 186,
+  "frozen_input_total_bytes_without_removed_gitmodules": 165051355,
+  "generated_utc": "2026-08-04T11:53:46Z",
+  "phase": "rebuild-normalized-vendored-source",
   "required_final_identity_path": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
   "required_final_identity_path_count": 1,
   "required_final_path_count": 3443,
@@ -68593,9 +68618,9 @@
     "SYSTEM_X_EVIDENCE_INDEX.json"
   ],
   "schema": "system-x.portable-tree-manifest.v1",
-  "source_parent": "08f144e8c2e702eccfa923ca8a600f9b7367c244",
-  "source_parent_tree": "797c574c3cae0159c132a000df0b2369b04e605b",
-  "transitional_gitlink_retained_until_verified_switch": true,
+  "source_parent": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
+  "source_parent_tree": "83fb75cdab769c17660fa569f0103ffb27eb9d35",
+  "transitional_gitlink_retained_until_verified_switch": false,
   "vendor_source_identity": {
     "clean": true,
     "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",

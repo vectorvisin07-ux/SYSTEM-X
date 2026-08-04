@@ -12,7 +12,7 @@ from .errors import BootstrapError, ErrorCode
 ROOT_MARKERS = (
     "SYSTEM_X_REPOSITORY_MANIFEST.json",
     "SYSTEM_X_NEW_UBUNTU_REQUIREMENTS.json",
-    ".gitmodules",
+    "bootstrap/run_bootstrap.py",
 )
 
 

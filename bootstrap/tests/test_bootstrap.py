@@ -88,6 +88,14 @@ def repository_paths(root: Path) -> RepositoryPaths:
     )
 
 
+def repository_root_fixture(root: Path) -> None:
+    (root / "bootstrap").mkdir(parents=True)
+    (root / "bootstrap/run_bootstrap.py").write_text("# fixture\n", encoding="utf-8")
+    (root / "model-api-gguf").mkdir()
+    (root / "SYSTEM_X_REPOSITORY_MANIFEST.json").write_text("{}\n", encoding="utf-8")
+    (root / "SYSTEM_X_NEW_UBUNTU_REQUIREMENTS.json").write_text("{}\n", encoding="utf-8")
+
+
 class ActiveTransaction:
     _entered = True
 
@@ -235,6 +243,41 @@ class BootstrapMatrix(unittest.TestCase):
 
     def test_02_self_relative_root_discovery(self) -> None:
         self.assertEqual(discover_repository_root(REPOSITORY_ROOT / "INSPECTOR"), REPOSITORY_ROOT)
+
+
+    def test_02a_root_discovery_without_gitmodules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository_root_fixture(root)
+            self.assertFalse((root / ".gitmodules").exists())
+            self.assertEqual(discover_repository_root(root / "bootstrap"), root)
+
+    def test_02b_root_discovery_requires_durable_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository_root_fixture(root)
+            (root / "SYSTEM_X_NEW_UBUNTU_REQUIREMENTS.json").unlink()
+            with self.assertRaises(BootstrapError):
+                discover_repository_root(root / "bootstrap")
+
+    def test_02c_missing_identity_is_source_error_not_root_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository_root_fixture(root)
+            paths, lock, _, identity_path = vendored_fixture(root, self.configs["llama-build.lock.json"])
+            identity_path.unlink()
+            self.assertEqual(discover_repository_root(root / "bootstrap"), root)
+            result = inspect_vendored_source(paths, lock)
+            self.assertFalse(result["exact"])
+            self.assertEqual(result["reason"], "source identity record is absent or unsafe")
+
+    def test_02d_live_llama_path_is_ordinary(self) -> None:
+        self.assertFalse((REPOSITORY_ROOT / ".gitmodules").exists())
+        stage = subprocess.check_output(
+            ("git", "-C", str(REPOSITORY_ROOT), "ls-files", "--stage", "--", "model-api-gguf/llama.cpp/LICENSE"),
+            text=True,
+        )
+        self.assertTrue(stage.startswith("100644 "))
 
     def test_03_ubuntu_2604_pass(self) -> None:
         self.assertEqual(host_blockers(self.inspection(), self.configs["ubuntu-26.04-wsl2-host.json"]), [])

@@ -1,14 +1,14 @@
 {
   "approved_projection": {
-    "approved_path_manifest_format": "repository-relative UTF-8 paths, bytewise sorted, NUL terminated",
-    "approved_path_manifest_sha256": "0d5856dcaee28ce225e8a687fe8ef61847d3193f61dec798b04fc4b475206af6",
+    "approved_path_manifest_format": "repository-relative strict UTF-8 paths, bytewise sorted, NUL terminated",
+    "approved_path_manifest_sha256": "23767cb41aaf6aa70cc501e11acf6171204fe508eb4ccae4b8bf2cc172d488cc",
     "case_insensitive_collision_count": 0,
-    "control_file_count": 4,
-    "gitlink_count": 1,
+    "control_file_count": 14,
+    "gitlink_count": 0,
     "malformed_path_count": 0,
-    "ordinary_regular_file_count": 186,
-    "source_regular_file_count": 182,
-    "total_index_entry_count": 187
+    "ordinary_regular_file_count": 3443,
+    "source_regular_file_count": 3429,
+    "total_index_entry_count": 3443
   },
   "content_assertions": {
     "OpenClaw_history": "absent",
@@ -103,7 +103,17 @@
       "tracked": false
     }
   ],
-  "generated_utc": "2026-08-03T16:31:00Z",
+  "generated_utc": "2026-08-04T11:53:46Z",
+  "llama_source": {
+    "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+    "identity_record": "model-api-gguf/LLAMA_CPP_SOURCE_IDENTITY.json",
+    "mode": "ordinary-vendored",
+    "origin": "https://github.com/ggml-org/llama.cpp",
+    "path": "model-api-gguf/llama.cpp",
+    "source_patch_count": 0,
+    "tag": "b10092",
+    "tree": "cfbb48d88cfd7f0530f27e08b0112dd66c001816"
+  },
   "portable_bootstrap": {
     "configuration_identities": [
       "system-x.bootstrap.host.ubuntu-26.04-wsl2.v1",
@@ -161,13 +171,29 @@
     "source_parent": "08f144e8c2e702eccfa923ca8a600f9b7367c244",
     "transition_state_at_this_manifest_commit": "gitlink retained pending remotely verified vendor batches"
   },
+  "rebuild_normalization": {
+    "branch": "rebuild/b8bd-system-x",
+    "derived_independently_from": [
+      "exact active submodule",
+      "exact .vendor-staging/llama.cpp"
+    ],
+    "generated_build_present": false,
+    "model_present": false,
+    "ordinary_clone_sufficient": true,
+    "recursive_submodule_required": false,
+    "runtime_present": false,
+    "source_base": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
+    "system_x_health_proved": false
+  },
   "repository": {
-    "branch": "main",
+    "branch": "rebuild/b8bd-system-x",
     "initial_commit_count": 1,
-    "private_repository_required": true,
-    "projection": "explicit-sanitized-git-index",
+    "private_repository_required": false,
+    "projection": "normalized-vendored-source",
     "remote": "https://github.com/vectorvisin07-ux/SYSTEM-X.git",
-    "root": "."
+    "root": ".",
+    "source_base": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
+    "visibility": "public"
   },
   "schema": "system-x.repository-manifest.v2",
   "separate_products": [
@@ -182,39 +208,12 @@
       "tracked": false
     }
   ],
-  "submodules": [
-    {
-      "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
-      "index_mode": "160000",
-      "origin": "https://github.com/ggml-org/llama.cpp",
-      "path": "model-api-gguf/llama.cpp",
-      "treatment": "exact-gitlink-only"
-    }
-  ],
+  "submodules": [],
   "tracked_source": {
-    "canonical_record_fields": [
-      "blob_sha1",
-      "bytes",
-      "mode",
-      "path",
-      "sha256"
-    ],
-    "canonical_record_manifest_sha256": "096e33c2ca191530a87ee5e032f3b68d2004a195bf16a8292565f62e5e5db304",
-    "class_bytes": {
-      "AUTHORED_SOURCE": 2440827,
-      "PORTABLE_CONFIGURATION": 29667,
-      "SCHEMA": 155133,
-      "TEST_SOURCE": 612463
-    },
-    "class_counts": {
-      "AUTHORED_SOURCE": 109,
-      "PORTABLE_CONFIGURATION": 11,
-      "SCHEMA": 30,
-      "TEST_SOURCE": 32
-    },
-    "omitted_source_path_count": 0,
-    "prebootstrap_source_unchanged": true,
-    "regular_file_bytes": 3238090,
-    "regular_file_count": 182
+    "first_party_regular_file_count": 200,
+    "generated_private_model_runtime_state_in_git": false,
+    "gitlink_count": 0,
+    "total_index_entry_count": 3443,
+    "vendored_llama_file_count": 3243
   }
 }

@@ -1,5 +1,7 @@
 # Build and runtime
 
+REBUILD.02 normalizes source only. Its committed tree contains no generated build, initialized runtime, credential, or model, and it proves no service health. The operations below remain later explicitly authorized reconstruction work.
+
 ## Environment build
 
 Create two private CPython 3.14 environments through the committed bootstrap operation. The Inspector lock defines its standard-library/internal closure. The API locks define direct pins, resolved lock lines, and artifact identities. Post-build checks must import the committed modules with system-site-packages disabled.

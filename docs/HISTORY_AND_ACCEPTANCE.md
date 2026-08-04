@@ -4,6 +4,8 @@ The publication reviewed every stable physical packet, final output, failed-run 
 
 ## Current authority
 
+The active rebuild checkpoint is `rebuild/b8bd-system-x`, based on `b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7`. Its ordinary llama.cpp source was independently normalized from the exact b8bd39f active submodule and vendor-staging trees at b10092 / 3ce7da2c / cfbb48d with zero source patches. An ordinary clone is sufficient and recursive submodule initialization is not required. REBUILD.02 contains no generated build, runtime, credential, or model and does not prove System X health.
+
 Conflicts are resolved in this order: current explicit SIR, current locked architecture, current live filesystem, current physical execution evidence, accepted architecture/maps, then older history.
 
 Current architectural facts are:
@@ -22,7 +24,7 @@ Earlier accepted records establish the stable API/runtime lifecycle, Inspector a
 ## Superseded directions
 
 - routing GGUF through vLLM is historical, not current guidance;
-- representing llama.cpp only by a gitlink is superseded at the completed R1 vendor switch;
+- representing llama.cpp only by a gitlink is superseded on the normalized rebuild branch; the b8bd39f transitional anchor remains historical evidence;
 - an encrypted full-machine snapshot in Git/LFS is superseded by the portable-source policy.
 
 ## Separate products and failed work

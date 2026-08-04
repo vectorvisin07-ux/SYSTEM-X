@@ -6,7 +6,7 @@ Do not register/start System X. Prove the target user has a distinct `user@<uid>
 
 ## GitHub authentication fails
 
-Verify the signed credential-manager binary and authenticated account without printing the credential. Confirm repository `vectorvisin07-ux/SYSTEM-X`, private visibility, write permission, branch `main`, expected parent, and unchanged tags. Never force-push or rewrite history.
+Verify the signed credential-manager binary and authenticated account without printing the credential. Confirm public repository `vectorvisin07-ux/SYSTEM-X`, write permission, branch `rebuild/b8bd-system-x`, its expected checkpoint parent/tip, protected `main`, and unchanged tags. Never force-push or rewrite history.
 
 ## Vendored-source verification fails
 

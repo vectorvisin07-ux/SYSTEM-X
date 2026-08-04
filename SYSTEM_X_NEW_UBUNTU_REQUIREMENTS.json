@@ -53,7 +53,7 @@
     "system-x-chat",
     "UNCENSORED-ENV"
   ],
-  "generated_utc": "2026-08-03T16:31:00Z",
+  "generated_utc": "2026-08-04T11:53:46Z",
   "host_packages": {
     "default_version_policy": "prefer exact observed Ubuntu package version",
     "direct_package_count": 12,
@@ -109,7 +109,7 @@
     ],
     "origin": "https://github.com/ggml-org/llama.cpp",
     "path": "model-api-gguf/llama.cpp",
-    "representation_in_git": "ordinary vendored source at the completed R1 tip; exact gitlink retained only during verified publication batches",
+    "representation_in_git": "ordinary vendored source on rebuild/b8bd-system-x, independently normalized from exact b8bd39f active-submodule and vendor-staging trees",
     "target": "llama-server",
     "target_compute_capability": "86"
   },
@@ -124,6 +124,7 @@
     "unit_relative_to_home": ".config/systemd/user/system-x-current-test.service"
   },
   "portable_repository": {
+    "active_branch": "rebuild/b8bd-system-x",
     "direct_package_names": [
       "build-essential",
       "ca-certificates",
@@ -139,6 +140,7 @@
       "cuda-toolkit-13-3"
     ],
     "environment_reconstruction": "two private CPython 3.14 environments from committed locks",
+    "generated_build_present": false,
     "generated_state_in_git": false,
     "llama_source_identity": {
       "clean": true,
@@ -149,8 +151,13 @@
     },
     "llama_source_provider": "vendored",
     "model_admission_in_publication": false,
-    "ordinary_clone_after_completed_r1": true,
-    "recursive_submodule_required_after_completed_r1": false,
+    "model_present": false,
+    "ordinary_clone_sufficient": true,
+    "recursive_submodule_required": false,
+    "runtime_present": false,
+    "source_base": "b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7",
+    "source_normalization": "independently derived from exact b8bd39f active submodule and vendor staging",
+    "system_x_health_proved": false,
     "target_host": {
       "architecture": "x86_64",
       "distribution_registration": {

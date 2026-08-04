@@ -1,5 +1,7 @@
 # Repository layout
 
+This layout describes `rebuild/b8bd-system-x`, normalized independently from the exact b8bd39f active submodule and vendor-staging trees. The source snapshot contains no generated build, initialized runtime, credential, or model, and it does not prove System X health.
+
 ```text
 .
 ├── INSPECTOR/                    portable Inspector source, schemas and tests

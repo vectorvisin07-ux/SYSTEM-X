@@ -16,11 +16,11 @@ Installation reconstructs portable source into local generated state. It does no
 ## Clone
 
 ```bash
-git clone https://github.com/vectorvisin07-ux/SYSTEM-X.git system-x
+git clone --branch rebuild/b8bd-system-x --single-branch https://github.com/vectorvisin07-ux/SYSTEM-X.git system-x
 cd system-x
 ```
 
-The completed R1 tree vendors llama.cpp as ordinary files. Do not use `--recursive`; no submodule initialization is required.
+The `rebuild/b8bd-system-x` branch is based on exact b8bd39f and vendors llama.cpp as ordinary files at b10092 / 3ce7da2c / cfbb48d. Do not use `--recursive`; no submodule initialization is required. REBUILD.02 itself does not install, build, initialize, start, or load anything.
 
 ## Read-only discovery and frozen plan
 
