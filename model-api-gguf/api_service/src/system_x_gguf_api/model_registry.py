@@ -62,7 +62,7 @@ class ModelRegistry:
         self.enabled = bool(getattr(settings, "registry_enabled", False))
         self.model_root = (
             model_root or branch_root / "MODEL" / "SUPERMODEL"
-        ).resolve(strict=True)
+        ).resolve(strict=False)
         self.database_path = (
             database_path
             or branch_root / "RUNTIME" / "api" / "database" / "model_registry.sqlite3"
@@ -71,11 +71,7 @@ class ModelRegistry:
             self.database_path,
             int(settings.registry_database_busy_timeout_milliseconds),
         )
-        self.inspector = ArtifactInspector(
-            self.model_root,
-            int(settings.registry_stability_samples),
-            float(settings.registry_stability_interval_seconds),
-        )
+        self.inspector: ArtifactInspector | None = None
         self.monitor_factory = monitor_factory
         self.monitor: RegistryMonitor | None = None
         self._status = "disabled" if not self.enabled else "starting"
@@ -242,6 +238,8 @@ class ModelRegistry:
         outcomes: list[dict[str, Any]] = []
         locally_validated: dict[str, Any] = {}
         changed_roots: set[str] = set()
+        if self.inspector is None:
+            raise ModelRegistryError("registry inspector is not initialized")
         for relative_root in sorted(physical_units):
             try:
                 cache = await self.store.location_hash_cache(relative_root)
@@ -467,6 +465,11 @@ class ModelRegistry:
         if not self.enabled:
             return {"registry_status": "disabled"}
         self._status = "starting"
+        self.inspector = ArtifactInspector(
+            self.model_root,
+            int(self.settings.registry_stability_samples),
+            float(self.settings.registry_stability_interval_seconds),
+        )
         self._database_initialization = await self.store.initialize()
         self._worker_task = asyncio.create_task(
             self._worker_loop(), name="system-x-registry-reconcile-worker"
