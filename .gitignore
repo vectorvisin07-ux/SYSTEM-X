@@ -1,4 +1,4 @@
-# BEGIN OPENCLAW SYSMIN.02.PUSH.R1 PORTABLE-BOUNDARY
+# Portable generated-state boundary
 # Exact secret and mutable runtime roots
 /.system-x-bootstrap-state/
 /model-api-gguf/RUNTIME/api/auth/
@@ -65,4 +65,4 @@ htmlcov/
 *~
 *.swp
 *.swo
-# END OPENCLAW SYSMIN.01 X.E SANITIZED-BOUNDARY
+# End portable generated-state boundary

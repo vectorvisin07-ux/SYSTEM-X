@@ -24,11 +24,11 @@ def load_module(name: str, path: Path):
 
 
 api = load_module(
-    "test_mini0522_api_controller",
+    "test_api_controller",
     BRANCH_ROOT / "api_service_controller/controller.py",
 )
 branch = load_module(
-    "test_mini0522_branch_controller",
+    "test_branch_controller",
     BRANCH_ROOT / "branch_controller/controller.py",
 )
 

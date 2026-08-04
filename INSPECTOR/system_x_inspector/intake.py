@@ -30,7 +30,6 @@ PROTECTED_NAME_MARKERS = (
     "model-api-gguf",
     "model-api-native",
     "system-x-chat",
-    "OPENCLAW",
 )
 
 

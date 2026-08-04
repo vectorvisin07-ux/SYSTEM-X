@@ -1,4 +1,4 @@
-"""Consolidated isolated unit/security matrix for Mini 05.23."""
+"""Consolidated isolated platform-adapter unit and security matrix."""
 
 from __future__ import annotations
 

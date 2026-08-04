@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Validate System X operating profiles and atomically store desired state.
 
-Mini 05.19 deliberately contains no process, listener, model, or platform
-service-manager behavior.  It is a standard-library-only configuration
+This operating-profile module deliberately contains no process, listener, model,
+or platform service-manager behavior.  It is a standard-library-only configuration
 component intended for later supervision code.
 """
 

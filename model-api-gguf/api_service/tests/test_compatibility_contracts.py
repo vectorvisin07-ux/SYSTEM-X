@@ -1,4 +1,4 @@
-"""Frozen Mini 05.26 compatibility, planner and reasoning contracts."""
+"""Compatibility, planner and reasoning contracts."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ class _PlannerBackend:
         }
 
 
-class Mini0526Contracts(unittest.TestCase):
+class CompatibilityContracts(unittest.TestCase):
     def test_model_detail_keeps_unknown_planner_fields_explicit(self) -> None:
         router = build_system_router(None, None, None)
         route = next(
@@ -253,7 +253,7 @@ class Mini0526Contracts(unittest.TestCase):
         self.assertNotIn(b"thought", b"".join(text_frames))
 
 
-class Mini0526PlannerDetail(unittest.IsolatedAsyncioTestCase):
+class PlannerDetailContracts(unittest.IsolatedAsyncioTestCase):
     async def test_active_props_precede_manifest_without_private_leak(
         self,
     ) -> None:

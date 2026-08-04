@@ -578,7 +578,7 @@ class BootstrapMatrix(unittest.TestCase):
         self.assertEqual(result["initial_desired_state"], "STOPPED")
 
     def test_32_adapter_real_registration_absent(self) -> None:
-        unit = Path.home() / ".config/systemd/user/system-x-current-test.service"
+        unit = Path.home() / ".config/systemd/user/system-x.service"
         before = hashlib.sha256(unit.read_bytes()).hexdigest() if unit.is_file() else None
         _, calls = self.adapter_fixture()
         after = hashlib.sha256(unit.read_bytes()).hexdigest() if unit.is_file() else None

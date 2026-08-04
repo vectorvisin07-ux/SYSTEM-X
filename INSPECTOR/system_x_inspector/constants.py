@@ -1,4 +1,4 @@
-"""Stable Mini 10.01 foundation identities."""
+"""Stable Inspector foundation identities."""
 
 from __future__ import annotations
 

@@ -97,7 +97,7 @@ ADAPTER_VERSION = "1.0.0"
 PLATFORM_FAMILY = "linux-systemd-user"
 ACTIVATION_METHOD = "systemd-user-unit"
 AUTOMATIC_ACTIVATION_SUPPORTED = True
-SERVICE_NAME = "system-x-current-test.service"
+SERVICE_NAME = "system-x.service"
 SYSTEMCTL = Path("/usr/bin/systemctl")
 SYSTEMD_ANALYZE = Path("/usr/bin/systemd-analyze")
 PYTHON = Path("/usr/bin/python3").resolve()
@@ -791,7 +791,7 @@ def render_unit(
         )
     value = (
         "[Unit]\n"
-        "Description=System X current-test automatic activation supervisor\n"
+        "Description=System X automatic activation supervisor\n"
         "StartLimitIntervalSec=30\n"
         "StartLimitBurst=3\n"
         "\n"
@@ -805,7 +805,7 @@ def render_unit(
         "KillMode=control-group\n"
         "StandardOutput=journal\n"
         "StandardError=journal\n"
-        "SyslogIdentifier=system-x-current-test\n"
+        "SyslogIdentifier=system-x\n"
         "UMask=0077\n"
         "\n"
         "[Install]\n"

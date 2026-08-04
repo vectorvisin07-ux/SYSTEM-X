@@ -16,7 +16,7 @@ With no admitted model, healthy System X reports `WAITING_FOR_MODEL`. That is an
 
 On the active `rebuild/b8bd-system-x` branch, System X is based on `b8bd39fc6fd86f5bd3a8392e8422bb6b7e3af4e7`. `model-api-gguf/llama.cpp` is ordinary vendored source pinned to tag `b10092`, commit `3ce7da2c852c538c4c5f9806da27029cf8c9cc4a`, tree `cfbb48d88cfd7f0530f27e08b0112dd66c001816`. It was normalized independently from the exact b8bd39f active submodule and vendor-staging trees with zero source patches. An ordinary clone of this branch is sufficient; recursive submodule initialization is not required.
 
-REBUILD.02 contains no generated llama.cpp build, initialized runtime, credential, or model. It does not prove System X service health, host readiness, build readiness, model readiness, or inference.
+Generated llama.cpp builds, initialized runtime, credentials, and models remain outside Git and are reconstructed through the committed bootstrap operations.
 
 The repository contains portable first-party source, configuration, schemas, tests, scripts, documentation, deterministic fixtures, dependency locks, and the exact pinned third-party source. It deliberately does not contain generated Python environments, CUDA/toolchain binaries, compiled builds, model weights, mutable runtime state, databases, local credentials, caches, bytecode, or temporary files.
 

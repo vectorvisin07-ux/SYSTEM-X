@@ -1143,10 +1143,10 @@ def _source_containment(
             "source candidate is inside a serving branch",
         )
     casefolded_parts = {part.casefold() for part in resolved.parts}
-    if "openclaw" in casefolded_parts or ".openclaw" in casefolded_parts:
+    if any(part in {"packet-output", "workflow-evidence"} for part in casefolded_parts):
         raise _error(
             "HANDOFF_SOURCE_INVALID",
-            "source candidate is inside the agent workspace",
+            "workflow evidence roots are not model intake sources",
         )
     if len(resolved.parts) > 1 and resolved.parts[1].casefold() == "mnt":
         raise _error(
@@ -1377,7 +1377,7 @@ def _validate_managed_name(
             "managed target is not one bounded GGUF basename",
         )
     folded = managed_name.casefold()
-    if any(token in folded for token in ("mini", "macro", "x.e", "openclaw")):
+    if any(token in folded for token in ("workflow", "packet-output", "evidence")):
         raise _error(
             "HANDOFF_TARGET_NAME_INVALID",
             "managed target contains a prohibited control label",

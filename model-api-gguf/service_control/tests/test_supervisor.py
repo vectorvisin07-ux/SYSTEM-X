@@ -1,4 +1,4 @@
-"""Consolidated isolated tests for the Mini 05.20 supervisor core."""
+"""Consolidated isolated tests for the supervisor core."""
 
 from __future__ import annotations
 

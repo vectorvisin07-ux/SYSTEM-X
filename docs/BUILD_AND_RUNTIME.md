@@ -1,6 +1,6 @@
 # Build and runtime
 
-REBUILD.02 normalizes source only. Its committed tree contains no generated build, initialized runtime, credential, or model, and it proves no service health. The operations below remain later explicitly authorized reconstruction work.
+The committed tree contains no generated build, initialized runtime, credential, or model. The operations below reconstruct that private state under explicit operator authorization.
 
 ## Environment build
 

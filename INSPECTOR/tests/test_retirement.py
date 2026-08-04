@@ -1,4 +1,4 @@
-"""Focused isolated Mini 11.04 retirement and recovery acceptance."""
+"""Focused isolated retirement and recovery acceptance."""
 
 from __future__ import annotations
 

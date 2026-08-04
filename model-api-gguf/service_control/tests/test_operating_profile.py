@@ -1,4 +1,4 @@
-"""Consolidated Mini 05.19 tests.
+"""Consolidated operating-profile tests.
 
 All stateful fixtures are created below a TemporaryDirectory.  The production
 RUNTIME tree is never initialized by this suite.

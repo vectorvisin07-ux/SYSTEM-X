@@ -76,9 +76,9 @@ class HostInspector:
         llama_source = self._third_party_source_facts()
 
         unit = self.mapped("/home")
-        service_unit = Path.home() / ".config" / "systemd" / "user" / "system-x-current-test.service"
+        service_unit = Path.home() / ".config" / "systemd" / "user" / "system-x.service"
         if self.filesystem_root != Path("/"):
-            service_unit = self.mapped("/home/fixture/.config/systemd/user/system-x-current-test.service")
+            service_unit = self.mapped("/home/fixture/.config/systemd/user/system-x.service")
         service_link = service_unit.parent / "default.target.wants" / service_unit.name
 
         return {

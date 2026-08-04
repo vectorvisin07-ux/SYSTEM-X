@@ -488,7 +488,7 @@ def validate_capability_record(value: object) -> dict[str, Any]:
         if record["availability"] != "AVAILABLE":
             raise _fail(
                 "CAPABILITY_RECORD_INVALID",
-                "GGUF capability must be AVAILABLE in Mini 10.03",
+                "GGUF capability must be AVAILABLE in the current capability contract",
             )
         _validate_installed_tuple(record["installed_tuple"])
         supported = _exact_fields(
@@ -564,7 +564,7 @@ def validate_capability_record(value: object) -> dict[str, Any]:
         if record["availability"] != "UNAVAILABLE":
             raise _fail(
                 "CAPABILITY_RECORD_INVALID",
-                "native capability must be UNAVAILABLE in Mini 10.03",
+                "native capability must be UNAVAILABLE in the current capability contract",
             )
         if record["installed_tuple"] is not None:
             raise _fail(

@@ -41,10 +41,10 @@ Generated roots such as `.venv`, `RUNTIME`, `MODEL`, capability records, caches,
 | `model-api-native/RUNTIME` | native service | mutable native runtime state | future authorized native-runtime initialization | not currently required or accepted | native runtime owner | no raw value by contract | no |
 | `model-api-native/vLLM` | native environment builder | generated vLLM/toolchain environment | future committed native dependency workflow | not currently required or accepted | native environment builder/operator | no | no production weights |
 
-External generated systemd-user state is also excluded: `.config/systemd/user/system-x-current-test.service` is owned and rendered by the Linux systemd-user platform adapter, and its `default.target.wants` link is owned by adapter enablement. Both are required only for registered service operation, may be removed only by that adapter/operator workflow, and contain neither secrets nor model bytes.
+External generated systemd-user state is also excluded: `.config/systemd/user/system-x.service` is owned and rendered by the Linux systemd-user platform adapter, and its `default.target.wants` link is owned by adapter enablement. Both are required only for registered service operation, may be removed only by that adapter/operator workflow, and contain neither secrets nor model bytes.
 
 Caches and temporary files are incidental products of interpreters, tests, compilers, and runtime operations. Their owning producer cleans them; they are never prerequisites or portable payload.
 
-Outer and nested Git object databases are never mirrored as repository content. Raw OpenClaw packet/output evidence is also absent; only the safe evidence index and history summary are published.
+Outer and nested Git object databases are never mirrored as repository content. External workflow evidence is absent from the product tree and remains in its owning external workspace.
 
 HEYCHAT / `system-x-chat` and `UNCENSORED-ENV` are outside this layout.
