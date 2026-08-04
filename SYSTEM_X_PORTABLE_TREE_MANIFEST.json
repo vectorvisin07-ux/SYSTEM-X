@@ -450,7 +450,7 @@
       "bytes": 2755,
       "mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
-      "sha256": "439a9db7d4728ec828d121844fa57f6c9395b95024f8c9de7b4a7e476b08fd5f"
+      "sha256": "f575d7a36829081d65d5d3c864f680c6966238c094b55d99170f49b76161ea5b"
     },
     {
       "bytes": 1009,
@@ -1119,10 +1119,10 @@
       "sha256": "a58571289bf12676972de4fd1c70bc9105b5cf3b12cd17a702d9850bfb1bbf72"
     },
     {
-      "bytes": 84123,
+      "bytes": 85274,
       "mode": "100644",
       "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
-      "sha256": "371174897569c589f6b5a87b509ada4b46b18ccd6681d884dc51c0096cb0e269"
+      "sha256": "c3d9e3c7014533e62bca53649b8e8970ff3a708f2a658889a8160cf4c5abf079"
     },
     {
       "bytes": 1737,
@@ -1173,10 +1173,10 @@
       "sha256": "595ce1b6b9b57551d0dd4201578148b7738c0e7a823a181af6077e5329892fb6"
     },
     {
-      "bytes": 24886,
+      "bytes": 25441,
       "mode": "100644",
       "path": "model-api-gguf/service_control/tests/test_linux_systemd_user_adapter.py",
-      "sha256": "436a3214be9a1b2c6c7529bb1c874b0b9ca80c2fcaeb702f4f902247ccc53ee1"
+      "sha256": "43e7acc62185edefed1d9d0ae4aaec567c8e6bf3b36f99c0a5af887b9c6612d0"
     },
     {
       "bytes": 30048,

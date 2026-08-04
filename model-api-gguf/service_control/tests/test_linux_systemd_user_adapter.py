@@ -478,10 +478,22 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
             )
             return {"exit_status": 0}
 
+        endpoint_checks: list[int] = []
+
+        def delayed_endpoint_release(_host: str, port: int) -> bool:
+            endpoint_checks.append(port)
+            return len(endpoint_checks) > 2
+
         with mock.patch.object(
             self.manager, "stop", side_effect=graceful_stop
         ), mock.patch.object(
             self.manager, "start", side_effect=clean_start
+        ), mock.patch.object(
+            self.adapter,
+            "_endpoint_free",
+            side_effect=delayed_endpoint_release,
+        ), mock.patch.object(
+            selected.time, "sleep", return_value=None
         ):
             result = self.adapter.restart(wait_timeout_seconds=1.0)
 
@@ -496,6 +508,8 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
         self.assertEqual(self.manager.stop_calls, 1)
         self.assertEqual(self.manager.start_calls, 1)
         self.assertEqual(self.manager.n_restarts, 0)
+        self.assertGreater(len(endpoint_checks), 2)
+        self.assertGreaterEqual(result["data"]["endpoint_release"]["wait_seconds"], 0)
         self.assertEqual(
             result["data"]["old_supervisor_identity"], old_identity
         )

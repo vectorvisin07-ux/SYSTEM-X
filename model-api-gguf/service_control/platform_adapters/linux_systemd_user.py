@@ -1168,7 +1168,6 @@ class LinuxSystemdUserServiceAdapter:
         if connected:
             return False
         binder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        binder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             binder.bind((host, port))
         except OSError:
@@ -1194,6 +1193,37 @@ class LinuxSystemdUserServiceAdapter:
                 exit_code=3,
                 data={"conflicts": conflicts},
             )
+
+    def _wait_endpoints_free(
+        self,
+        profile: OperatingProfile,
+        *,
+        timeout_seconds: float,
+    ) -> float:
+        endpoints = (
+            profile.public_endpoint,
+            profile.private_router_endpoint,
+        )
+        started = time.monotonic()
+        deadline = started + timeout_seconds
+        while time.monotonic() < deadline:
+            if all(
+                self._endpoint_free(endpoint.host, endpoint.port)
+                for endpoint in endpoints
+            ):
+                return time.monotonic() - started
+            time.sleep(0.05)
+        _fail(
+            "ENDPOINT_CONFLICT",
+            "controller-compatible endpoint release timed out",
+            exit_code=4,
+            data={
+                "endpoints": [
+                    {"host": endpoint.host, "port": endpoint.port}
+                    for endpoint in endpoints
+                ]
+            },
+        )
 
     def _supervisor_evidence(
         self,
@@ -1990,6 +2020,10 @@ class LinuxSystemdUserServiceAdapter:
             wait_timeout_seconds=float(wait_timeout_seconds),
         )
         stopped_generation = stop_result["desired_state_generation"]
+        endpoint_release_wait_seconds = self._wait_endpoints_free(
+            profile,
+            timeout_seconds=float(wait_timeout_seconds),
+        )
         start_result = self.start(
             expected_generation=stopped_generation,
             wait_timeout_seconds=float(wait_timeout_seconds),
@@ -2046,6 +2080,9 @@ class LinuxSystemdUserServiceAdapter:
                 "lifecycle": {
                     "stop": stop_result,
                     "start": start_result,
+                },
+                "endpoint_release": {
+                    "wait_seconds": endpoint_release_wait_seconds,
                 },
                 "old_supervisor_identity": old_identity,
                 "new_supervisor_identity": new_identity,
