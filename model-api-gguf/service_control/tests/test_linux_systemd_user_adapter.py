@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from service_control import operating_profile, supervisor
 from service_control.platform_adapters import contract, registry
@@ -444,6 +445,68 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
         self.assertEqual(stopped["desired_state"], "STOPPED")
         self.assertEqual(self.manager.stop_calls, 1)
         self.assertFalse(self.manager.active)
+
+    def test_restart_closes_descendants_before_starting_new_supervisor(
+        self,
+    ) -> None:
+        self.register()
+        self.adapter.enable()
+        operating_profile.set_desired_state(
+            self.profile, "RUNNING", self.state_path, expected_generation=1
+        )
+        old_identity = self.publish_supervisor_records(
+            model_state="WAITING_FOR_MODEL"
+        )
+        paths = supervisor.SupervisorPaths(self.supervisor_runtime)
+
+        def graceful_stop() -> dict:
+            self.manager.stop_calls += 1
+            self.manager.active = False
+            self.manager.main_pid = None
+            paths.active_lock.unlink()
+            paths.active_pid.unlink()
+            paths.status_record.unlink()
+            paths.locks.rmdir()
+            paths.pids.rmdir()
+            paths.status.rmdir()
+            return {"exit_status": 0}
+
+        def clean_start() -> dict:
+            self.manager.start_calls += 1
+            self.publish_supervisor_records(
+                model_state="WAITING_FOR_MODEL"
+            )
+            return {"exit_status": 0}
+
+        with mock.patch.object(
+            self.manager, "stop", side_effect=graceful_stop
+        ), mock.patch.object(
+            self.manager, "start", side_effect=clean_start
+        ):
+            result = self.adapter.restart(wait_timeout_seconds=1.0)
+
+        desired = operating_profile.load_desired_state(
+            self.state_path, self.profile.identity
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["operation"], "restart")
+        self.assertEqual(result["desired_state"], "RUNNING")
+        self.assertEqual(desired.desired_state, "RUNNING")
+        self.assertEqual(desired.generation, 4)
+        self.assertEqual(self.manager.stop_calls, 1)
+        self.assertEqual(self.manager.start_calls, 1)
+        self.assertEqual(self.manager.n_restarts, 0)
+        self.assertEqual(
+            result["data"]["old_supervisor_identity"], old_identity
+        )
+        self.assertEqual(
+            result["data"]["lifecycle"]["stop"]["desired_state"],
+            "STOPPED",
+        )
+        self.assertEqual(
+            result["data"]["lifecycle"]["start"]["desired_state"],
+            "RUNNING",
+        )
 
     def test_explicit_isolated_unregister_is_narrow_and_preserves_history(
         self,

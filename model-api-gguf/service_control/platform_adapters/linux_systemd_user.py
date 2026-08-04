@@ -1977,7 +1977,7 @@ class LinuxSystemdUserServiceAdapter:
         self, *, wait_timeout_seconds: float = 60.0
     ) -> dict[str, Any]:
         manifest, profile, desired, _unit = self._load_manifest()
-        identity, _status, before = self._correlate(manifest)
+        old_identity, _status, before = self._correlate(manifest)
         if not manifest["enabled"]:
             _fail("ADAPTER_DISABLED", "adapter must be enabled")
         if not before["active"] or desired.desired_state != "RUNNING":
@@ -1985,17 +1985,34 @@ class LinuxSystemdUserServiceAdapter:
                 "ADAPTER_INACTIVE",
                 "restart requires active RUNNING service",
             )
-        manager_result = self.manager.restart()
-        new_identity, supervisor_status, after = self._wait_active(
-            manifest,
-            timeout_seconds=float(wait_timeout_seconds),
-            previous_pid=int(identity["pid"]),
+        stop_result = self.stop(
+            expected_generation=desired.generation,
+            wait_timeout_seconds=float(wait_timeout_seconds),
         )
+        stopped_generation = stop_result["desired_state_generation"]
+        start_result = self.start(
+            expected_generation=stopped_generation,
+            wait_timeout_seconds=float(wait_timeout_seconds),
+        )
+        manifest, profile, desired, _unit = self._load_manifest()
+        new_identity, supervisor_status, after = self._correlate(manifest)
+        if (
+            isinstance(self.manager, SystemdUserManager)
+            and new_identity.get("pid") == old_identity.get("pid")
+        ):
+            _fail(
+                "MANAGER_SUPERVISOR_IDENTITY_MISMATCH",
+                "graceful restart did not produce a new supervisor identity",
+                exit_code=3,
+            )
         activation = bounded_activation_result(
             operation="restart",
             ok=True,
             reason_code="OK",
-            message="native manager produced one new supervisor identity",
+            message=(
+                "desired-state shutdown completed before native manager "
+                "started one new supervisor identity"
+            ),
         )
         manifest = self._update_manifest(
             manifest,
@@ -2017,11 +2034,20 @@ class LinuxSystemdUserServiceAdapter:
             profile,
             desired,
             after,
-            message="systemd user manager restarted the supervisor",
+            message="platform adapter gracefully restarted System X",
             data={
                 "status": status,
-                "manager_result": manager_result,
-                "old_supervisor_identity": identity,
+                "manager_result": {
+                    "graceful_stop": stop_result["data"].get(
+                        "manager_result"
+                    ),
+                    "start": start_result["data"].get("manager_result"),
+                },
+                "lifecycle": {
+                    "stop": stop_result,
+                    "start": start_result,
+                },
+                "old_supervisor_identity": old_identity,
                 "new_supervisor_identity": new_identity,
             },
         )
