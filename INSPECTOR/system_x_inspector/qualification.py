@@ -4070,7 +4070,9 @@ def wait_for_qualification_candidate(
     ] = observe_qualification_candidate,
 ) -> dict[str, Any]:
     if timeout_seconds is None:
-        timeout_seconds = MANAGER_RESTORE_TIMEOUT_SECONDS
+        timeout_seconds = _accepted_registration_wait_seconds(
+            branch_root
+        )
     if (
         type(timeout_seconds) not in {int, float}
         or not 0.0
@@ -4120,9 +4122,7 @@ def wait_for_candidate_removal(
     ] = observe_qualification_candidate,
 ) -> dict[str, Any]:
     if timeout_seconds is None:
-        timeout_seconds = _accepted_registration_wait_seconds(
-            branch_root
-        )
+        timeout_seconds = MANAGER_RESTORE_TIMEOUT_SECONDS
     if (
         type(timeout_seconds) not in {int, float}
         or not 0.0
