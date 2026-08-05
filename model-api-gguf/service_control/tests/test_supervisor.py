@@ -843,6 +843,46 @@ class ForegroundBehaviorTests(SupervisorFixtureCase):
             (self.runtime_root / "locks/supervisor.lock").exists()
         )
 
+    def test_partial_start_fault_reconciles_branch_before_api(self) -> None:
+        self.initialize("RUNNING")
+        self.write_controller_config(
+            special={
+                "kind": "branch",
+                "operation": "status",
+                "mode": "nonzero",
+            }
+        )
+        with self.assertRaises(supervisor_api.SupervisorError) as caught:
+            self.supervisor().run()
+        self.assertEqual(
+            caught.exception.reason_code, "controller_operation_failed"
+        )
+
+        operations = [
+            (call["kind"], call["operation"]) for call in self.calls()
+        ]
+        self.assertIn(("branch", "reconcile"), operations)
+        self.assertIn(("branch", "stop"), operations)
+        self.assertIn(("api", "reconcile"), operations)
+        self.assertLess(
+            operations.index(("branch", "reconcile")),
+            operations.index(("api", "reconcile")),
+        )
+        state = json.loads(
+            self.controller_state.read_text(encoding="utf-8")
+        )
+        self.assertFalse(state["active"])
+        final = self.wait_for_status("FAULTED")
+        self.assertEqual(
+            final["fault_reason"], "controller_operation_failed"
+        )
+        self.assertFalse(
+            (self.runtime_root / "pids/supervisor.json").exists()
+        )
+        self.assertFalse(
+            (self.runtime_root / "locks/supervisor.lock").exists()
+        )
+
     def test_candidate_loading_is_stable_operational_without_restart(
         self,
     ) -> None:

@@ -1611,6 +1611,85 @@ class ForegroundSupervisor:
             )
         return stop_result, api_after, router_after
 
+    def _controller_owned_fault_cleanup(self) -> dict[str, Any]:
+        """Reconcile partial startup in dependency-safe order.
+
+        A startup fault can occur after the API controller has acquired its
+        active records but while the branch router is still inconsistent.
+        The regular graceful-stop path assumes a coherent router status and
+        can therefore fail before the API is unwound.  Fault cleanup first
+        reconciles/stops the dependent branch, then reconciles/stops the API,
+        and finishes with an idempotent reconciliation of each controller.
+        Every signal and record removal remains controller-owned.
+        """
+
+        actions: list[dict[str, Any]] = []
+        incomplete: list[str] = []
+
+        def invoke(kind: str, operation: str) -> dict[str, Any] | None:
+            try:
+                result = self.adapter.invoke(kind, operation)
+            except Exception as exc:
+                actions.append(
+                    {
+                        "kind": kind,
+                        "operation": operation,
+                        "ok": False,
+                        "reason_code": getattr(
+                            exc, "reason_code", type(exc).__name__
+                        ),
+                        "message": _bounded_text(exc),
+                    }
+                )
+                return None
+            actions.append(
+                {
+                    "kind": kind,
+                    "operation": operation,
+                    "ok": True,
+                    "reason_code": result.get("reason_code"),
+                }
+            )
+            return result
+
+        for kind in ("branch", "api"):
+            first = invoke(kind, "reconcile")
+            payload_key = "data" if kind == "branch" else "runtime"
+            payload = (
+                first.get(payload_key)
+                if isinstance(first, dict)
+                else None
+            )
+            if kind == "api" or (
+                isinstance(payload, dict)
+                and payload.get("active") is True
+            ):
+                invoke(kind, "stop")
+            final = invoke(kind, "reconcile")
+            final_payload = (
+                final.get(payload_key)
+                if isinstance(final, dict)
+                else None
+            )
+            if (
+                not isinstance(final_payload, dict)
+                or final_payload.get("active") is not False
+            ):
+                incomplete.append(kind)
+
+        return {
+            "ok": not incomplete,
+            "reason_code": (
+                "FAULT_CLEANUP_COMPLETE"
+                if not incomplete
+                else "FAULT_CLEANUP_INCOMPLETE"
+            ),
+            "actions": actions,
+            "incomplete_controllers": incomplete,
+            "manual_record_deletion": False,
+            "unrelated_process_signaled": False,
+        }
+
     def _coherent_observation(
         self,
         *,
@@ -2432,14 +2511,7 @@ class ForegroundSupervisor:
                 else "unexpected_error"
             )
             if api_started and stop_result is None:
-                try:
-                    stop_result, _, _ = self._controller_owned_stop(profile)
-                except Exception as cleanup_exc:
-                    stop_result = {
-                        "ok": False,
-                        "reason_code": "cleanup_failed",
-                        "message": _bounded_text(cleanup_exc),
-                    }
+                stop_result = self._controller_owned_fault_cleanup()
             fault_status = self._status_value(
                 profile=profile,
                 desired=desired,

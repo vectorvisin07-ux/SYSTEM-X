@@ -450,7 +450,7 @@
       "bytes": 2755,
       "mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
-      "sha256": "f575d7a36829081d65d5d3c864f680c6966238c094b55d99170f49b76161ea5b"
+      "sha256": "b1b47b27b8ad3167e9e620d2993883cf6c1e315a5ade825941c0daf095409841"
     },
     {
       "bytes": 1009,
@@ -1161,10 +1161,10 @@
       "sha256": "0bb6364de32562220b7676944355eddfd662ab8e24126426508dd50908c6d3a5"
     },
     {
-      "bytes": 109883,
+      "bytes": 112503,
       "mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
-      "sha256": "d1a298a490625420819cc9d3fd5deb1713c45bf72e3a54259044ab78f5e146bf"
+      "sha256": "b97a1c83b228d2ad927ad114b9f04a1fba7ac81e484185809a9fa223bd79a308"
     },
     {
       "bytes": 12445,
@@ -1197,10 +1197,10 @@
       "sha256": "cce399b08814c92e437c1c54835b4ad065b3350088ccb88c28e6bea1cdf12e3a"
     },
     {
-      "bytes": 37338,
+      "bytes": 38773,
       "mode": "100644",
       "path": "model-api-gguf/service_control/tests/test_supervisor.py",
-      "sha256": "10cee7daeb51d6d7e69892258ff16d27186883557577eeaf9916db16ebe6de23"
+      "sha256": "2b37c0823eb2ada12a727dd32fcd5392b58f932a43336c950f3be2465d7a863c"
     }
   ],
   "generated_state_manifest": "SYSTEM_X_EXCLUDED_STATE_MANIFEST.json",
