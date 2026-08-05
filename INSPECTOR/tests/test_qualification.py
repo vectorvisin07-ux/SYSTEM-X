@@ -993,7 +993,7 @@ class QualificationAdmissionTest(unittest.TestCase):
             **before,
             "default_bound": False,
             "aliases": [],
-            "registry_generation": 8,
+            "registry_generation": 9,
         }
         result = {
             "ok": True,
@@ -1036,6 +1036,7 @@ class QualificationAdmissionTest(unittest.TestCase):
             observed["capability_manifest_identity"],
             "sha256:" + "e" * 64,
         )
+        self.assertEqual(observed["registry_generation"], 9)
         self.assertEqual(observer.call_count, 2)
         observer.assert_called_with(
             self.branch, managed_name, "sha256:" + "c" * 64

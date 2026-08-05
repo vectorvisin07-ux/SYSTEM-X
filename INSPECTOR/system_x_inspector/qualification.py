@@ -4973,7 +4973,7 @@ def clear_qualification_default(
         or after.get("aliases") != []
         or after.get("public_model_id") != public_model_id
         or after.get("artifact_version_id") != artifact_version_id
-        or after.get("registry_generation") != generation + 1
+        or after.get("registry_generation", -1) < generation + 1
         or after.get("capability_manifest_identity")
         != observation.get("capability_manifest_identity")
     ):
