@@ -695,7 +695,9 @@ class QualificationAdmissionTest(unittest.TestCase):
             self.assertEqual(root, authorization.branch_paths.branch_root)
             self.assertFalse(admission.plan.managed_target.exists())
             restore_calls.append(root)
-            return {"used": True}
+            return {
+                "used": True, "accepted_interrupted_recovery": True
+            }
 
         cleanup, removed = cleanup_qualification_candidate(
             admission,
@@ -710,6 +712,9 @@ class QualificationAdmissionTest(unittest.TestCase):
         self.assertTrue(cleanup["ownership_certain"])
         self.assertTrue(cleanup["registry_location_removed"])
         self.assertTrue(removed["registry_location_removed"])
+        self.assertEqual(
+            restore_calls, [authorization.branch_paths.branch_root]
+        )
 
     def test_incumbent_and_waiting_for_model_restoration(self) -> None:
         authorization = self.authorize()

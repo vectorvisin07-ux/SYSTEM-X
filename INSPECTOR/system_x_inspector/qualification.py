@@ -4980,7 +4980,7 @@ def cleanup_qualification_candidate(
     ] = wait_for_candidate_removal,
     manager_restorer: Callable[
         [Path], dict[str, Any]
-    ] = restore_with_accepted_platform_manager,
+    ] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if registry_observation.get("default_bound") is True:
         raise _qualification_error(
@@ -5050,7 +5050,10 @@ def cleanup_qualification_candidate(
         expected.sha256,
     )
     if removed.get("registry_location_removed") is False:
-        manager_restorer(admission.plan.branch_paths.branch_root)
+        restorer = (
+            manager_restorer or recover_with_accepted_platform_manager
+        )
+        restorer(admission.plan.branch_paths.branch_root)
         removed = removal_waiter(
             admission.plan.branch_paths.branch_root,
             admission.plan.managed_name,
@@ -5161,8 +5164,13 @@ def _recovery_admission(
         or record.get("transaction_id") != failed_transaction_id
         or record.get("result_identity")
         != failed.get("qualification_result_identity")
-        or "QUALIFICATION_DEFAULT_CHANGED" not in record.get("reason_codes", [])
-        or record.get("cleanup", {}).get("managed_target_absent") is not False
+        or not {
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+        }.intersection(record.get("reason_codes", []))
+        or type(
+            record.get("cleanup", {}).get("managed_target_absent")
+        ) is not bool
         or record.get("cleanup", {}).get("ownership_certain") is not False
         or record.get("candidate_runtime", {}).get("managed_relative_path")
         != managed_relative
@@ -5211,10 +5219,14 @@ def _recovery_admission(
             == failed_transaction_id
             and value.get("state") == "FAIL_CLOSED"
         ]
-        if not failed_reconciliations:
+        qualification_owned_removal = bool(
+            record.get("cleanup", {}).get("managed_target_absent") is True
+            and record.get("cleanup", {}).get("staging_absent") is True
+        )
+        if not failed_reconciliations and not qualification_owned_removal:
             raise _qualification_error(
                 "QUALIFICATION_OWNERSHIP_UNCERTAIN",
-                "interrupted cleanup lacks an Inspector reconciliation record",
+                "interrupted cleanup lacks exact Inspector removal ownership",
             )
         return failed, record, None, observation
     if (
