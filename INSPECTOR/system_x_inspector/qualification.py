@@ -4136,10 +4136,19 @@ def wait_for_candidate_removal(
             "candidate-removal wait bound is invalid",
         )
     deadline = time.monotonic() + timeout_seconds
+    observed: dict[str, Any] | None = None
     while True:
-        observed = observer(
-            branch_root, managed_name, artifact_identity
-        )
+        try:
+            observed = observer(
+                branch_root, managed_name, artifact_identity
+            )
+        except InspectorError as error:
+            if error.reason_code != "QUALIFICATION_REGISTRY_UNAVAILABLE":
+                raise
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.1)
+            continue
         if observed["present"] is False:
             states = list(observed["states_observed"])
             if "REMOVED" not in states:
@@ -4150,6 +4159,9 @@ def wait_for_candidate_removal(
                 "registry_location_removed": True,
             }
         if time.monotonic() >= deadline:
+            if observed is None:
+                raise _qualification_error(
+                    "QUALIFICATION_REGISTRY_UNAVAILABLE", "candidate removal was never observable")
             return {
                 **observed,
                 "registry_location_removed": False,
@@ -5168,6 +5180,7 @@ def _recovery_admission(
         or not {
             "QUALIFICATION_DEFAULT_CHANGED",
             "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+            "QUALIFICATION_REGISTRY_UNAVAILABLE",
         }.intersection(record.get("reason_codes", []))
         or type(
             record.get("cleanup", {}).get("managed_target_absent")

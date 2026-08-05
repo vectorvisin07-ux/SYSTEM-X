@@ -398,6 +398,29 @@ class QualificationAdmissionTest(unittest.TestCase):
         )
         self.assertTrue(removed["registry_location_removed"])
 
+        attempts = []
+
+        def transient_observer(_root, _name, _identity):
+            attempts.append(len(attempts) + 1)
+            if len(attempts) == 1:
+                raise InspectorError(
+                    "QUALIFICATION_REGISTRY_UNAVAILABLE",
+                    "fixture restart window",
+                )
+            return {
+                "present": False,
+                "terminal": "REMOVED",
+                "states_observed": ["READY", "REMOVED"],
+            }
+
+        retried = wait_for_candidate_removal(
+            self.branch, "qualification-candidate-" + "a" * 16 + "-" + "b" * 16 + ".gguf",
+            "sha256:" + "c" * 64, timeout_seconds=1.0,
+            observer=transient_observer,
+        )
+        self.assertEqual(attempts, [1, 2])
+        self.assertTrue(retried["registry_location_removed"])
+
     def test_ready_version_at_removed_location_is_observed_as_removed(self) -> None:
         database = self.branch / "RUNTIME/api/database/model_registry.sqlite3"
         database.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
