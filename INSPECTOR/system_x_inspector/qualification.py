@@ -1619,6 +1619,134 @@ class PublicProfileProbeAdapter:
         self.cache["native_stream"] = parsed
         return parsed
 
+    def _compatibility_exchange(
+        self,
+        protocol: str,
+        method: str,
+        path: str,
+        *,
+        body: dict[str, Any] | None = None,
+        stream: bool = False,
+    ) -> dict[str, Any]:
+        if protocol not in {"openai", "messages"}:
+            raise _qualification_error(
+                "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                "compatibility protocol is invalid",
+            )
+        encoded = canonical_json_bytes(body) if body is not None else None
+        headers = {
+            "Accept": "text/event-stream" if stream else "application/json",
+            "Connection": "close",
+        }
+        if encoded is not None:
+            headers["Content-Type"] = "application/json"
+        if protocol == "openai":
+            headers["Authorization"] = "Bearer " + self.credential.raw
+        else:
+            headers["x-api-key"] = self.credential.raw
+            headers["anthropic-version"] = "2023-06-01"
+        connection = http.client.HTTPConnection(
+            self.service.host,
+            self.service.port,
+            timeout=PROFILE_HTTP_TIMEOUT_SECONDS,
+        )
+        try:
+            connection.request(method, path, body=encoded, headers=headers)
+            response = connection.getresponse()
+            status_code = response.status
+            media_type = response.getheader("Content-Type", "")
+            request_id = response.getheader("X-System-X-Request-ID")
+            family_request_id = response.getheader(
+                "x-request-id" if protocol == "openai" else "request-id"
+            )
+            compatibility = response.getheader(
+                "X-System-X-Compatibility-Version"
+                if protocol == "openai"
+                else "X-System-X-Anthropic-Compatibility"
+            )
+            streaming_identity = (
+                response.getheader(
+                    "X-System-X-OpenAI-Streaming"
+                    if protocol == "openai"
+                    else "X-System-X-Anthropic-Streaming"
+                )
+                if stream
+                else None
+            )
+            raw = response.read(MAX_STREAM_RESPONSE_BYTES + 1)
+        except (OSError, http.client.HTTPException) as error:
+            raise _qualification_error(
+                "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                "compatibility request failed",
+            ) from error
+        finally:
+            connection.close()
+        if status_code in {401, 403}:
+            raise _qualification_error(
+                "QUALIFICATION_AUTHENTICATION_REJECTED",
+                "compatibility credential was rejected",
+            )
+        suffix = (
+            request_id.removeprefix("sx_req_")
+            if isinstance(request_id, str)
+            else ""
+        )
+        expected_family_request_id = (
+            request_id if protocol == "openai" else "req_sx_" + suffix
+        )
+        expected_compatibility = (
+            "system-x.openai-compatible.v1"
+            if protocol == "openai"
+            else "system-x.anthropic-compatible.v1"
+        )
+        expected_streaming = (
+            "system-x.openai-streaming.v1"
+            if protocol == "openai"
+            else "system-x.anthropic-streaming.v1"
+        )
+        if (
+            not isinstance(request_id, str)
+            or REQUEST_ID_PATTERN.fullmatch(request_id) is None
+            or family_request_id != expected_family_request_id
+            or compatibility != expected_compatibility
+            or (stream and streaming_identity != expected_streaming)
+            or len(raw) > MAX_STREAM_RESPONSE_BYTES
+            or (
+                stream
+                and not media_type.startswith("text/event-stream")
+            )
+            or (
+                not stream
+                and not media_type.startswith("application/json")
+            )
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                "compatibility response identity is invalid",
+            )
+        parsed = None
+        if not stream:
+            try:
+                parsed = json.loads(raw)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility JSON response is invalid",
+                ) from error
+            if not isinstance(parsed, dict):
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility JSON response is not an object",
+                )
+        return {
+            "status": status_code,
+            "request_id": request_id,
+            "compatibility_identity": compatibility,
+            "streaming_identity": streaming_identity,
+            "body": parsed,
+            "raw": raw if stream else None,
+        }
+
     @staticmethod
     def _first_stream_event(
         raw: bytes, *, request_id: str, model_id: str
@@ -2189,17 +2317,354 @@ class PublicProfileProbeAdapter:
     def _compatibility(
         self, check_name: str
     ) -> dict[str, Any]:
-        if self.compatibility_probe is None:
-            raise _qualification_error(
-                "QUALIFICATION_PUBLIC_REQUEST_FAILED",
-                "existing compatibility probe adapter is unavailable",
+        if self.compatibility_probe is not None:
+            value = self.compatibility_probe(
+                check_name,
+                self.public_model_id,
+                self.artifact_version_id,
+                self.capability_manifest_identity,
             )
-        value = self.compatibility_probe(
-            check_name,
-            self.public_model_id,
-            self.artifact_version_id,
-            self.capability_manifest_identity,
+            if not isinstance(value, dict):
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility probe returned an invalid result",
+                )
+            return value
+        cached = self.cache.get("compatibility:" + check_name)
+        if isinstance(cached, dict):
+            return cached
+
+        def passed(
+            observed: dict[str, Any],
+            *,
+            terminal: str,
+            usage: dict[str, int | None] | None = None,
+        ) -> dict[str, Any]:
+            result = _check_result(
+                status="PASSED",
+                request_id=observed["request_id"],
+                http_status=observed["http_status"],
+                terminal=terminal,
+                usage=usage,
+                evidence=observed,
+            )
+            self.cache["compatibility:" + check_name] = result
+            return result
+
+        if check_name in {"openai_model_listing", "messages_model_listing"}:
+            protocol = (
+                "openai" if check_name.startswith("openai") else "messages"
+            )
+            response = self._compatibility_exchange(
+                protocol, "GET", "/v1/models"
+            )
+            body = response["body"]
+            data = body.get("data") if isinstance(body, dict) else None
+            identifiers = (
+                [item.get("id") for item in data if isinstance(item, dict)]
+                if isinstance(data, list)
+                else []
+            )
+            if (
+                response["status"] != 200
+                or identifiers.count("default") != 1
+                or identifiers.count(self.public_model_id) != 1
+                or (
+                    protocol == "openai"
+                    and body.get("object") != "list"
+                )
+                or (
+                    protocol == "messages"
+                    and body.get("has_more") is not False
+                )
+            ):
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility model listing is invalid",
+                )
+            self._expect(
+                response["request_id"],
+                endpoint="/v1/models",
+                operation="model.list",
+                streamed=False,
+                http_status=200,
+                operation_state="completed",
+                protocol_family=(
+                    "openai_compatible"
+                    if protocol == "openai"
+                    else "messages_compatible"
+                ),
+                resolved_model=False,
+            )
+            return passed(
+                {
+                    "request_id": response["request_id"],
+                    "http_status": 200,
+                    "default_present": True,
+                    "resolved_model_present": True,
+                    "model_count": len(identifiers),
+                    "compatibility_identity": response[
+                        "compatibility_identity"
+                    ],
+                },
+                terminal="completed",
+            )
+
+        if check_name in {
+            "openai_nonstream_request",
+            "messages_nonstream_request",
+        }:
+            protocol = (
+                "openai" if check_name.startswith("openai") else "messages"
+            )
+            path = (
+                "/v1/chat/completions"
+                if protocol == "openai"
+                else "/v1/messages"
+            )
+            request_body = {
+                "model": self.public_model_id,
+                "messages": [
+                    {"role": "user", "content": "Return exactly OK."}
+                ],
+                "stream": False,
+                "temperature": 0.0,
+            }
+            request_body[
+                "max_completion_tokens"
+                if protocol == "openai"
+                else "max_tokens"
+            ] = PROFILE_MAX_OUTPUT_TOKENS
+            response = self._compatibility_exchange(
+                protocol, "POST", path, body=request_body
+            )
+            body = response["body"]
+            if protocol == "openai":
+                choices = body.get("choices") if isinstance(body, dict) else None
+                choice = (
+                    choices[0]
+                    if isinstance(choices, list) and len(choices) == 1
+                    else None
+                )
+                message = choice.get("message") if isinstance(choice, dict) else None
+                content = message.get("content") if isinstance(message, dict) else None
+                raw_usage = body.get("usage") if isinstance(body, dict) else None
+                usage = {
+                    "input_tokens": raw_usage.get("prompt_tokens"),
+                    "output_tokens": raw_usage.get("completion_tokens"),
+                    "total_tokens": raw_usage.get("total_tokens"),
+                } if isinstance(raw_usage, dict) else None
+                finish = choice.get("finish_reason") if isinstance(choice, dict) else None
+                valid = (
+                    body.get("object") == "chat.completion"
+                    and body.get("model") == self.public_model_id
+                    and finish in {"stop", "length"}
+                )
+            else:
+                blocks = body.get("content") if isinstance(body, dict) else None
+                content = (
+                    "".join(
+                        item.get("text", "")
+                        for item in blocks
+                        if isinstance(item, dict) and item.get("type") == "text"
+                    )
+                    if isinstance(blocks, list)
+                    else None
+                )
+                raw_usage = body.get("usage") if isinstance(body, dict) else None
+                usage = {
+                    "input_tokens": raw_usage.get("input_tokens"),
+                    "output_tokens": raw_usage.get("output_tokens"),
+                    "total_tokens": (
+                        raw_usage.get("input_tokens")
+                        + raw_usage.get("output_tokens")
+                    ),
+                } if (
+                    isinstance(raw_usage, dict)
+                    and type(raw_usage.get("input_tokens")) is int
+                    and type(raw_usage.get("output_tokens")) is int
+                ) else None
+                finish = body.get("stop_reason") if isinstance(body, dict) else None
+                valid = (
+                    body.get("type") == "message"
+                    and body.get("model") == self.public_model_id
+                    and finish
+                    in {
+                        "end_turn",
+                        "max_tokens",
+                        "model_context_window_exceeded",
+                    }
+                )
+            validated_usage = _validate_usage_projection(usage)
+            if (
+                response["status"] != 200
+                or not valid
+                or not isinstance(content, str)
+                or not content
+                or validated_usage is None
+            ):
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility non-stream response is invalid",
+                )
+            encoded = content.encode("utf-8")
+            family = (
+                "openai_compatible"
+                if protocol == "openai"
+                else "messages_compatible"
+            )
+            self._expect(
+                response["request_id"], endpoint=path, operation="chat",
+                streamed=False, http_status=200,
+                operation_state="completed", protocol_family=family,
+            )
+            return passed(
+                {
+                    "request_id": response["request_id"],
+                    "http_status": 200,
+                    "model": self.public_model_id,
+                    "finish_reason": finish,
+                    "usage": validated_usage,
+                    "content_present": True,
+                    "content_bytes": len(encoded),
+                    "content_sha256": (
+                        "sha256:" + hashlib.sha256(encoded).hexdigest()
+                    ),
+                    "compatibility_identity": response[
+                        "compatibility_identity"
+                    ],
+                },
+                terminal="completed:" + str(finish),
+                usage=validated_usage,
+            )
+
+        if check_name in {
+            "openai_stream_sequence",
+            "messages_stream_sequence",
+        }:
+            protocol = (
+                "openai" if check_name.startswith("openai") else "messages"
+            )
+            path = (
+                "/v1/chat/completions"
+                if protocol == "openai"
+                else "/v1/messages"
+            )
+            request_body = {
+                "model": self.public_model_id,
+                "messages": [
+                    {"role": "user", "content": "Return exactly OK."}
+                ],
+                "stream": True,
+                "temperature": 0.0,
+            }
+            request_body[
+                "max_completion_tokens"
+                if protocol == "openai"
+                else "max_tokens"
+            ] = PROFILE_MAX_OUTPUT_TOKENS
+            if protocol == "openai":
+                request_body["stream_options"] = {"include_usage": True}
+            response = self._compatibility_exchange(
+                protocol, "POST", path, body=request_body, stream=True
+            )
+            try:
+                blocks = [
+                    item
+                    for item in response["raw"].decode("utf-8")
+                    .replace("\r\n", "\n").split("\n\n")
+                    if item
+                ]
+            except UnicodeDecodeError as error:
+                raise _qualification_error(
+                    "QUALIFICATION_PUBLIC_REQUEST_FAILED",
+                    "compatibility stream is not UTF-8",
+                ) from error
+            digest = hashlib.sha256()
+            content_bytes = 0
+            finish: str | None = None
+            usage: dict[str, int | None] | None = None
+            event_types: list[str] = []
+            if protocol == "openai":
+                done = 0
+                for index, block in enumerate(blocks):
+                    if not block.startswith("data: ") or "\n" in block:
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "OpenAI stream framing is invalid")
+                    payload = block[6:]
+                    if payload == "[DONE]":
+                        done += 1
+                        if index != len(blocks) - 1:
+                            raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "OpenAI DONE is not terminal")
+                        continue
+                    try:
+                        frame = json.loads(payload)
+                    except json.JSONDecodeError as error:
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "OpenAI stream data is invalid") from error
+                    if not isinstance(frame, dict) or frame.get("object") != "chat.completion.chunk" or frame.get("model") != self.public_model_id:
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "OpenAI stream identity is invalid")
+                    choices = frame.get("choices")
+                    if isinstance(choices, list) and len(choices) == 1:
+                        choice = choices[0]
+                        delta = choice.get("delta") if isinstance(choice, dict) else None
+                        text = delta.get("content") if isinstance(delta, dict) else None
+                        if isinstance(text, str) and text:
+                            encoded = text.encode("utf-8"); digest.update(encoded); content_bytes += len(encoded)
+                        terminal = choice.get("finish_reason") if isinstance(choice, dict) else None
+                        if terminal is not None:
+                            finish = terminal
+                    elif choices == [] and isinstance(frame.get("usage"), dict):
+                        raw_usage = frame["usage"]
+                        usage = {"input_tokens": raw_usage.get("prompt_tokens"), "output_tokens": raw_usage.get("completion_tokens"), "total_tokens": raw_usage.get("total_tokens")}
+                    else:
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "OpenAI stream chunk is invalid")
+                    event_types.append("chunk")
+                complete = done == 1 and finish in {"stop", "length"}
+            else:
+                input_tokens = None; output_tokens = None
+                for block in blocks:
+                    lines = block.splitlines()
+                    if len(lines) != 2 or not lines[0].startswith("event: ") or not lines[1].startswith("data: "):
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "Messages stream framing is invalid")
+                    event_type = lines[0][7:]
+                    try:
+                        frame = json.loads(lines[1][6:])
+                    except json.JSONDecodeError as error:
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "Messages stream data is invalid") from error
+                    if not isinstance(frame, dict) or frame.get("type") != event_type or event_type == "error":
+                        raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "Messages stream event is invalid")
+                    if event_type == "message_start":
+                        message = frame.get("message"); raw_usage = message.get("usage") if isinstance(message, dict) else None
+                        if not isinstance(message, dict) or message.get("model") != self.public_model_id or not isinstance(raw_usage, dict):
+                            raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "Messages start event is invalid")
+                        input_tokens = raw_usage.get("input_tokens")
+                    if event_type == "content_block_delta":
+                        delta = frame.get("delta"); text = delta.get("text") if isinstance(delta, dict) and delta.get("type") == "text_delta" else None
+                        if isinstance(text, str) and text:
+                            encoded = text.encode("utf-8"); digest.update(encoded); content_bytes += len(encoded)
+                    if event_type == "message_delta":
+                        delta = frame.get("delta"); raw_usage = frame.get("usage")
+                        finish = delta.get("stop_reason") if isinstance(delta, dict) else None
+                        output_tokens = raw_usage.get("output_tokens") if isinstance(raw_usage, dict) else None
+                    event_types.append(event_type)
+                usage = {"input_tokens": input_tokens, "output_tokens": output_tokens, "total_tokens": input_tokens + output_tokens} if type(input_tokens) is int and type(output_tokens) is int else None
+                complete = bool(event_types and event_types[0] == "message_start" and event_types[-1] == "message_stop" and event_types.count("message_start") == 1 and event_types.count("message_stop") == 1 and finish in {"end_turn", "max_tokens", "model_context_window_exceeded"})
+            validated_usage = _validate_usage_projection(usage)
+            if response["status"] != 200 or not complete or content_bytes < 1 or validated_usage is None:
+                raise _qualification_error("QUALIFICATION_PUBLIC_REQUEST_FAILED", "compatibility stream did not complete")
+            family = "openai_compatible" if protocol == "openai" else "messages_compatible"
+            self._expect(response["request_id"], endpoint=path, operation="chat", streamed=True, http_status=200, operation_state="completed", protocol_family=family)
+            return passed({"request_id": response["request_id"], "http_status": 200, "event_count": len(event_types), "event_types": event_types, "terminal_state": "completed:" + str(finish), "usage": validated_usage, "content_present": True, "content_bytes": content_bytes, "content_sha256": "sha256:" + digest.hexdigest(), "streaming_identity": response["streaming_identity"]}, terminal="completed:" + str(finish), usage=validated_usage)
+
+        if check_name == "heychat_adapter_compatibility":
+            models = self._compatibility("openai_model_listing")
+            chat = self._compatibility("openai_nonstream_request")
+            observed = {"request_id": chat["request_id"], "http_status": chat["http_status"], "adapter_protocol": "openai_compatible", "base_path": "/v1", "authentication": "bearer", "model_reference": self.public_model_id, "model_listing_request_id": models["request_id"], "inference_request_id": chat["request_id"], "default_present": True, "resolved_model_present": True}
+            return passed(observed, terminal=str(chat["finish_or_terminal_state"]), usage=chat["usage"])
+        raise _qualification_error(
+            "QUALIFICATION_INTERNAL_ERROR",
+            "unknown compatibility profile check",
         )
+        value = None
         if not isinstance(value, dict):
             raise _qualification_error(
                 "QUALIFICATION_PUBLIC_REQUEST_FAILED",
@@ -4403,8 +4868,9 @@ def clear_qualification_default(
         != observation.get("public_model_id")
         or refreshed.get("artifact_version_id")
         != observation.get("artifact_version_id")
-        or refreshed.get("capability_manifest_identity")
-        != observation.get("capability_manifest_identity")
+        or SHA256_PATTERN.fullmatch(
+            str(refreshed.get("capability_manifest_identity"))
+        ) is None
     ):
         raise _qualification_error(
             "QUALIFICATION_DEFAULT_CHANGED",
@@ -4495,6 +4961,8 @@ def clear_qualification_default(
         or after.get("public_model_id") != public_model_id
         or after.get("artifact_version_id") != artifact_version_id
         or after.get("registry_generation") != generation + 1
+        or after.get("capability_manifest_identity")
+        != observation.get("capability_manifest_identity")
     ):
         raise _qualification_error(
             "QUALIFICATION_DEFAULT_CHANGED",
@@ -4738,6 +5206,19 @@ def _recovery_admission(
             "QUALIFICATION_OWNERSHIP_UNCERTAIN",
             "failed qualification physical ownership changed",
         )
+    accepted_manifest_identities = {
+        record["candidate_runtime"]["capability_manifest_identity"]
+    }
+    warm_after = record.get("incumbent", {}).get("warm_after")
+    if (
+        isinstance(warm_after, dict)
+        and SHA256_PATTERN.fullmatch(
+            str(warm_after.get("capability_manifest_identity"))
+        ) is not None
+    ):
+        accepted_manifest_identities.add(
+            warm_after["capability_manifest_identity"]
+        )
     plan = DestinationPlan(
         branch_paths=branch,
         transaction_id=failed_transaction_id,
@@ -4797,7 +5278,7 @@ def _recovery_admission(
         or observation.get("artifact_version_id")
         != runtime["artifact_version_id"]
         or observation.get("capability_manifest_identity")
-        != runtime["capability_manifest_identity"]
+        not in accepted_manifest_identities
     ):
         raise _qualification_error(
             "QUALIFICATION_DEFAULT_CHANGED",

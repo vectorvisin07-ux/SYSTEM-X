@@ -946,6 +946,7 @@ class QualificationAdmissionTest(unittest.TestCase):
             "public_model_id": public_model_id,
             "artifact_version_id": "bundle-" + "c" * 64,
             "registry_generation": 7,
+            "capability_manifest_identity": "sha256:" + "e" * 64,
         }
         after = {
             **before,
@@ -970,12 +971,16 @@ class QualificationAdmissionTest(unittest.TestCase):
                 stderr=b"",
             )
         )
+        initial = {
+            **before,
+            "capability_manifest_identity": "sha256:" + "d" * 64,
+        }
         observer = Mock(side_effect=(before, after))
         alias, observed = clear_qualification_default(
             self.branch,
             managed_name,
             "sha256:" + "c" * 64,
-            before,
+            initial,
             "tx-20260101T000000000000Z-aaaaaaaaaaaa",
             runner=runner,
             observer=observer,
@@ -986,6 +991,10 @@ class QualificationAdmissionTest(unittest.TestCase):
         self.assertEqual(request["action"], "clear")
         self.assertEqual(request["expected_registry_generation"], 7)
         self.assertEqual(request["expected_current_target"], public_model_id)
+        self.assertEqual(
+            observed["capability_manifest_identity"],
+            "sha256:" + "e" * 64,
+        )
         self.assertEqual(observer.call_count, 2)
         observer.assert_called_with(
             self.branch, managed_name, "sha256:" + "c" * 64
@@ -1078,6 +1087,72 @@ class QualificationProfileRunnerTest(unittest.TestCase):
         self.assertEqual(body["max_output_tokens"], PROFILE_MAX_OUTPUT_TOKENS)
         self.assertEqual(PROFILE_MAX_OUTPUT_TOKENS, 1024)
         self.assertLess(PROFILE_MAX_OUTPUT_TOKENS, 2048)
+
+    def test_live_adapter_has_bounded_openai_and_heychat_fallback(self) -> None:
+        adapter = object.__new__(PublicProfileProbeAdapter)
+        adapter.public_model_id = self.MODEL_ID
+        adapter.artifact_version_id = self.ARTIFACT_VERSION
+        adapter.capability_manifest_identity = self.MANIFEST
+        adapter.compatibility_probe = None
+        adapter.cache = {}
+        adapter.expectations = {}
+        first = "sx_req_" + "1" * 32
+        second = "sx_req_" + "2" * 32
+        adapter._compatibility_exchange = Mock(
+            side_effect=(
+                {
+                    "status": 200,
+                    "request_id": first,
+                    "compatibility_identity": (
+                        "system-x.openai-compatible.v1"
+                    ),
+                    "streaming_identity": None,
+                    "body": {
+                        "object": "list",
+                        "data": [
+                            {"id": "default"},
+                            {"id": self.MODEL_ID},
+                        ],
+                    },
+                    "raw": None,
+                },
+                {
+                    "status": 200,
+                    "request_id": second,
+                    "compatibility_identity": (
+                        "system-x.openai-compatible.v1"
+                    ),
+                    "streaming_identity": None,
+                    "body": {
+                        "object": "chat.completion",
+                        "model": self.MODEL_ID,
+                        "choices": [
+                            {
+                                "message": {"content": "OK"},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 2,
+                            "completion_tokens": 1,
+                            "total_tokens": 3,
+                        },
+                    },
+                    "raw": None,
+                },
+            )
+        )
+        listed = adapter._compatibility("openai_model_listing")
+        chatted = adapter._compatibility("openai_nonstream_request")
+        heychat = adapter._compatibility("heychat_adapter_compatibility")
+        self.assertEqual(listed["status"], "PASSED")
+        self.assertEqual(chatted["status"], "PASSED")
+        self.assertEqual(heychat["status"], "PASSED")
+        self.assertEqual(adapter._compatibility_exchange.call_count, 2)
+        self.assertEqual(
+            {item.protocol_family for item in adapter.expectations.values()},
+            {"openai_compatible"},
+        )
 
     def run_profile(
         self,
