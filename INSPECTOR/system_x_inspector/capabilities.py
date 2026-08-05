@@ -874,7 +874,34 @@ def load_binding(
 def _git_commit(branch_root: Path) -> str | None:
     git = branch_root / "llama.cpp" / ".git"
     if not git.is_dir() or git.is_symlink():
-        return None
+        identity_path = branch_root / "LLAMA_CPP_SOURCE_IDENTITY.json"
+        try:
+            details = identity_path.lstat()
+            if (
+                stat.S_ISLNK(details.st_mode)
+                or not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+            ):
+                return None
+            identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError, OSError):
+            return None
+        if (
+            not isinstance(identity, dict)
+            or identity.get("schema")
+            != "system-x.llama-cpp-source-identity.v1"
+            or identity.get("origin") != "https://github.com/ggml-org/llama.cpp"
+            or identity.get("build_output_excluded") is not True
+            or not isinstance(identity.get("tracked_file_count"), int)
+            or identity.get("tracked_file_count", 0) <= 0
+            or not isinstance(identity.get("complete_vendored_manifest_sha256"), str)
+            or re.fullmatch(
+                r"[0-9a-f]{64}", identity["complete_vendored_manifest_sha256"]
+            ) is None
+        ):
+            return None
+        commit = identity.get("commit")
+        return commit if isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit) else None
     head = git / "HEAD"
     try:
         details = head.lstat()

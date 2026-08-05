@@ -271,6 +271,34 @@ class CapabilityStoreTest(unittest.TestCase):
         self.assertFalse(second["verified"])
         self.assertTrue(second["mismatches"])
 
+    def test_installed_tuple_accepts_authenticated_vendored_source_identity(
+        self,
+    ) -> None:
+        shutil.rmtree(self.branch / "llama.cpp/.git")
+        (self.branch / "LLAMA_CPP_SOURCE_IDENTITY.json").write_text(
+            json.dumps(
+                {
+                    "schema": "system-x.llama-cpp-source-identity.v1",
+                    "origin": "https://github.com/ggml-org/llama.cpp",
+                    "commit": "1" * 40,
+                    "build_output_excluded": True,
+                    "tracked_file_count": 1,
+                    "complete_vendored_manifest_sha256": "2" * 64,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        result = verify_installed_tuple(
+            self.paths,
+            self.record,
+            branch_root=self.branch,
+            user_config_root=self.temporary / "config",
+        )
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["source_commit"], "1" * 40)
+
     def test_binding_identity_tamper(self) -> None:
         value = build_binding(
             self.record,

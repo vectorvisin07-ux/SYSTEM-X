@@ -123,10 +123,10 @@
       "sha256": "477564e410f042f9ac0e3bc112ca52560bb2769b1df0348fbb0e39510ef7bad0"
     },
     {
-      "bytes": 36652,
+      "bytes": 37964,
       "mode": "100644",
       "path": "INSPECTOR/system_x_inspector/capabilities.py",
-      "sha256": "8c38a38ffe9e8ca6d1a9043ae08be755436a3e93c8162adbc4ba8630a2a7051b"
+      "sha256": "b643760859cbd4f76c4c4f47f00893756423d07db4f06e0a83c294cda9461343"
     },
     {
       "bytes": 14964,
@@ -261,10 +261,10 @@
       "sha256": "6f672115c7df770a44113208b9b6de5df5dad9128d92d864f72274336409ea47"
     },
     {
-      "bytes": 10614,
+      "bytes": 11653,
       "mode": "100644",
       "path": "INSPECTOR/tests/test_capabilities.py",
-      "sha256": "b752b88ae17fd0c97fbda1fb8c85e9082c1c71a74932aab40e7bf0eb60256b93"
+      "sha256": "8dea52dae1df855a8f56ad5abdd286c515e7c20518d154fdb618794e9c75bda1"
     },
     {
       "bytes": 6068,
