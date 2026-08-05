@@ -25,6 +25,7 @@ from system_x_inspector.service_publication import (
     RegistrySnapshot,
     SecretCredential,
     ServiceSnapshot,
+    _handoff_authorization_mode,
     build_publication_record,
     correlate_operation_record,
     issue_proof_request,
@@ -176,6 +177,57 @@ def restoration_evidence() -> dict[str, object]:
         "final_warm_health": "ready",
         "final_public_health": "READY",
     }
+
+
+class HandoffAuthorizationTest(unittest.TestCase):
+    def test_direct_and_qualified_handoff_modes_are_exact(self) -> None:
+        direct = {
+            "decision": {
+                "capability_result": "SUPPORTED",
+                "selected_branch": "model-api-gguf",
+                "handoff_allowed": True,
+                "spawn_allowed": True,
+            }
+        }
+        qualified = {
+            "decision": {
+                "capability_result": "RUNTIME_SMOKE_REQUIRED",
+                "selected_branch": None,
+                "handoff_allowed": False,
+                "spawn_allowed": False,
+            },
+            "qualification": {
+                "qualification_id": "qualification-fixture",
+                "result_identity": "sha256:" + "1" * 64,
+                "result_class": "SUPPORTED_FOR_CURRENT_TUPLE",
+                "requested_profile": "FULL_PRODUCT",
+            },
+        }
+        self.assertEqual(
+            _handoff_authorization_mode(direct), "DIRECT_SUPPORTED"
+        )
+        self.assertEqual(
+            _handoff_authorization_mode(qualified), "QUALIFIED_RUNTIME"
+        )
+        for changed in (
+            {**qualified, "qualification": None},
+            {
+                **qualified,
+                "decision": {
+                    **qualified["decision"],
+                    "selected_branch": "model-api-gguf",
+                },
+            },
+            {
+                **qualified,
+                "qualification": {
+                    **qualified["qualification"],
+                    "result_class": "NOT_SUPPORTED_FOR_CURRENT_TUPLE",
+                },
+            },
+        ):
+            with self.subTest(changed=changed):
+                self.assertIsNone(_handoff_authorization_mode(changed))
 
 
 def prepared(log: Path, port: int = 1) -> PreparedPublication:

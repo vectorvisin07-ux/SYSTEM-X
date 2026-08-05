@@ -418,6 +418,37 @@ class HandoffEvidence:
     target_name: str
 
 
+def _handoff_authorization_mode(handoff: dict[str, Any]) -> str | None:
+    decision = handoff.get("decision")
+    qualification = handoff.get("qualification")
+    if not isinstance(decision, dict):
+        return None
+    direct = (
+        qualification is None
+        and decision.get("capability_result") == "SUPPORTED"
+        and decision.get("selected_branch") == HANDOFF_BRANCH
+        and decision.get("handoff_allowed") is True
+        and decision.get("spawn_allowed") is True
+    )
+    qualified = (
+        isinstance(qualification, dict)
+        and qualification.get("result_class")
+        == "SUPPORTED_FOR_CURRENT_TUPLE"
+        and isinstance(qualification.get("requested_profile"), str)
+        and bool(qualification["requested_profile"])
+        and decision.get("capability_result")
+        == "RUNTIME_SMOKE_REQUIRED"
+        and decision.get("selected_branch") is None
+        and decision.get("handoff_allowed") is False
+        and decision.get("spawn_allowed") is False
+    )
+    if direct:
+        return "DIRECT_SUPPORTED"
+    if qualified:
+        return "QUALIFIED_RUNTIME"
+    return None
+
+
 def authenticate_handoff(
     paths: InspectorPaths, handoff_id: str
 ) -> HandoffEvidence:
@@ -435,9 +466,9 @@ def authenticate_handoff(
             "HANDOFF_RESULT_IDENTITY_MISMATCH",
             "retained handoff identity is inconsistent",
         )
+    authorization_mode = _handoff_authorization_mode(handoff)
     if (
-        handoff["decision"]["selected_branch"] != HANDOFF_BRANCH
-        or handoff["decision"]["handoff_allowed"] is not True
+        authorization_mode is None
         or handoff["status"] != "PUBLISHED_TO_BRANCH"
     ):
         raise _fail(
@@ -478,21 +509,74 @@ def authenticate_handoff(
             "HANDOFF_RESULT_INVALID",
             "linked decision could not be authenticated",
         ) from error
-    if (
+    linked_decision_invalid = (
         decision_result_identity(decision)
         != handoff["decision"]["result_identity"]
         or decision["result_identity"]
         != handoff["decision"]["result_identity"]
         or decision["inspection"]["inspection_id"]
         != handoff["inspection"]["inspection_id"]
-        or decision["selected_branch"] != HANDOFF_BRANCH
-        or decision["handoff_allowed"] is not True
-        or decision["capability"]["capability_result"] != "SUPPORTED"
-    ):
+        or decision["capability"]["capability_result"]
+        != handoff["decision"]["capability_result"]
+    )
+    if authorization_mode == "DIRECT_SUPPORTED":
+        linked_decision_invalid = linked_decision_invalid or (
+            decision["selected_branch"] != HANDOFF_BRANCH
+            or decision["handoff_allowed"] is not True
+            or decision["spawn_allowed"] is not True
+            or decision["capability"]["capability_result"] != "SUPPORTED"
+        )
+    else:
+        linked_decision_invalid = linked_decision_invalid or (
+            decision["selected_branch"] is not None
+            or decision["handoff_allowed"] is not False
+            or decision["spawn_allowed"] is not False
+            or decision["capability"]["capability_result"]
+            != "RUNTIME_SMOKE_REQUIRED"
+        )
+    if linked_decision_invalid:
         raise _fail(
             "HANDOFF_RESULT_IDENTITY_MISMATCH",
             "linked decision does not match the retained handoff",
         )
+    qualification = None
+    if authorization_mode == "QUALIFIED_RUNTIME":
+        from .qualification import (
+            qualification_result_path,
+            validate_qualification_record,
+        )
+        projection = handoff["qualification"]
+        try:
+            qualification = validate_qualification_record(
+                read_json_record(
+                    qualification_result_path(
+                        paths, projection["qualification_id"]
+                    )
+                )
+            )
+        except (OSError, InspectorError) as error:
+            raise _fail(
+                "HANDOFF_RESULT_INVALID",
+                "linked qualification could not be authenticated",
+            ) from error
+        if (
+            qualification["result_identity"] != projection["result_identity"]
+            or qualification["result_class"] != projection["result_class"]
+            or qualification["requested_profile"]
+            != projection["requested_profile"]
+            or qualification["input_decision"]["decision_id"]
+            != decision["decision_id"]
+            or qualification["input_decision"]["decision_result_identity"]
+            != decision["result_identity"]
+            or qualification["inspection"]["inspection_id"]
+            != inspection["inspection_id"]
+            or qualification["inspection"]["artifact_identity"]
+            != inspection["artifact"]["identity"]
+        ):
+            raise _fail(
+                "HANDOFF_RESULT_IDENTITY_MISMATCH",
+                "linked qualification does not match the retained handoff",
+            )
     try:
         binding = load_binding(paths, HANDOFF_BRANCH)
         capability = load_capability_record(
@@ -517,6 +601,26 @@ def authenticate_handoff(
         raise _fail(
             "CAPABILITY_BINDING_INVALID",
             "current GGUF capability evidence differs from the handoff",
+        )
+    if qualification is not None and (
+        qualification["installed_tuple"].get(
+            "branch_capability_record_identity"
+        )
+        != capability["capability_record_identity"]
+        or qualification["installed_tuple"].get(
+            "capability_binding_identity"
+        )
+        != binding["binding_identity"]
+        or qualification["validity_predicate"].get(
+            "capability_record_identity"
+        )
+        != capability["capability_record_identity"]
+        or qualification["validity_predicate"].get("binding_identity")
+        != binding["binding_identity"]
+    ):
+        raise _fail(
+            "CAPABILITY_BINDING_INVALID",
+            "qualified handoff differs from current capability evidence",
         )
     if installed.get("verified") is not True:
         raise _fail(
