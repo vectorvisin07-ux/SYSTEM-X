@@ -371,6 +371,18 @@ class QualificationAdmissionTest(unittest.TestCase):
         self.assertEqual(
             _accepted_registration_wait_seconds(self.branch), 153.0
         )
+        atomic_write_json(
+            status / "service.json",
+            {
+                "lifecycle_state": "STARTING",
+                "private_backend_model_timeout_seconds": 120.0,
+                "service_start_timeout_seconds": 153.0,
+            },
+            mode=0o600,
+        )
+        self.assertEqual(
+            _accepted_registration_wait_seconds(self.branch), 153.0
+        )
         removed = wait_for_candidate_removal(
             self.branch,
             qualification_managed_name(

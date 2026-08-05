@@ -4043,7 +4043,8 @@ def _accepted_registration_wait_seconds(branch_root: Path) -> float:
         "private_backend_model_timeout_seconds"
     )
     if (
-        service.get("lifecycle_state") != "STARTED"
+        service.get("lifecycle_state")
+        not in {"STARTED", "STARTING"}
         or type(service_timeout) not in {int, float}
         or type(model_timeout) not in {int, float}
         or not 1.0
