@@ -503,11 +503,6 @@ def validate_capability_record(value: object) -> dict[str, Any]:
                 "CAPABILITY_RECORD_INVALID",
                 "supported artifact identity",
             )
-        if not supported["supported_exact_artifact_identities"]:
-            raise _fail(
-                "CAPABILITY_RECORD_INVALID",
-                "GGUF exact supported artifacts are empty",
-            )
         for key in (
             "accepted_architectures",
             "accepted_primary_model_types",

@@ -100,7 +100,12 @@ class CapabilityStoreTest(unittest.TestCase):
             },
         }
 
-    def gguf_record(self, *, created: str = "2026-01-01T00:00:00Z"):
+    def gguf_record(
+        self,
+        *,
+        created: str = "2026-01-01T00:00:00Z",
+        exact_artifact_identities: list[str] | None = None,
+    ):
         return build_capability_record(
             created_utc=created,
             branch_identity="model-api-gguf",
@@ -112,7 +117,11 @@ class CapabilityStoreTest(unittest.TestCase):
                 {"basename": "accepted.rs", "sha256": sha(b"evidence")}
             ],
             supported_evidence={
-                "supported_exact_artifact_identities": [sha(b"model")],
+                "supported_exact_artifact_identities": (
+                    [sha(b"model")]
+                    if exact_artifact_identities is None
+                    else exact_artifact_identities
+                ),
                 "accepted_format_versions": [3],
                 "accepted_architectures": ["qwen35"],
                 "accepted_primary_model_types": ["model"],
@@ -154,6 +163,16 @@ class CapabilityStoreTest(unittest.TestCase):
             ),
             "preserve",
         )
+
+    def test_cold_install_allows_no_previously_supported_artifact(self) -> None:
+        cold = self.gguf_record(exact_artifact_identities=[])
+        self.assertEqual(
+            cold["supported_evidence"][
+                "supported_exact_artifact_identities"
+            ],
+            [],
+        )
+        self.assertEqual(validate_capability_record(cold), cold)
 
     def test_canonical_identity_and_no_pid_law(self) -> None:
         reordered = json.loads(json.dumps(self.record, sort_keys=True))
