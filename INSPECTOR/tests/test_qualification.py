@@ -441,7 +441,7 @@ class QualificationAdmissionTest(unittest.TestCase):
             )
             connection.execute(
                 "INSERT INTO model_versions VALUES (?,?,?,'t')",
-                (model_id, bundle, "READY"),
+                (model_id, bundle, "REMOVED"),
             )
             connection.execute(
                 "INSERT INTO model_version_locations VALUES (?,?)",

@@ -3500,6 +3500,19 @@ def observe_qualification_candidate(
             state = str(current["state"])
             if state in {"REJECTED", "UNAVAILABLE", "REMOVED"}:
                 terminal = state
+                if state in {"UNAVAILABLE", "REMOVED"}:
+                    manifest = current["manifest_sha256"]
+                    if (
+                        not isinstance(manifest, str)
+                        or re.fullmatch(r"[0-9a-f]{64}", manifest) is None
+                    ):
+                        raise _qualification_error(
+                            "QUALIFICATION_REGISTRY_UNAVAILABLE",
+                            "removed candidate lacks authenticated identities",
+                        )
+                    public_model_id = str(current["model_version_id"])
+                    artifact_version_id = str(current["bundle_id"])
+                    manifest_identity = "sha256:" + manifest
             elif state == "READY":
                 manifest = current["manifest_sha256"]
                 if (
