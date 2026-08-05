@@ -1172,6 +1172,7 @@ def deploy_transaction(
     recoverable = _find_recoverable(paths, request, source)
     resuming = recoverable is not None
     retryable: dict[str, Any] | None = None
+    converged_retry = False
     if recoverable is None:
         duplicate = _find_completed(paths, request, source)
         if duplicate is not None:
@@ -1516,7 +1517,43 @@ def deploy_transaction(
 
         mode = request["deployment_mode"]
         if mode in {"install-first", "replace-default"}:
-            if "promotion" not in children:
+            if mode == "install-first" and converged_retry:
+                candidate = publication.get("candidate_identity")
+                prestate = runtime["prestate"]
+                if (
+                    not isinstance(candidate, dict)
+                    or candidate.get("resolved_immutable_model_id")
+                    != prestate.get("default_target")
+                    or candidate.get("artifact_version_id")
+                    != prestate.get("artifact_version_id")
+                    or str(
+                        candidate.get("capability_manifest_identity", "")
+                    ).removeprefix("sha256:")
+                    != str(prestate.get(
+                        "capability_manifest_identity", ""
+                    )).removeprefix("sha256:")
+                    or type(publication.get("registry_generation")) is not int
+                    or publication["registry_generation"]
+                    < prestate.get("registry_generation", -1)
+                ):
+                    raise _error(
+                        "DEPLOYMENT_CHILD_RESULT_INVALID",
+                        "converged candidate publication differs from prestate",
+                    )
+                runtime["promotion_result"] = (
+                    "PROMOTION_NOT_REQUIRED_ALREADY_DEFAULT"
+                )
+                transaction["deployment_runtime"] = runtime
+                for state in (
+                    "DEFAULT_PROMOTED",
+                    "STABILITY_OBSERVING",
+                    "RESTART_VERIFYING",
+                ):
+                    transaction = _checkpoint(
+                        paths, transaction, state,
+                        observer=transition_observer,
+                    )
+            elif "promotion" not in children:
                 transaction = _checkpoint(
                     paths, transaction, "PROMOTING_DEFAULT",
                     observer=transition_observer,
@@ -1547,7 +1584,9 @@ def deploy_transaction(
                     paths, transaction, "RESTART_VERIFYING",
                     observer=transition_observer,
                 )
-            promotion = child_data["promotion"]
+            promotion = child_data.get("promotion")
+            if converged_retry and mode == "install-first":
+                promotion = {"result_class": "PROMOTION_COMPLETE"}
             if promotion.get("result_class") != "PROMOTION_COMPLETE":
                 raise _error(
                     "DEPLOYMENT_PROMOTION_FAILED",

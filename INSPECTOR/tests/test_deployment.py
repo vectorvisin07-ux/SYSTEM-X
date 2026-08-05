@@ -812,6 +812,12 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(fixture.adapter.default, CANDIDATE)
         self.assertEqual(fixture.adapter.warm, CANDIDATE)
         self.assertFalse(fixture.candidate.exists())
+        self.assertEqual(fixture.adapter.calls["promotion"], 0)
+        self.assertIsNone(completed["child_results"]["promotion"])
+        self.assertEqual(
+            completed["promotion_result"],
+            "PROMOTION_NOT_REQUIRED_ALREADY_DEFAULT",
+        )
 
     def test_uncertain_rollback_fails_closed(self) -> None:
         fixture = self.fixture(mode="replace-default")
