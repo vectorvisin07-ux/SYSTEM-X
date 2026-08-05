@@ -5070,6 +5070,31 @@ def cleanup_qualification_candidate(
     return cleanup, removed
 
 
+def _recovery_manifest_identities(
+    record: dict[str, Any],
+) -> frozenset[str]:
+    runtime = record.get("candidate_runtime")
+    primary = (
+        runtime.get("capability_manifest_identity")
+        if isinstance(runtime, dict)
+        else None
+    )
+    identities = {primary}
+    warm_after = record.get("incumbent", {}).get("warm_after")
+    if isinstance(warm_after, dict):
+        identities.add(warm_after.get("capability_manifest_identity"))
+    if any(
+        not isinstance(value, str)
+        or SHA256_PATTERN.fullmatch(value) is None
+        for value in identities
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "failed qualification manifest lineage is invalid",
+        )
+    return frozenset(identities)
+
+
 def _recovery_admission(
     paths: InspectorPaths,
     failed_transaction_id: str,
@@ -5147,6 +5172,7 @@ def _recovery_admission(
             "failed qualification does not describe one recoverable cold install",
         )
     branch = BranchHandoffPaths.discover(paths)
+    accepted_manifest_identities = _recovery_manifest_identities(record)
     target = branch.managed_root / managed_name
     staging = branch.branch_root / staging_relative
     root_details = branch.managed_root.lstat()
@@ -5169,7 +5195,7 @@ def _recovery_admission(
             or observation.get("artifact_version_id")
             != runtime["artifact_version_id"]
             or observation.get("capability_manifest_identity")
-            != runtime["capability_manifest_identity"]
+            not in accepted_manifest_identities
             or observation.get("present") not in {True, False}
         ):
             raise _qualification_error(
@@ -5205,19 +5231,6 @@ def _recovery_admission(
         raise _qualification_error(
             "QUALIFICATION_OWNERSHIP_UNCERTAIN",
             "failed qualification physical ownership changed",
-        )
-    accepted_manifest_identities = {
-        record["candidate_runtime"]["capability_manifest_identity"]
-    }
-    warm_after = record.get("incumbent", {}).get("warm_after")
-    if (
-        isinstance(warm_after, dict)
-        and SHA256_PATTERN.fullmatch(
-            str(warm_after.get("capability_manifest_identity"))
-        ) is not None
-    ):
-        accepted_manifest_identities.add(
-            warm_after["capability_manifest_identity"]
         )
     plan = DestinationPlan(
         branch_paths=branch,

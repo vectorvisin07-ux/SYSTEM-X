@@ -29,6 +29,7 @@ from system_x_inspector.qualification import (
     PublicProfileProbeAdapter,
     QUALIFICATION_MANAGED_NAME_PATTERN,
     observe_qualification_candidate,
+    _recovery_manifest_identities,
     _accepted_registration_wait_seconds,
     _operating_profile_identity,
     authenticate_qualification,
@@ -999,6 +1000,33 @@ class QualificationAdmissionTest(unittest.TestCase):
         observer.assert_called_with(
             self.branch, managed_name, "sha256:" + "c" * 64
         )
+
+    def test_recovery_manifest_lineage_includes_runtime_evolution(self) -> None:
+        initial = "sha256:" + "a" * 64
+        evolved = "sha256:" + "b" * 64
+        identities = _recovery_manifest_identities(
+            {
+                "candidate_runtime": {
+                    "capability_manifest_identity": initial,
+                },
+                "incumbent": {
+                    "warm_after": {
+                        "capability_manifest_identity": evolved,
+                    },
+                },
+            }
+        )
+        self.assertEqual(identities, frozenset({initial, evolved}))
+        self.assertEqual(
+            _recovery_manifest_identities(
+                {"candidate_runtime": {"capability_manifest_identity": initial}}
+            ),
+            frozenset({initial}),
+        )
+        with self.assertRaises(InspectorError):
+            _recovery_manifest_identities(
+                {"candidate_runtime": {"capability_manifest_identity": "invalid"}}
+            )
 
     def test_interrupted_recovery_requires_absent_candidate(self) -> None:
         candidate = self.managed / (
