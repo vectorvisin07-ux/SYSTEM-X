@@ -4247,6 +4247,114 @@ def restore_with_accepted_platform_manager(
     }
 
 
+def recover_with_accepted_platform_manager(
+    branch_root: Path,
+    *,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    managed_root = branch_root / "MODEL" / "SUPERMODEL"
+    if any(
+        child.name.startswith("qualification-candidate-")
+        for child in managed_root.iterdir()
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+            "qualification target remains before interrupted recovery",
+        )
+    adapter = _accepted_control_script(
+        branch_root,
+        ("service_control", "platform_adapters", "linux_systemd_user.py"),
+    )
+    api_controller = _accepted_control_script(
+        branch_root, ("api_service_controller", "controller.py")
+    )
+    branch_controller = _accepted_control_script(
+        branch_root, ("branch_controller", "controller.py")
+    )
+
+    def invoke(
+        script: Path,
+        *arguments: str,
+        accepted: tuple[int, ...] = (0,),
+    ) -> dict[str, Any]:
+        completed = subprocess.run(
+            [sys.executable, "-B", str(script), *arguments],
+            cwd=branch_root,
+            env={
+                **os.environ,
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONNOUSERSITE": "1",
+            },
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=MANAGER_RESTORE_TIMEOUT_SECONDS,
+        )
+        try:
+            lines = [
+                line
+                for line in completed.stdout.decode("utf-8").splitlines()
+                if line.strip()
+            ]
+            value = json.loads(lines[-1]) if len(lines) == 1 else None
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise _qualification_error(
+                "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+                "interrupted recovery control output is invalid",
+            ) from error
+        if completed.returncode not in accepted or not isinstance(value, dict):
+            raise _qualification_error(
+                "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+                "interrupted recovery control command failed",
+            )
+        return value
+
+    stopped = invoke(
+        adapter,
+        "stop",
+        "--wait-timeout-seconds",
+        str(MANAGER_RESTORE_TIMEOUT_SECONDS),
+        accepted=(0, 3),
+    )
+    api_reconcile = invoke(api_controller, "reconcile")
+    router_reconcile = invoke(branch_controller, "reconcile")
+    sleeper(20.0)
+    attempts = []
+    started = None
+    for _attempt in range(6):
+        candidate = invoke(
+            adapter,
+            "start",
+            "--wait-timeout-seconds",
+            str(MANAGER_RESTORE_TIMEOUT_SECONDS),
+            accepted=(0, 3, 4),
+        )
+        attempts.append(candidate.get("reason_code"))
+        if candidate.get("ok") is True:
+            started = candidate
+            break
+        if candidate.get("reason_code") not in {
+            "ENDPOINT_CONFLICT",
+            "ADAPTER_ACTIVATION_FAILED",
+        }:
+            break
+        sleeper(10.0)
+    if started is None:
+        raise _qualification_error(
+            "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
+            "accepted manager could not resume interrupted recovery",
+        )
+    return {
+        "used": True,
+        "stop_reason_code": stopped.get("reason_code"),
+        "start_reason_code": started.get("reason_code"),
+        "start_attempt_reason_codes": attempts,
+        "api_reconcile_reason_code": api_reconcile.get("reason_code"),
+        "router_reconcile_reason_code": router_reconcile.get("reason_code"),
+    }
+
+
 def qualification_owned_cold_default(
     admission: QualificationAdmission,
     incumbent: IncumbentSnapshot,
@@ -4486,7 +4594,10 @@ def _recovery_admission(
     paths: InspectorPaths,
     failed_transaction_id: str,
 ) -> tuple[
-    dict[str, Any], dict[str, Any], QualificationAdmission, dict[str, Any]
+    dict[str, Any],
+    dict[str, Any],
+    QualificationAdmission | None,
+    dict[str, Any],
 ]:
     if re.fullmatch(
         r"tx-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{12}",
@@ -4558,14 +4669,48 @@ def _recovery_admission(
     branch = BranchHandoffPaths.discover(paths)
     target = branch.managed_root / managed_name
     staging = branch.branch_root / staging_relative
+    root_details = branch.managed_root.lstat()
     try:
         target_details = target.lstat()
-        root_details = branch.managed_root.lstat()
     except FileNotFoundError as error:
-        raise _qualification_error(
-            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
-            "failed qualification candidate is absent",
-        ) from error
+        if target.exists() or target.is_symlink() or staging.exists() or staging.is_symlink():
+            raise _qualification_error(
+                "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+                "interrupted qualification cleanup has unsafe residue",
+            ) from error
+        observation = observe_qualification_candidate(
+            branch.branch_root, managed_name, artifact_identity
+        )
+        runtime = record["candidate_runtime"]
+        if (
+            observation.get("default_bound") is not False
+            or observation.get("aliases") != []
+            or observation.get("public_model_id") != runtime["public_model_id"]
+            or observation.get("artifact_version_id")
+            != runtime["artifact_version_id"]
+            or observation.get("capability_manifest_identity")
+            != runtime["capability_manifest_identity"]
+            or observation.get("present") not in {True, False}
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+                "interrupted qualification cleanup is not exactly resumable",
+            )
+        failed_reconciliations = [
+            value
+            for path in paths.transactions.glob("*.json")
+            if (value := _safe_json(path, "QUALIFICATION_OWNERSHIP_UNCERTAIN")).get("operation")
+            == "reconcile-qualification"
+            and value.get("failed_qualification_transaction_id")
+            == failed_transaction_id
+            and value.get("state") == "FAIL_CLOSED"
+        ]
+        if not failed_reconciliations:
+            raise _qualification_error(
+                "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+                "interrupted cleanup lacks an Inspector reconciliation record",
+            )
+        return failed, record, None, observation
     if (
         stat.S_ISLNK(target_details.st_mode)
         or not stat.S_ISREG(target_details.st_mode)
@@ -4739,20 +4884,40 @@ def reconcile_qualification_transaction(
         failed, record, admission, observation = _recovery_admission(
             paths, failed_transaction_id
         )
-        transaction = _inspection_stage(
-            paths,
-            transaction,
-            state="DEFAULT_ALIAS_CLEARING",
-            reason_code="OK",
-            observer=transition_observer,
-        )
-        alias, after_clear = clear_qualification_default(
-            admission.plan.branch_paths.branch_root,
-            admission.plan.managed_name,
-            admission.published.sha256,
-            observation,
-            transaction_id,
-        )
+        if admission is not None:
+            branch_root = admission.plan.branch_paths.branch_root
+            managed_name = admission.plan.managed_name
+            artifact_identity = admission.published.sha256
+            managed_path = str(admission.published.path)
+            transaction = _inspection_stage(
+                paths,
+                transaction,
+                state="DEFAULT_ALIAS_CLEARING",
+                reason_code="OK",
+                observer=transition_observer,
+            )
+            alias, after_clear = clear_qualification_default(
+                branch_root,
+                managed_name,
+                artifact_identity,
+                observation,
+                transaction_id,
+            )
+        else:
+            branch_paths = BranchHandoffPaths.discover(paths)
+            branch_root = branch_paths.branch_root
+            managed_name = str(failed["managed_name"])
+            artifact_identity = str(failed["candidate_artifact_identity"])
+            managed_path = str(branch_paths.managed_root / managed_name)
+            alias = {
+                "action": "clear",
+                "alias": "default",
+                "changed": False,
+                "new_target": None,
+                "previous_target": observation["public_model_id"],
+                "resumed_from_failed_reconciliation": True,
+            }
+            after_clear = observation
         transaction = _inspection_stage(
             paths,
             transaction,
@@ -4760,22 +4925,41 @@ def reconcile_qualification_transaction(
             reason_code="OK",
             observer=transition_observer,
         )
-        cleanup, removal = cleanup_qualification_candidate(
-            admission, after_clear
-        )
-        restoration = _prove_cold_waiting(
-            admission.plan.branch_paths.branch_root
-        )
+        if admission is not None:
+            cleanup, removal = cleanup_qualification_candidate(
+                admission, after_clear
+            )
+            manager_recovery = {"used": False}
+        else:
+            manager_recovery = recover_with_accepted_platform_manager(
+                branch_root
+            )
+            removal = wait_for_candidate_removal(
+                branch_root, managed_name, artifact_identity
+            )
+            cleanup = {
+                "staging_absent": True,
+                "managed_target_absent": True,
+                "registry_location_removed": removal.get(
+                    "registry_location_removed"
+                ),
+                "source_removed_if_packet_owned": None,
+                "ownership_certain": (
+                    removal.get("registry_location_removed") is True
+                ),
+            }
+        restoration = _prove_cold_waiting(branch_root)
         proof = {
             "failed_qualification_transaction_id": failed_transaction_id,
             "qualification_id": record["qualification_id"],
-            "artifact_identity": admission.published.sha256,
-            "managed_path": str(admission.published.path),
+            "artifact_identity": artifact_identity,
+            "managed_path": managed_path,
             "public_model_id": observation["public_model_id"],
             "source_state": failed["state"],
             "alias_transaction": alias,
             "cleanup": cleanup,
             "removal": removal,
+            "manager_recovery": manager_recovery,
             "restoration": restoration,
         }
         idle = _status_value(

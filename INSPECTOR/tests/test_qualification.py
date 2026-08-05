@@ -42,6 +42,7 @@ from system_x_inspector.qualification import (
     qualification_managed_name,
     qualification_owned_cold_default,
     qualify_transaction,
+    recover_with_accepted_platform_manager,
     run_capability_profile,
     stage_qualification_candidate,
     wait_for_candidate_removal,
@@ -906,6 +907,20 @@ class QualificationAdmissionTest(unittest.TestCase):
         self.assertEqual(observer.call_count, 2)
         observer.assert_called_with(
             self.branch, managed_name, "sha256:" + "c" * 64
+        )
+
+    def test_interrupted_recovery_requires_absent_candidate(self) -> None:
+        candidate = self.managed / (
+            "qualification-candidate-" + "a" * 16 + "-" + "b" * 16 + ".gguf"
+        )
+        candidate.write_bytes(b"owned")
+        with self.assertRaises(InspectorError) as caught:
+            recover_with_accepted_platform_manager(
+                self.branch, sleeper=lambda _seconds: None
+            )
+        self.assertEqual(
+            caught.exception.reason_code,
+            "QUALIFICATION_INCUMBENT_RESTORATION_FAILED",
         )
 
     def test_active_transaction_is_rejected_concurrently(self) -> None:
