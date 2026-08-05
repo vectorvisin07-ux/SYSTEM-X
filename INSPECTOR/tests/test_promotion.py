@@ -477,6 +477,9 @@ class PromotionOrchestrationTest(PromotionFoundationTest):
                 "llama_cpp_commit": "a" * 40,
                 "llama_server_sha256": "8" * 64,
                 "connected_source_identity": "sha256:" + "9" * 64,
+                "system_x_source_commit": "b" * 40,
+                "system_x_source_tree": "c" * 40,
+                "inspector_source_identity": "sha256:" + "d" * 64,
             },
         )
         snapshot = IncumbentSnapshot(

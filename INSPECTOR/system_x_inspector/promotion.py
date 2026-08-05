@@ -1105,6 +1105,7 @@ def _current_installed_tuple(
         )
     try:
         current = installed_tuple_evidence(
+            paths,
             capability, binding, verification
         )
     except InspectorError as error:
@@ -1362,6 +1363,15 @@ def authenticate_promotion_qualification(
         "llama_server_sha256": current_tuple["llama_server_sha256"],
         "connected_source_identity": current_tuple[
             "connected_source_identity"
+        ],
+        "system_x_source_commit": current_tuple[
+            "system_x_source_commit"
+        ],
+        "system_x_source_tree": current_tuple[
+            "system_x_source_tree"
+        ],
+        "inspector_source_identity": current_tuple[
+            "inspector_source_identity"
         ],
     }
     validity = {**basis, "predicate_identity": _identity(basis)}

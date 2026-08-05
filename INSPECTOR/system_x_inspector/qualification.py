@@ -78,6 +78,7 @@ from .service_publication import (
 
 
 SHA256_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
+GIT_OBJECT_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 QUALIFICATION_ID_PATTERN = re.compile(
     r"qualification-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{16}\Z"
 )
@@ -355,6 +356,77 @@ class QualificationProbeAdapter(Protocol):
 
 def _identity(value: object) -> str:
     return "sha256:" + hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def _system_x_source_evidence(paths: InspectorPaths) -> dict[str, str]:
+    system_x_root = paths.source_root.parent.parent
+    completed = subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            str(system_x_root),
+            "rev-parse",
+            "HEAD",
+            "HEAD^{tree}",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=30,
+    )
+    lines = completed.stdout.decode("ascii", errors="replace").splitlines()
+    if (
+        completed.returncode != 0
+        or len(lines) != 2
+        or any(GIT_OBJECT_PATTERN.fullmatch(item) is None for item in lines)
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "System X source commit and tree cannot be authenticated",
+        )
+    source_manifest = []
+    source_roots = (
+        paths.source_root,
+        paths.source_root.parent / "schemas",
+    )
+    for source_root in source_roots:
+        for path in sorted(source_root.rglob("*")):
+            if path.suffix not in {".py", ".json"}:
+                continue
+            try:
+                details = path.lstat()
+            except FileNotFoundError as error:
+                raise _qualification_error(
+                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                    "Inspector source graph changed during authentication",
+                ) from error
+            if (
+                stat.S_ISLNK(details.st_mode)
+                or not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+            ):
+                raise _qualification_error(
+                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                    "Inspector source graph contains an unsafe entry",
+                )
+            content = path.read_bytes()
+            source_manifest.append(
+                {
+                    "path": str(path.relative_to(system_x_root)),
+                    "byte_count": len(content),
+                    "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+                }
+            )
+    if not source_manifest:
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "Inspector source graph is empty",
+        )
+    return {
+        "system_x_source_commit": lines[0],
+        "system_x_source_tree": lines[1],
+        "inspector_source_identity": _identity(source_manifest),
+    }
 
 
 def _operating_profile_identity(
@@ -2500,6 +2572,9 @@ def qualification_validity_predicate(
         "connected_source_identity": tuple_evidence[
             "connected_source_identity"
         ],
+        "system_x_source_commit": tuple_evidence["system_x_source_commit"],
+        "system_x_source_tree": tuple_evidence["system_x_source_tree"],
+        "inspector_source_identity": tuple_evidence["inspector_source_identity"],
     }
     return {**basis, "predicate_identity": _identity(basis)}
 
@@ -2547,6 +2622,9 @@ def build_qualification_record(
             "api_service_controller_identity",
             "api_source_manifest_identity",
             "supervisor_identity",
+            "system_x_source_commit",
+            "system_x_source_tree",
+            "inspector_source_identity",
         )
     }
     incumbent_projection = incumbent.result_projection()
@@ -2861,6 +2939,7 @@ def _map_handoff_error(error: InspectorError) -> InspectorError:
 
 
 def installed_tuple_evidence(
+    paths: InspectorPaths,
     capability: dict[str, Any],
     binding: dict[str, Any],
     verification: dict[str, Any],
@@ -2897,6 +2976,7 @@ def installed_tuple_evidence(
             for name, item in sorted(manifests.items())
         ],
     }
+    source_evidence = _system_x_source_evidence(paths)
     return {
         "branch_capability_record_identity": capability[
             "capability_record_identity"
@@ -2916,6 +2996,7 @@ def installed_tuple_evidence(
             "sha256"
         ],
         "connected_source_identity": _identity(connected_basis),
+        **source_evidence,
     }
 
 
@@ -3047,6 +3128,7 @@ def authenticate_qualification(
             branch_paths=branch_paths,
             source=source,
             installed_tuple_evidence=installed_tuple_evidence(
+                paths,
                 decision_authorization.capability_record,
                 decision_authorization.binding,
                 decision_authorization.installed_tuple_verification,
@@ -3129,6 +3211,7 @@ def authenticate_qualification(
         branch_paths=branch_paths,
         source=source,
         installed_tuple_evidence=installed_tuple_evidence(
+            paths,
             capability, binding, verification
         ),
     )

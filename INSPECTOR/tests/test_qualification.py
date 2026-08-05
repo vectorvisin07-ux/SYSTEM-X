@@ -33,6 +33,7 @@ from system_x_inspector.qualification import (
     capture_incumbent_snapshot,
     classify_qualification_result,
     cleanup_qualification_candidate,
+    find_idempotent_qualification,
     parse_system_x_stream,
     profile_check_names,
     prove_incumbent_restoration,
@@ -796,6 +797,23 @@ class QualificationAdmissionTest(unittest.TestCase):
         self.assertEqual(
             len(list(self.paths.qualification_results.iterdir())), 1
         )
+        current = self.authorize()
+        self.assertRegex(
+            first["validity_predicate"]["system_x_source_commit"],
+            r"[0-9a-f]{40}",
+        )
+        self.assertRegex(
+            first["validity_predicate"]["system_x_source_tree"],
+            r"[0-9a-f]{40}",
+        )
+        repaired = replace(
+            current,
+            installed_tuple_evidence={
+                **current.installed_tuple_evidence,
+                "inspector_source_identity": sha(b"post-repair-source"),
+            },
+        )
+        self.assertIsNone(find_idempotent_qualification(self.paths, repaired))
 
     def test_active_transaction_is_rejected_concurrently(self) -> None:
         lock = TransactionLock(
