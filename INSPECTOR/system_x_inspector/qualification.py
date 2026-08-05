@@ -43,6 +43,7 @@ from .errors import InspectorError
 from .handoff import (
     DecisionAuthorization,
     DestinationPlan,
+    ManagedPolicy,
     PublishedArtifact,
     SourceEvidence,
     StagedArtifact,
@@ -4246,6 +4247,142 @@ def restore_with_accepted_platform_manager(
     }
 
 
+def qualification_owned_cold_default(
+    admission: QualificationAdmission,
+    incumbent: IncumbentSnapshot,
+    observation: dict[str, Any],
+) -> bool:
+    return bool(
+        not incumbent.present
+        and observation.get("terminal") == "READY"
+        and observation.get("present") is True
+        and observation.get("default_bound") is True
+        and observation.get("aliases") == ["default"]
+        and observation.get("artifact_version_id")
+        == admission.published.sha256.replace("sha256:", "bundle-", 1)
+        and observation.get("public_model_id") is not None
+        and observation.get("capability_manifest_identity") is not None
+    )
+
+
+def clear_qualification_default(
+    branch_root: Path,
+    managed_name: str,
+    artifact_identity: str,
+    observation: dict[str, Any],
+    transaction_id: str,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+    observer: Callable[
+        [Path, str, str], dict[str, Any]
+    ] = observe_qualification_candidate,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    refreshed = observer(branch_root, managed_name, artifact_identity)
+    if (
+        refreshed.get("public_model_id")
+        != observation.get("public_model_id")
+        or refreshed.get("artifact_version_id")
+        != observation.get("artifact_version_id")
+        or refreshed.get("capability_manifest_identity")
+        != observation.get("capability_manifest_identity")
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "qualification candidate identity changed before alias clear",
+        )
+    observation = refreshed
+    public_model_id = observation.get("public_model_id")
+    artifact_version_id = observation.get("artifact_version_id")
+    generation = observation.get("registry_generation")
+    aliases = observation.get("aliases")
+    if (
+        observation.get("terminal") != "READY"
+        or observation.get("present") is not True
+        or observation.get("default_bound") is not True
+        or aliases != ["default"]
+        or not isinstance(public_model_id, str)
+        or not isinstance(generation, int)
+        or QUALIFICATION_MANAGED_NAME_PATTERN.fullmatch(managed_name) is None
+        or SHA256_PATTERN.fullmatch(artifact_identity) is None
+        or artifact_version_id
+        != artifact_identity.replace("sha256:", "bundle-", 1)
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "qualification default is not an exact owned cold-install alias",
+        )
+    request = {
+        "schema_version": "system-x.gguf-alias-transaction.v1",
+        "action": "clear",
+        "promotion_transaction_id": transaction_id,
+        "alias": "default",
+        "expected_current_target": public_model_id,
+        "new_target": None,
+        "expected_registry_generation": generation,
+        "target_artifact_version_id": None,
+        "target_capability_manifest_identity": None,
+        "target_relative_root": None,
+        "promotion_alias_event_identity": None,
+    }
+    completed = runner(
+        [
+            str(branch_root / "api_service" / ".venv" / "bin" / "python"),
+            "-B",
+            str(branch_root / "api_service_controller" / "controller.py"),
+            "alias-transaction",
+        ],
+        input=canonical_json_bytes(request),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=branch_root,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
+        },
+        timeout=30.0,
+        check=False,
+    )
+    try:
+        value = json.loads(completed.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "branch alias transaction emitted invalid JSON",
+        ) from error
+    alias = value.get("alias_transaction") if isinstance(value, dict) else None
+    if (
+        completed.returncode != 0
+        or not isinstance(value, dict)
+        or value.get("ok") is not True
+        or not isinstance(alias, dict)
+        or alias.get("action") != "clear"
+        or alias.get("alias") != "default"
+        or alias.get("previous_target") != public_model_id
+        or alias.get("new_target") is not None
+        or alias.get("new_registry_generation") != generation + 1
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "branch alias transaction did not prove the exact clear",
+        )
+    after = observer(branch_root, managed_name, artifact_identity)
+    if (
+        after.get("terminal") != "READY"
+        or after.get("present") is not True
+        or after.get("default_bound") is not False
+        or after.get("aliases") != []
+        or after.get("public_model_id") != public_model_id
+        or after.get("artifact_version_id") != artifact_version_id
+        or after.get("registry_generation") != generation + 1
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "qualification default clear did not round-trip exactly",
+        )
+    return dict(alias), after
+
+
 def cleanup_qualification_candidate(
     admission: QualificationAdmission,
     registry_observation: dict[str, Any],
@@ -4343,6 +4480,356 @@ def cleanup_qualification_candidate(
         ),
     }
     return cleanup, removed
+
+
+def _recovery_admission(
+    paths: InspectorPaths,
+    failed_transaction_id: str,
+) -> tuple[
+    dict[str, Any], dict[str, Any], QualificationAdmission, dict[str, Any]
+]:
+    if re.fullmatch(
+        r"tx-[0-9]{8}T[0-9]{12}Z-[0-9a-f]{12}",
+        failed_transaction_id,
+    ) is None:
+        raise _qualification_error(
+            "QUALIFICATION_INPUT_INVALID",
+            "failed qualification transaction ID is invalid",
+        )
+    failed_path = paths.transactions / f"{failed_transaction_id}.json"
+    failed = _safe_json(
+        failed_path, "QUALIFICATION_OWNERSHIP_UNCERTAIN"
+    )
+    record_value = failed.get("qualification_record_candidate")
+    try:
+        record = validate_qualification_record(record_value)
+    except InspectorError as error:
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "failed qualification result cannot be authenticated",
+        ) from error
+    result_path = paths.qualification_results / f"{record['qualification_id']}.json"
+    persisted = validate_qualification_record(read_json_record(result_path))
+    managed_name = failed.get("managed_name")
+    managed_relative = failed.get("managed_relative_path")
+    staging_relative = failed.get("staging_relative_path")
+    artifact_identity = failed.get("candidate_artifact_identity")
+    incumbent = failed.get("incumbent_snapshot")
+    if (
+        failed.get("transaction_id") != failed_transaction_id
+        or failed.get("operation") != "qualify-gguf"
+        or failed.get("state") != "FAIL_CLOSED"
+        or failed.get("reason_code") != "QUALIFICATION_FAIL_CLOSED"
+        or failed.get("result_class") != "QUALIFICATION_FAIL_CLOSED"
+        or not isinstance(incumbent, dict)
+        or incumbent.get("present") is not False
+        or incumbent.get("default_alias") is not None
+        or not isinstance(managed_name, str)
+        or QUALIFICATION_MANAGED_NAME_PATTERN.fullmatch(managed_name) is None
+        or managed_relative != f"MODEL/SUPERMODEL/{managed_name}"
+        or not isinstance(staging_relative, str)
+        or not staging_relative.startswith(
+            "RUNTIME/api/replacement-staging/." + failed_transaction_id + "."
+        )
+        or not staging_relative.endswith(".partial-staging.gguf")
+        or SHA256_PATTERN.fullmatch(artifact_identity or "") is None
+        or failed.get("artifact_identity") != artifact_identity
+        or failed.get("publication_sha256") != artifact_identity
+        or failed.get("publication_mode") != "0640"
+        or failed.get("publication_link_count") != 1
+        or not isinstance(failed.get("publication_device"), int)
+        or not isinstance(failed.get("publication_inode"), int)
+        or not isinstance(failed.get("publication_size"), int)
+        or failed.get("publication_size") <= 0
+        or persisted != record
+        or record.get("transaction_id") != failed_transaction_id
+        or record.get("result_identity")
+        != failed.get("qualification_result_identity")
+        or "QUALIFICATION_DEFAULT_CHANGED" not in record.get("reason_codes", [])
+        or record.get("cleanup", {}).get("managed_target_absent") is not False
+        or record.get("cleanup", {}).get("ownership_certain") is not False
+        or record.get("candidate_runtime", {}).get("managed_relative_path")
+        != managed_relative
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "failed qualification does not describe one recoverable cold install",
+        )
+    branch = BranchHandoffPaths.discover(paths)
+    target = branch.managed_root / managed_name
+    staging = branch.branch_root / staging_relative
+    try:
+        target_details = target.lstat()
+        root_details = branch.managed_root.lstat()
+    except FileNotFoundError as error:
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "failed qualification candidate is absent",
+        ) from error
+    if (
+        stat.S_ISLNK(target_details.st_mode)
+        or not stat.S_ISREG(target_details.st_mode)
+        or target_details.st_dev != failed["publication_device"]
+        or target_details.st_ino != failed["publication_inode"]
+        or target_details.st_size != failed["publication_size"]
+        or stat.S_IMODE(target_details.st_mode) != 0o640
+        or target_details.st_nlink != 1
+        or staging.exists()
+        or staging.is_symlink()
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "failed qualification physical ownership changed",
+        )
+    plan = DestinationPlan(
+        branch_paths=branch,
+        transaction_id=failed_transaction_id,
+        managed_name=managed_name,
+        managed_relative_path=managed_relative,
+        managed_target=target,
+        staging_name=staging.name,
+        staging_relative_path=staging_relative,
+        staging_path=staging,
+        policy=ManagedPolicy(
+            mode=0o640,
+            owner_uid=target_details.st_uid,
+            owner_gid=target_details.st_gid,
+            reference_names=(),
+        ),
+        managed_root_identity=(
+            root_details.st_dev,
+            root_details.st_ino,
+            stat.S_IMODE(root_details.st_mode),
+        ),
+    )
+    staged = StagedArtifact(
+        path=staging,
+        relative_path=staging_relative,
+        transfer_method=str(failed.get("transfer_method")),
+        device=target_details.st_dev,
+        inode=target_details.st_ino,
+        mode=0o640,
+        link_count=1,
+        size_bytes=target_details.st_size,
+        sha256=artifact_identity,
+        source_snapshot_identity=str(failed.get("intake_snapshot_identity")),
+    )
+    published = PublishedArtifact(
+        path=target,
+        relative_path=managed_relative,
+        device=target_details.st_dev,
+        inode=target_details.st_ino,
+        mode=0o640,
+        link_count=1,
+        size_bytes=target_details.st_size,
+        sha256=artifact_identity,
+    )
+    admission = QualificationAdmission(
+        plan=plan, staged=staged, published=published
+    )
+    observation = observe_qualification_candidate(
+        branch.branch_root, managed_name, artifact_identity
+    )
+    runtime = record["candidate_runtime"]
+    if (
+        observation.get("terminal") != "READY"
+        or observation.get("present") is not True
+        or observation.get("default_bound") is not True
+        or observation.get("aliases") != ["default"]
+        or observation.get("public_model_id") != runtime["public_model_id"]
+        or observation.get("artifact_version_id")
+        != runtime["artifact_version_id"]
+        or observation.get("capability_manifest_identity")
+        != runtime["capability_manifest_identity"]
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_DEFAULT_CHANGED",
+            "failed qualification runtime no longer matches its owned candidate",
+        )
+    return failed, record, admission, observation
+
+
+def _prove_cold_waiting(
+    branch_root: Path,
+    *,
+    timeout_seconds: float = RESTORATION_WAIT_SECONDS,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    latest_registry = None
+    latest_service = None
+    while True:
+        try:
+            latest_registry = _observe_default_registry(branch_root)
+            latest_service = _observe_service_state(
+                branch_root, latest_registry
+            )
+            if (
+                latest_registry.get("present") is False
+                and latest_registry.get("default_alias") is None
+                and latest_service.get("service_readiness")
+                == "WAITING_FOR_MODEL"
+                and latest_service.get("recovery_state") == "IDLE"
+                and latest_service.get("warm") is None
+            ):
+                return {
+                    "default_absent": True,
+                    "service_readiness": "WAITING_FOR_MODEL",
+                    "recovery_state": "IDLE",
+                    "warm": None,
+                    "proved": True,
+                }
+        except InspectorError:
+            pass
+        if time.monotonic() >= deadline:
+            raise _qualification_error(
+                "QUALIFICATION_WAITING_FOR_MODEL_RESTORATION_FAILED",
+                "cold-install recovery did not restore waiting state",
+            )
+        time.sleep(0.1)
+
+
+def reconcile_qualification_transaction(
+    paths: InspectorPaths,
+    failed_transaction_id: str,
+    *,
+    transaction_id_factory: Callable[[], str] = _transaction_id,
+    transition_observer: (
+        Callable[[str, dict[str, Any]], None] | None
+    ) = None,
+) -> tuple[str, dict[str, Any]]:
+    transaction_id = transaction_id_factory()
+    lock = TransactionLock(
+        paths,
+        transaction_id=transaction_id,
+        operation="reconcile-qualification",
+    )
+    try:
+        owner = lock.acquire()
+    except InspectorError as error:
+        error.data = {**error.data, "transaction_id": transaction_id}
+        raise
+    transaction = {
+        "schema_version": SCHEMA_IDENTITIES["transaction"],
+        "transaction_id": transaction_id,
+        "operation": "reconcile-qualification",
+        "start_utc": utc_now(),
+        "finish_utc": None,
+        "state": "RECOVERY_RECONCILING",
+        "reason_code": "OK",
+        "owner_identity": {
+            key: owner.get(key)
+            for key in (
+                "pid",
+                "process_start_identity",
+                "boot_identity",
+                "inspector_root_identity",
+            )
+        },
+        "failed_qualification_transaction_id": failed_transaction_id,
+        "reconciliation": None,
+    }
+    try:
+        transaction = _inspection_stage(
+            paths,
+            transaction,
+            state="RECOVERY_RECONCILING",
+            reason_code="OK",
+            observer=transition_observer,
+        )
+        failed, record, admission, observation = _recovery_admission(
+            paths, failed_transaction_id
+        )
+        transaction = _inspection_stage(
+            paths,
+            transaction,
+            state="DEFAULT_ALIAS_CLEARING",
+            reason_code="OK",
+            observer=transition_observer,
+        )
+        alias, after_clear = clear_qualification_default(
+            admission.plan.branch_paths.branch_root,
+            admission.plan.managed_name,
+            admission.published.sha256,
+            observation,
+            transaction_id,
+        )
+        transaction = _inspection_stage(
+            paths,
+            transaction,
+            state="CLEANING_CANDIDATE",
+            reason_code="OK",
+            observer=transition_observer,
+        )
+        cleanup, removal = cleanup_qualification_candidate(
+            admission, after_clear
+        )
+        restoration = _prove_cold_waiting(
+            admission.plan.branch_paths.branch_root
+        )
+        proof = {
+            "failed_qualification_transaction_id": failed_transaction_id,
+            "qualification_id": record["qualification_id"],
+            "artifact_identity": admission.published.sha256,
+            "managed_path": str(admission.published.path),
+            "public_model_id": observation["public_model_id"],
+            "source_state": failed["state"],
+            "alias_transaction": alias,
+            "cleanup": cleanup,
+            "removal": removal,
+            "restoration": restoration,
+        }
+        idle = _status_value(
+            paths,
+            state="IDLE",
+            reason_code="OK",
+            active_transaction_id=None,
+            last_transaction_id=transaction_id,
+        )
+        idle_identity = _write_status(
+            paths, idle, transition_observer
+        )
+        terminal = {
+            **transaction,
+            "finish_utc": utc_now(),
+            "state": "COMPLETE",
+            "reason_code": "QUALIFICATION_CANDIDATE_CLEANED",
+            "status_record_identity": idle_identity,
+            "reconciliation": proof,
+        }
+        _write_transaction(paths, terminal, transition_observer)
+        return transaction_id, proof
+    except Exception as error:
+        failed_status = _status_value(
+            paths,
+            state="FAIL_CLOSED",
+            reason_code="QUALIFICATION_FAIL_CLOSED",
+            active_transaction_id=None,
+            last_transaction_id=transaction_id,
+        )
+        status_identity = _write_status(
+            paths, failed_status, transition_observer
+        )
+        _write_transaction(
+            paths,
+            {
+                **transaction,
+                "finish_utc": utc_now(),
+                "state": "FAIL_CLOSED",
+                "reason_code": "QUALIFICATION_FAIL_CLOSED",
+                "status_record_identity": status_identity,
+            },
+            transition_observer,
+        )
+        if isinstance(error, InspectorError):
+            error.data = {**error.data, "transaction_id": transaction_id}
+            raise
+        raise _qualification_error(
+            "QUALIFICATION_FAIL_CLOSED",
+            "unexpected qualification reconciliation failure",
+            data={"transaction_id": transaction_id},
+        ) from error
+    finally:
+        lock.release()
 
 
 def prove_incumbent_restoration(
@@ -4816,6 +5303,10 @@ def qualify_transaction(
     cleanup_factory: Callable[
         ..., tuple[dict[str, Any], dict[str, Any]]
     ] = cleanup_qualification_candidate,
+    default_clearer: Callable[
+        [Path, str, str, dict[str, Any], str],
+        tuple[dict[str, Any], dict[str, Any]],
+    ] = clear_qualification_default,
     restoration_factory: Callable[
         ..., tuple[dict[str, Any], dict[str, Any] | None]
     ] = prove_incumbent_restoration,
@@ -5174,7 +5665,13 @@ def qualify_transaction(
                     paths, transaction, transition_observer
                 )
                 terminal_observation = observation.get("terminal")
-                if observation.get("default_bound") is True:
+                cold_default = qualification_owned_cold_default(
+                    admission, incumbent, observation
+                )
+                if (
+                    observation.get("default_bound") is True
+                    and not cold_default
+                ):
                     operational_reason = "QUALIFICATION_DEFAULT_CHANGED"
                     runtime_outcome = "UNAVAILABLE"
                 elif terminal_observation == "READY":
@@ -5267,6 +5764,25 @@ def qualify_transaction(
             reason_code="OK",
             observer=transition_observer,
         )
+        if (
+            admission is not None
+            and observation is not None
+            and observation.get("default_bound") is True
+        ):
+            try:
+                _alias, observation = default_clearer(
+                    authorization.branch_paths.branch_root,
+                    admission.plan.managed_name,
+                    admission.published.sha256,
+                    observation,
+                    transaction_id,
+                )
+            except InspectorError as error:
+                operational_reason = (
+                    error.reason_code
+                    if error.reason_code in QUALIFICATION_REASON_CODES
+                    else "QUALIFICATION_DEFAULT_CHANGED"
+                )
         if admission is None:
             try:
                 cleanup = _prepublication_cleanup(

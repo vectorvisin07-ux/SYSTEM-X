@@ -30,7 +30,10 @@ from .errors import InspectorError
 from .intake import list_intake
 from .handoff import handoff_transaction
 from .service_publication import publish_service_transaction
-from .qualification import qualify_transaction
+from .qualification import (
+    qualify_transaction,
+    reconcile_qualification_transaction,
+)
 from .promotion import promote_transaction
 from .retirement import retire_transaction
 from .connection_receipt import render_connection, show_connection
@@ -119,6 +122,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=QUALIFICATION_PROFILES,
         required=True,
     )
+    reconciliation_parser = subparsers.add_parser(
+        "reconcile-qualification"
+    )
+    reconciliation_parser.add_argument("--transaction-id", required=True)
     promotion_parser = subparsers.add_parser("promote-gguf")
     promotion_parser.add_argument("--qualification-id", required=True)
     promotion_parser.add_argument("--candidate-name", required=True)
@@ -374,6 +381,29 @@ def execute(arguments: argparse.Namespace) -> tuple[int, dict[str, object]]:
                     paths.transactions / f"{transaction_id}.json"
                 ),
                 "result": str(result_path),
+            },
+        )
+    if arguments.operation == "reconcile-qualification":
+        transaction_id, proof = reconcile_qualification_transaction(
+            paths, arguments.transaction_id
+        )
+        return 0, machine_result(
+            operation=arguments.operation,
+            ok=True,
+            reason_code="QUALIFICATION_CANDIDATE_CLEANED",
+            message="Inspector qualification reconciliation completed",
+            inspector_root=paths.inspector_root,
+            transaction_id=transaction_id,
+            data=proof,
+            paths={
+                "status": str(paths.status / "current.json"),
+                "transaction": str(
+                    paths.transactions / f"{transaction_id}.json"
+                ),
+                "failed_transaction": str(
+                    paths.transactions
+                    / f"{arguments.transaction_id}.json"
+                ),
             },
         )
     if arguments.operation == "promote-gguf":

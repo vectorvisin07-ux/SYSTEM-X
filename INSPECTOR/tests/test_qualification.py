@@ -9,6 +9,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from system_x_inspector.capabilities import (
     build_binding,
@@ -30,6 +31,7 @@ from system_x_inspector.qualification import (
     _accepted_registration_wait_seconds,
     _operating_profile_identity,
     authenticate_qualification,
+    clear_qualification_default,
     capture_incumbent_snapshot,
     classify_qualification_result,
     cleanup_qualification_candidate,
@@ -38,6 +40,7 @@ from system_x_inspector.qualification import (
     profile_check_names,
     prove_incumbent_restoration,
     qualification_managed_name,
+    qualification_owned_cold_default,
     qualify_transaction,
     run_capability_profile,
     stage_qualification_candidate,
@@ -814,6 +817,96 @@ class QualificationAdmissionTest(unittest.TestCase):
             },
         )
         self.assertIsNone(find_idempotent_qualification(self.paths, repaired))
+
+    def test_first_model_default_is_owned_only_for_exact_candidate(self) -> None:
+        admission = SimpleNamespace(
+            published=SimpleNamespace(sha256="sha256:" + "a" * 64)
+        )
+        incumbent = SimpleNamespace(present=False)
+        observation = {
+            "terminal": "READY",
+            "present": True,
+            "default_bound": True,
+            "aliases": ["default"],
+            "artifact_version_id": "bundle-" + "a" * 64,
+            "public_model_id": "candidate",
+            "capability_manifest_identity": "sha256:" + "b" * 64,
+        }
+        self.assertTrue(
+            qualification_owned_cold_default(
+                admission, incumbent, observation
+            )
+        )
+        self.assertFalse(
+            qualification_owned_cold_default(
+                admission, SimpleNamespace(present=True), observation
+            )
+        )
+        self.assertFalse(
+            qualification_owned_cold_default(
+                admission,
+                incumbent,
+                {**observation, "aliases": ["default", "unexpected"]},
+            )
+        )
+
+    def test_cold_default_clear_uses_branch_cas_and_reobserves(self) -> None:
+        public_model_id = "candidate"
+        managed_name = (
+            "qualification-candidate-" + "a" * 16 + "-" + "b" * 16 + ".gguf"
+        )
+        before = {
+            "terminal": "READY",
+            "present": True,
+            "default_bound": True,
+            "aliases": ["default"],
+            "public_model_id": public_model_id,
+            "artifact_version_id": "bundle-" + "c" * 64,
+            "registry_generation": 7,
+        }
+        after = {
+            **before,
+            "default_bound": False,
+            "aliases": [],
+            "registry_generation": 8,
+        }
+        result = {
+            "ok": True,
+            "alias_transaction": {
+                "action": "clear",
+                "alias": "default",
+                "previous_target": public_model_id,
+                "new_target": None,
+                "new_registry_generation": 8,
+            },
+        }
+        runner = Mock(
+            return_value=SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps(result).encode("utf-8"),
+                stderr=b"",
+            )
+        )
+        observer = Mock(side_effect=(before, after))
+        alias, observed = clear_qualification_default(
+            self.branch,
+            managed_name,
+            "sha256:" + "c" * 64,
+            before,
+            "tx-20260101T000000000000Z-aaaaaaaaaaaa",
+            runner=runner,
+            observer=observer,
+        )
+        self.assertEqual(alias["action"], "clear")
+        self.assertEqual(observed, after)
+        request = json.loads(runner.call_args.kwargs["input"])
+        self.assertEqual(request["action"], "clear")
+        self.assertEqual(request["expected_registry_generation"], 7)
+        self.assertEqual(request["expected_current_target"], public_model_id)
+        self.assertEqual(observer.call_count, 2)
+        observer.assert_called_with(
+            self.branch, managed_name, "sha256:" + "c" * 64
+        )
 
     def test_active_transaction_is_rejected_concurrently(self) -> None:
         lock = TransactionLock(

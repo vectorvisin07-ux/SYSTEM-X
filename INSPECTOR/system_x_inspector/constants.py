@@ -56,6 +56,7 @@ OPERATIONS = (
     "capabilities",
     "decide",
     "qualify-gguf",
+    "reconcile-qualification",
     "promote-gguf",
     "retire-gguf",
     "handoff",
