@@ -738,6 +738,40 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(fixture.adapter.default, INCUMBENT)
         self.assertTrue(fixture.candidate.exists())
 
+    def test_failed_clean_retry_reuses_authenticated_prehandoff_children(
+        self,
+    ) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.fail_at = "handoff"
+        _tx, failed, _path, _identity = fixture.deploy()
+        self.assertEqual(failed["result_class"], "DEPLOYMENT_FAILED_CLEAN")
+        before = {
+            name: fixture.adapter.calls[name]
+            for name in ("inspect", "decide", "qualify")
+        }
+        fixture.adapter.fail_at = None
+        fixture.transaction_id = (
+            "tx-20260731T000000000001Z-abcdef123457"
+        )
+        fixture.deployment_id = (
+            "deployment-20260731T000000000001Z-"
+            "0123456789abcdee"
+        )
+        _tx, completed, _path, _identity = fixture.deploy()
+        self.assertEqual(completed["result_class"], "DEPLOYMENT_COMPLETE")
+        self.assertEqual(
+            {
+                name: fixture.adapter.calls[name]
+                for name in ("inspect", "decide", "qualify")
+            },
+            before,
+        )
+        self.assertEqual(
+            completed["warnings"],
+            ["AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED"],
+        )
+        self.assertFalse(fixture.candidate.exists())
+
     def test_uncertain_rollback_fails_closed(self) -> None:
         fixture = self.fixture(mode="replace-default")
         fixture.adapter.fail_at = "observe"

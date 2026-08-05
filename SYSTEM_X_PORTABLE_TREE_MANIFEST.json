@@ -69,10 +69,10 @@
       "sha256": "7ca63fc4229dba1e51a5fb69e3e948fbb51164b765b385c8bfbf288813daf11a"
     },
     {
-      "bytes": 11502,
+      "bytes": 11756,
       "mode": "100644",
       "path": "INSPECTOR/schemas/handoff-result.schema.json",
-      "sha256": "f0cc7dddfb123be9b59073f0508d15ede7a470ad89d93165433fb54ef05f5fb6"
+      "sha256": "3adbf5615892475527b7ded500f20c67c0970a2c920e407f2b8206a79453dbe8"
     },
     {
       "bytes": 16608,
@@ -165,10 +165,10 @@
       "sha256": "c79c8958f4d72a623b9d13a7dec24fd1e2aef282771a5ddac6bd081188e859aa"
     },
     {
-      "bytes": 84856,
+      "bytes": 88361,
       "mode": "100644",
       "path": "INSPECTOR/system_x_inspector/deployment.py",
-      "sha256": "899523639577994c32cce86f1bd19c3c254c0f9b9ce87fa9f7f4a5456fb306ea"
+      "sha256": "c18b0061a2a32c79bfb4219e3193a9689b489000264dfaa89844dfffdfe52d8a"
     },
     {
       "bytes": 549,
@@ -183,10 +183,10 @@
       "sha256": "f5867e4c08e2ae6352250b2be7f31e085adc29b16ee9ae37cf7daaaa6cd6486a"
     },
     {
-      "bytes": 100332,
+      "bytes": 111745,
       "mode": "100644",
       "path": "INSPECTOR/system_x_inspector/handoff.py",
-      "sha256": "c79d56d8d7835c25be8c28dca5d9302131f547d5c43ff37495cfd76b66d523bc"
+      "sha256": "5d31c63dc4c7784e317eb846503afaa2baa6921f8e6cdb612d25b6bc5165fd03"
     },
     {
       "bytes": 11126,
@@ -291,10 +291,10 @@
       "sha256": "9f9df937c59950924514a810614aff0b596b29cef919afb5f8c85e8831a8c386"
     },
     {
-      "bytes": 32307,
+      "bytes": 33560,
       "mode": "100644",
       "path": "INSPECTOR/tests/test_deployment.py",
-      "sha256": "5dedeaaf694bcd20e96230a3fb0d3cc50133af8286f8ee0feb7a34eae8de2c2a"
+      "sha256": "9cd57f141ca2be1698c438aa00fb4d7c1c4dcaddb4502e0b450f0fe38fc7153d"
     },
     {
       "bytes": 10363,
@@ -309,10 +309,10 @@
       "sha256": "e5b4945e92bbcccb5695f3934e6460a1b0fdf29b2a25ef71bd8c3a4efadf664d"
     },
     {
-      "bytes": 53544,
+      "bytes": 56039,
       "mode": "100644",
       "path": "INSPECTOR/tests/test_handoff.py",
-      "sha256": "a0f8e1a0c0776300fd701fdc5aa890410572656f240db43a525fecd3a4ff1151"
+      "sha256": "ee9b8fba2f69ac303dbf20ecc9a93fa29a452f9af50991e2418f5100b71e2335"
     },
     {
       "bytes": 11889,

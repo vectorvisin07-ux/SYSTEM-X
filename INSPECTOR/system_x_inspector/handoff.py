@@ -558,12 +558,10 @@ def validate_handoff_record(value: object) -> dict[str, Any]:
             "HANDOFF_RESULT_COLLISION", "registry delegation is invalid"
         )
     alias = nested["alias_protection"]
-    for key in (
-        "default_alias",
-        "default_target_before",
-        "default_target_after",
-    ):
-        _string(alias[key], f"alias protection {key}")
+    _string(alias["default_alias"], "alias protection default_alias")
+    for key in ("default_target_before", "default_target_after"):
+        if alias[key] is not None:
+            _string(alias[key], f"alias protection {key}")
     if (
         alias["unchanged"] is not True
         or alias["default_target_before"] != alias["default_target_after"]
@@ -2136,7 +2134,7 @@ def _handoff_records(paths: InspectorPaths) -> list[tuple[dict[str, Any], Path]]
 
 def _production_reference(
     paths: InspectorPaths, policy: ManagedPolicy
-) -> str:
+) -> str | None:
     published_names = {
         Path(record["publication"]["managed_relative_path"]).name
         for record, _ in _handoff_records(paths)
@@ -2144,7 +2142,9 @@ def _production_reference(
     candidates = [
         name for name in policy.reference_names if name not in published_names
     ]
-    if len(candidates) != 1:
+    if not candidates:
+        return None
+    if len(candidates) > 1:
         raise _error(
             "HANDOFF_STAGING_INVALID",
             "accepted production GGUF reference is ambiguous",
@@ -2494,6 +2494,222 @@ def _recoverable_handoff(
     return candidates[0] if candidates else None
 
 
+def _recoverable_unrecorded_publication(
+    paths: InspectorPaths,
+    branch_paths: BranchHandoffPaths,
+    *,
+    decision_id: str,
+    source_candidate: str,
+    managed_name: str,
+) -> dict[str, Any] | None:
+    """Find one exact failed handoff that published before record build."""
+
+    expected_relative = f"MODEL/SUPERMODEL/{managed_name}"
+    candidates: list[dict[str, Any]] = []
+    for path in sorted(paths.transactions.glob("*.json")):
+        try:
+            details = path.lstat()
+        except FileNotFoundError:
+            continue
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or stat.S_IMODE(details.st_mode) != 0o600
+            or details.st_nlink != 1
+        ):
+            continue
+        try:
+            transaction = read_json_record(path)
+        except InspectorError:
+            continue
+        if (
+            transaction.get("operation") != "handoff"
+            or transaction.get("decision_id") != decision_id
+            or transaction.get("source_candidate") != source_candidate
+            or transaction.get("managed_name") != managed_name
+            or transaction.get("managed_relative_path")
+            != expected_relative
+            or transaction.get("state") != "FAILED"
+            or transaction.get("reason_code")
+            not in {
+                "HANDOFF_STAGING_INVALID",
+                "HANDOFF_RESULT_COLLISION",
+                "HANDOFF_PUBLICATION_FAILED",
+            }
+            or transaction.get("commit_phase")
+            not in {
+                "STAGED_IDENTITY_VERIFIED",
+                "PUBLISHED_TO_MANAGED_ROOT",
+            }
+            or transaction.get("handoff_record_candidate") is not None
+            or not isinstance(transaction.get("artifact_identity"), str)
+            or SHA256_PATTERN.fullmatch(
+                transaction["artifact_identity"]
+            )
+            is None
+        ):
+            continue
+        target = branch_paths.branch_root.joinpath(
+            *Path(expected_relative).parts
+        )
+        if target.parent != branch_paths.managed_root:
+            continue
+        try:
+            target.lstat()
+        except FileNotFoundError:
+            continue
+        candidates.append(transaction)
+    if len(candidates) > 1:
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "multiple unrecorded publication claims are present",
+        )
+    return candidates[0] if candidates else None
+
+
+def _reconstruct_unrecorded_publication(
+    branch_paths: BranchHandoffPaths,
+    transaction: dict[str, Any],
+    source: SourceEvidence,
+) -> tuple[DestinationPlan, StagedArtifact, PublishedArtifact]:
+    """Authenticate an exact retained target without copying or deleting it."""
+
+    managed_relative = transaction["managed_relative_path"]
+    managed_target = branch_paths.branch_root.joinpath(
+        *Path(managed_relative).parts
+    )
+    staging_relative = transaction.get("staging_relative_path")
+    if not isinstance(staging_relative, str):
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded publication lacks its staging identity",
+        )
+    staging_path = branch_paths.branch_root.joinpath(
+        *Path(staging_relative).parts
+    )
+    if (
+        managed_target.parent != branch_paths.managed_root
+        or managed_target.name != transaction["managed_name"]
+        or staging_path.parent != branch_paths.branch_staging_root
+        or transaction.get("artifact_identity")
+        != source.artifact_identity
+        or transaction.get("intake_snapshot_identity")
+        != source.snapshot_identity
+        or transaction.get("transfer_method")
+        not in {"bounded_stream_copy", "reflink_clone"}
+    ):
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded publication does not match current source evidence",
+        )
+    try:
+        staging_path.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded publication retained its staging path",
+        )
+    try:
+        target_details = managed_target.lstat()
+        root_details = branch_paths.managed_root.lstat()
+    except FileNotFoundError as error:
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded managed target is absent",
+        ) from error
+    mode = stat.S_IMODE(target_details.st_mode)
+    if (
+        stat.S_ISLNK(target_details.st_mode)
+        or not stat.S_ISREG(target_details.st_mode)
+        or target_details.st_nlink != 1
+        or target_details.st_dev != root_details.st_dev
+        or mode not in {0o640, 0o644}
+        or target_details.st_uid != root_details.st_uid
+        or target_details.st_gid != root_details.st_gid
+        or target_details.st_size != source.snapshot["size_bytes"]
+        or target_details.st_dev == source.snapshot["device"]
+        and target_details.st_ino == source.snapshot["inode"]
+    ):
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded managed target has an unsafe physical identity",
+        )
+    target_identity, target_count = _hash_path(managed_target)
+    if (
+        target_identity != source.artifact_identity
+        or target_count != source.snapshot["size_bytes"]
+    ):
+        raise _error(
+            "HANDOFF_PUBLICATION_FAILED",
+            "unrecorded managed target content identity is uncertain",
+        )
+    references: list[str] = []
+    for child in sorted(branch_paths.managed_root.iterdir()):
+        if child == managed_target or child.suffix.casefold() != ".gguf":
+            continue
+        details = child.lstat()
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or details.st_nlink != 1
+            or stat.S_IMODE(details.st_mode) != mode
+            or details.st_uid != target_details.st_uid
+            or details.st_gid != target_details.st_gid
+        ):
+            raise _error(
+                "HANDOFF_STAGING_INVALID",
+                "recovered managed policy is contradictory",
+            )
+        references.append(child.name)
+    policy = ManagedPolicy(
+        mode=mode,
+        owner_uid=target_details.st_uid,
+        owner_gid=target_details.st_gid,
+        reference_names=tuple(references),
+    )
+    plan = DestinationPlan(
+        branch_paths=branch_paths,
+        transaction_id=transaction["transaction_id"],
+        managed_name=transaction["managed_name"],
+        managed_relative_path=managed_relative,
+        managed_target=managed_target,
+        staging_name=staging_path.name,
+        staging_relative_path=staging_relative,
+        staging_path=staging_path,
+        policy=policy,
+        managed_root_identity=(
+            root_details.st_dev,
+            root_details.st_ino,
+            stat.S_IMODE(root_details.st_mode),
+        ),
+    )
+    staged = StagedArtifact(
+        path=staging_path,
+        relative_path=staging_relative,
+        transfer_method=transaction["transfer_method"],
+        device=target_details.st_dev,
+        inode=target_details.st_ino,
+        mode=mode,
+        link_count=target_details.st_nlink,
+        size_bytes=target_count,
+        sha256=target_identity,
+        source_snapshot_identity=source.snapshot_identity,
+    )
+    published = PublishedArtifact(
+        path=managed_target,
+        relative_path=managed_relative,
+        device=target_details.st_dev,
+        inode=target_details.st_ino,
+        mode=mode,
+        link_count=target_details.st_nlink,
+        size_bytes=target_count,
+        sha256=target_identity,
+    )
+    return plan, staged, published
+
+
 def _restore_idle_after_handoff(
     paths: InspectorPaths,
     transaction: dict[str, Any],
@@ -2619,14 +2835,29 @@ def handoff_transaction(
         source_candidate=source_candidate,
         managed_name=managed_name,
     )
+    unrecorded = (
+        _recoverable_unrecorded_publication(
+            paths,
+            branch_paths,
+            decision_id=decision_id,
+            source_candidate=source_candidate,
+            managed_name=managed_name,
+        )
+        if recoverable is None
+        else None
+    )
     transaction_id = (
         recoverable[0]["transaction_id"]
         if recoverable is not None
+        else unrecorded["transaction_id"]
+        if unrecorded is not None
         else transaction_id_factory()
     )
     handoff_id = (
         recoverable[0]["handoff_id"]
         if recoverable is not None
+        else unrecorded["handoff_id"]
+        if unrecorded is not None
         else handoff_id_factory()
     )
     lock = TransactionLock(
@@ -2706,6 +2937,72 @@ def handoff_transaction(
                 handoff_result_identity=result_identity,
                 handoff_result_path=str(result_path),
                 handoff_record_candidate=candidate,
+            )
+            _restore_idle_after_handoff(
+                paths,
+                transaction,
+                observer=transition_observer,
+                reason_code="HANDOFF_COMPLETE",
+                completed=True,
+            )
+            return transaction_id, candidate, result_path, result_identity
+
+        if unrecorded is not None:
+            transaction = {
+                **unrecorded,
+                "finish_utc": None,
+                "owner_identity": _owner_surface(owner),
+                "state": "VALIDATING_HANDOFF",
+                "reason_code": "OK",
+            }
+            transaction = _active_handoff_state(
+                paths,
+                transaction,
+                state="VALIDATING_HANDOFF",
+                observer=transition_observer,
+            )
+            authorization = effective_authenticator(paths, decision_id)
+            source = source_validator(
+                paths,
+                branch_paths,
+                authorization,
+                source_candidate,
+            )
+            plan, staged, published = _reconstruct_unrecorded_publication(
+                branch_paths, transaction, source
+            )
+            publication_committed = True
+            candidate = _build_handoff_record(
+                paths,
+                transaction=transaction,
+                authorization=authorization,
+                source=source,
+                plan=plan,
+                staged=staged,
+                published=published,
+                completed_utc=utc_now(),
+            )
+            transaction = _durable_handoff_phase(
+                paths,
+                transaction,
+                phase="PUBLISHED_TO_MANAGED_ROOT",
+                observer=transition_observer,
+                publication_device=published.device,
+                publication_inode=published.inode,
+                publication_size=published.size_bytes,
+                publication_sha256=published.sha256,
+                publication_mode=f"{published.mode:04o}",
+                publication_link_count=published.link_count,
+                handoff_record_candidate=candidate,
+            )
+            result_path, result_identity = result_publisher(paths, candidate)
+            transaction = _durable_handoff_phase(
+                paths,
+                transaction,
+                phase="HANDOFF_RECORD_PUBLISHED",
+                observer=transition_observer,
+                handoff_result_identity=result_identity,
+                handoff_result_path=str(result_path),
             )
             _restore_idle_after_handoff(
                 paths,
@@ -2810,6 +3107,19 @@ def handoff_transaction(
             observer=transition_observer,
         )
         published = artifact_publisher(plan, staged)
+        transaction = _durable_handoff_phase(
+            paths,
+            transaction,
+            phase="PUBLISHED_TO_MANAGED_ROOT",
+            observer=transition_observer,
+            publication_device=published.device,
+            publication_inode=published.inode,
+            publication_size=published.size_bytes,
+            publication_sha256=published.sha256,
+            publication_mode=f"{published.mode:04o}",
+            publication_link_count=published.link_count,
+            handoff_record_candidate=None,
+        )
         publication_committed = True
         candidate = _build_handoff_record(
             paths,

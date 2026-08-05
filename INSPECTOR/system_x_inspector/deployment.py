@@ -709,6 +709,8 @@ def _find_completed(
             )
         candidate = value["source_candidate"]
         if (
+            value["result_class"] == "DEPLOYMENT_COMPLETE"
+            and
             candidate["candidate_name"] == request["candidate_name"]
             and value["deployment_mode"] == request["deployment_mode"]
             and value["required_capability_profile"]
@@ -727,6 +729,79 @@ def _find_completed(
             "multiple immutable deployments match one input",
         )
     return matches[0] if matches else None
+
+
+def _find_retryable_failed_clean(
+    paths: InspectorPaths,
+    request: dict[str, str],
+    source: dict[str, Any],
+) -> dict[str, Any] | None:
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for path in sorted(paths.deployment_results.glob("deployment-*.json")):
+        try:
+            result = validate_deployment_result(read_json_record(path))
+        except (OSError, InspectorError):
+            raise _error(
+                "DEPLOYMENT_RESULT_INVALID",
+                "deployment result store contains invalid evidence",
+            )
+        candidate = result["source_candidate"]
+        if (
+            result["result_class"] != "DEPLOYMENT_FAILED_CLEAN"
+            or candidate["candidate_name"] != request["candidate_name"]
+            or candidate["artifact_identity"]
+            != source["artifact_identity"]
+            or result["deployment_mode"] != request["deployment_mode"]
+            or result["required_capability_profile"]
+            != request["required_capability_profile"]
+            or result["retirement_policy"]
+            != request["retirement_policy"]
+            or result["cleanup"].get("ownership_certain") is not True
+            or result["cleanup"].get("source_removal_committed")
+            is not False
+        ):
+            continue
+        transaction_path = (
+            paths.transactions / f"{result['transaction_id']}.json"
+        )
+        try:
+            transaction = read_json_record(transaction_path)
+        except (OSError, InspectorError) as error:
+            raise _error(
+                "DEPLOYMENT_RESULT_INVALID",
+                "retryable deployment result lacks its transaction",
+            ) from error
+        runtime = transaction.get("deployment_runtime")
+        if (
+            transaction.get("operation") != "deploy-gguf"
+            or transaction.get("state") != "FAILED_CLEAN"
+            or transaction.get("deployment_result_identity")
+            != result["result_identity"]
+            or not isinstance(runtime, dict)
+            or runtime.get("source", {}).get("artifact_identity")
+            != source["artifact_identity"]
+            or runtime.get("irreversible_steps") != []
+            or not isinstance(runtime.get("child_results"), dict)
+            or not isinstance(runtime.get("child_data"), dict)
+            or "handoff" in runtime["child_results"]
+        ):
+            continue
+        reusable = {
+            name
+            for name, projection in runtime["child_results"].items()
+            if projection is not None
+        }
+        if not reusable <= {"inspection", "decision", "qualification"}:
+            continue
+        candidates.append((result["completed_utc"], runtime))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0])
+    selected = candidates[-1][1]
+    return {
+        "child_results": dict(selected["child_results"]),
+        "child_data": dict(selected["child_data"]),
+    }
 
 
 def _clear_exact_stale_deployment_lock(
@@ -1053,6 +1128,7 @@ def deploy_transaction(
         )
     recoverable = _find_recoverable(paths, request, source)
     resuming = recoverable is not None
+    retryable: dict[str, Any] | None = None
     if recoverable is None:
         duplicate = _find_completed(paths, request, source)
         if duplicate is not None:
@@ -1063,6 +1139,7 @@ def deploy_transaction(
                 path,
                 record["result_identity"],
             )
+        retryable = _find_retryable_failed_clean(paths, request, source)
         prestate = adapter.capture_prestate(paths)
         _preconditions(request["deployment_mode"], prestate)
         try:
@@ -1078,8 +1155,12 @@ def deploy_transaction(
             "request": request,
             "source": source,
             "prestate": prestate,
-            "child_results": {},
-            "child_data": {},
+            "child_results": (
+                dict(retryable["child_results"]) if retryable else {}
+            ),
+            "child_data": (
+                dict(retryable["child_data"]) if retryable else {}
+            ),
             "candidate_identity": {},
             "final_model_state": {},
             "promotion_result": None,
@@ -1099,9 +1180,14 @@ def deploy_transaction(
             "deployment_result": None,
             "deployment_result_published": False,
             "source_cleanup": None,
-            "warnings": [],
+            "warnings": (
+                ["AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED"]
+                if retryable
+                else []
+            ),
             "irreversible_steps": [],
         }
+        resuming = retryable is not None
         transaction = {
             "schema_version": SCHEMA_IDENTITIES["transaction"],
             "transaction_id": transaction_id,

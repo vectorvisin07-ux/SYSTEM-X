@@ -244,6 +244,15 @@ class HandoffFoundationTest(unittest.TestCase):
         self.assertEqual(
             caught.exception.reason_code, "HANDOFF_RESULT_COLLISION"
         )
+        cold = self.valid_record()
+        cold["alias_protection"] = {
+            **cold["alias_protection"],
+            "default_target_before": None,
+            "default_target_after": None,
+        }
+        cold.pop("result_identity")
+        cold = finalize_handoff_record(cold)
+        self.assertEqual(validate_handoff_record(cold), cold)
 
     def test_result_publication_is_private_and_no_overwrite(self) -> None:
         record = self.valid_record()
@@ -1109,6 +1118,66 @@ class HandoffFoundationTest(unittest.TestCase):
             sorted(self.paths.transactions.iterdir()), before_transactions
         )
         self.assertEqual(len(list(self.paths.handoff_results.iterdir())), 1)
+
+    def test_cold_install_and_unrecorded_publication_recovery(self) -> None:
+        authorization, source_name, managed_name, common = (
+            self.transaction_fixture()
+        )
+        (self.managed / "production.gguf").unlink()
+        failed_once = False
+
+        def fail_cold_reference(*_args: object) -> None:
+            nonlocal failed_once
+            if not failed_once:
+                failed_once = True
+                raise InspectorError(
+                    "HANDOFF_STAGING_INVALID",
+                    "injected legacy cold-install record failure",
+                )
+            return None
+
+        with mock.patch(
+            "system_x_inspector.handoff._production_reference",
+            side_effect=fail_cold_reference,
+        ):
+            with self.assertRaises(InspectorError) as caught:
+                handoff_transaction(
+                    self.paths,
+                    authorization.decision["decision_id"],
+                    source_name,
+                    managed_name,
+                    **common,
+                )
+        self.assertEqual(
+            caught.exception.reason_code, "HANDOFF_STAGING_INVALID"
+        )
+        target = self.managed / managed_name
+        self.assertTrue(target.is_file())
+        failed = read_json_record(
+            self.paths.transactions / "tx-transaction-fixture.json"
+        )
+        self.assertEqual(failed["state"], "FAILED")
+        self.assertEqual(
+            failed["commit_phase"], "PUBLISHED_TO_MANAGED_ROOT"
+        )
+        self.assertIsNone(failed["handoff_record_candidate"])
+
+        resumed = handoff_transaction(
+            self.paths,
+            authorization.decision["decision_id"],
+            source_name,
+            managed_name,
+            **common,
+        )
+        self.assertEqual(resumed[0], "tx-transaction-fixture")
+        record = resumed[1]
+        self.assertIsNone(
+            record["alias_protection"]["default_target_before"]
+        )
+        self.assertIsNone(
+            record["alias_protection"]["default_target_after"]
+        )
+        self.assertEqual(validate_handoff_record(record), record)
 
     def test_transaction_prepublication_cleanup_is_exact(self) -> None:
         authorization, source_name, managed_name, common = (
