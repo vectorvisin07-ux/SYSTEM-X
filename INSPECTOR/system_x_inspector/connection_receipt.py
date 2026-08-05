@@ -115,6 +115,10 @@ MODEL_FIELDS = frozenset(
         "recommended_reference",
         "default_alias",
         "resolved_immutable_model_id",
+        "source_label",
+        "physical_architecture",
+        "physical_model_type",
+        "official_checkpoint_attested",
         "artifact_sha256",
         "artifact_version_id",
         "capability_manifest_identity",
@@ -836,6 +840,25 @@ def validate_receipt(value: object) -> dict[str, Any]:
             model["resolved_immutable_model_id"]
         )
         is None
+        or (
+            model["source_label"] is not None
+            and (
+                not isinstance(model["source_label"], str)
+                or not model["source_label"]
+                or len(model["source_label"]) > 128
+                or Path(model["source_label"]).name
+                != model["source_label"]
+            )
+        )
+        or (
+            model["physical_architecture"] is not None
+            and not isinstance(model["physical_architecture"], str)
+        )
+        or (
+            model["physical_model_type"] is not None
+            and not isinstance(model["physical_model_type"], str)
+        )
+        or model["official_checkpoint_attested"] is not False
         or not isinstance(model["artifact_sha256"], str)
         or SHA256_PATTERN.fullmatch(model["artifact_sha256"]) is None
         or not isinstance(model["artifact_version_id"], str)
@@ -1594,6 +1617,14 @@ def build_receipt(
             "resolved_immutable_model_id": observation[
                 "resolved_immutable_model_id"
             ],
+            "source_label": observation.get("source_label"),
+            "physical_architecture": observation.get(
+                "physical_architecture"
+            ),
+            "physical_model_type": observation.get(
+                "physical_model_type"
+            ),
+            "official_checkpoint_attested": False,
             "artifact_sha256": observation["artifact_sha256"],
             "artifact_version_id": observation[
                 "artifact_version_id"

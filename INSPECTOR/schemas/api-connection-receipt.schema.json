@@ -348,6 +348,10 @@
         "recommended_reference",
         "default_alias",
         "resolved_immutable_model_id",
+        "source_label",
+        "physical_architecture",
+        "physical_model_type",
+        "official_checkpoint_attested",
         "artifact_sha256",
         "artifact_version_id",
         "capability_manifest_identity",
@@ -368,6 +372,29 @@
         "resolved_immutable_model_id": {
           "type": "string",
           "minLength": 1
+        },
+        "source_label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "physical_architecture": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "physical_model_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "official_checkpoint_attested": {
+          "const": false
         },
         "artifact_sha256": {
           "$ref": "#/$defs/sha256"

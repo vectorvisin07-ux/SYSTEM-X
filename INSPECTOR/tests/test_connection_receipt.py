@@ -59,6 +59,10 @@ class ConnectionReceiptTest(unittest.TestCase):
             "resolved_immutable_model_id": (
                 "sx-gguf-current-model-0123456789abcdef"
             ),
+            "source_label": "external-label.gguf",
+            "physical_architecture": "qwen35",
+            "physical_model_type": "model",
+            "official_checkpoint_attested": False,
             "artifact_sha256": "sha256:" + "1" * 64,
             "artifact_version_id": "bundle-" + "1" * 64,
             "capability_manifest_identity": "sha256:" + "2" * 64,
@@ -192,6 +196,16 @@ class ConnectionReceiptTest(unittest.TestCase):
         native = receipt["connections"]["system_x_native"]
         openai = receipt["connections"]["openai_compatible"]
         messages = receipt["connections"]["messages_compatible"]
+        self.assertEqual(
+            receipt["model"]["source_label"], "external-label.gguf"
+        )
+        self.assertEqual(
+            receipt["model"]["physical_architecture"], "qwen35"
+        )
+        self.assertEqual(
+            receipt["model"]["physical_model_type"], "model"
+        )
+        self.assertFalse(receipt["model"]["official_checkpoint_attested"])
         self.assertEqual(native["endpoint_semantics"], "base_url_relative")
         self.assertEqual(openai["base_url"], "http://127.0.0.1:56259/v1")
         self.assertEqual(

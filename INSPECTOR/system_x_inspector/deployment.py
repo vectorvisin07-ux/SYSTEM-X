@@ -1460,6 +1460,13 @@ def deploy_transaction(
                 reference,
                 publication.get("proof_request_id"),
             )
+            observation["source_label"] = request["candidate_name"]
+            observation["physical_architecture"] = inspection.get(
+                "physical_architecture"
+            )
+            observation["physical_model_type"] = inspection.get(
+                "physical_model_type"
+            )
             runtime["connection_observation"] = observation
             receipt = build_receipt(
                 observation,
@@ -1828,6 +1835,14 @@ class CurrentSourceDeploymentAdapter:
             "size": record["artifact"]["byte_count"],
             "terminal_class": record["classification"][
                 "terminal_class"
+            ],
+            "physical_architecture": (
+                record["normalized"]["architectures"][0]
+                if len(record["normalized"]["architectures"]) == 1
+                else None
+            ),
+            "physical_model_type": record["normalized"][
+                "model_type"
             ],
         }
 
@@ -2269,6 +2284,14 @@ class CurrentSourceDeploymentAdapter:
                 "size": record["artifact"]["byte_count"],
                 "terminal_class": record["classification"][
                     "terminal_class"
+                ],
+                "physical_architecture": (
+                    record["normalized"]["architectures"][0]
+                    if len(record["normalized"]["architectures"]) == 1
+                    else None
+                ),
+                "physical_model_type": record["normalized"][
+                    "model_type"
                 ],
             }
         elif name == "decision":
