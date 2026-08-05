@@ -4943,12 +4943,22 @@ def reconcile_qualification_transaction(
             )
             manager_recovery = {"used": False}
         else:
-            manager_recovery = recover_with_accepted_platform_manager(
-                branch_root
-            )
-            removal = wait_for_candidate_removal(
-                branch_root, managed_name, artifact_identity
-            )
+            if observation.get("present") is False:
+                manager_recovery = {
+                    "used": False,
+                    "already_converged": True,
+                }
+                removal = {
+                    **observation,
+                    "registry_location_removed": True,
+                }
+            else:
+                manager_recovery = recover_with_accepted_platform_manager(
+                    branch_root
+                )
+                removal = wait_for_candidate_removal(
+                    branch_root, managed_name, artifact_identity
+                )
             cleanup = {
                 "staging_absent": True,
                 "managed_target_absent": True,
