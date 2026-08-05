@@ -1332,9 +1332,20 @@ def _managed_policy(
             )
         )
     if not observed:
-        raise _error(
-            "HANDOFF_STAGING_INVALID",
-            "managed GGUF policy has no accepted reference artifact",
+        root_details = branch_paths.managed_root.lstat()
+        if (
+            stat.S_ISLNK(root_details.st_mode)
+            or not stat.S_ISDIR(root_details.st_mode)
+        ):
+            raise _error(
+                "HANDOFF_STAGING_INVALID",
+                "cold-install managed GGUF root is unsafe",
+            )
+        return ManagedPolicy(
+            mode=0o640,
+            owner_uid=root_details.st_uid,
+            owner_gid=root_details.st_gid,
+            reference_names=(),
         )
     policies = {(mode, uid, gid) for _, mode, uid, gid in observed}
     if len(policies) != 1:

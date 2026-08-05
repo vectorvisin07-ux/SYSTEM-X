@@ -706,6 +706,31 @@ class HandoffFoundationTest(unittest.TestCase):
         )
         return branch_paths, authorization, evidence, plan
 
+    def test_cold_install_derives_policy_from_authenticated_root(
+        self,
+    ) -> None:
+        branch_paths = BranchHandoffPaths.discover(self.paths)
+        root_details = branch_paths.managed_root.lstat()
+        digest = "a" * 64
+        plan = prepare_handoff_destination(
+            branch_paths,
+            transaction_id="tx-cold-install",
+            managed_name=f"cold-install-{digest[:12]}.gguf",
+            artifact_identity=f"sha256:{digest}",
+        )
+        self.assertEqual(plan.policy.mode, 0o640)
+        self.assertEqual(
+            plan.policy.owner_uid,
+            root_details.st_uid,
+        )
+        self.assertEqual(
+            plan.policy.owner_gid,
+            root_details.st_gid,
+        )
+        self.assertEqual(plan.policy.reference_names, ())
+        self.assertFalse(plan.managed_target.exists())
+        self.assertFalse(plan.staging_path.exists())
+
     def test_streaming_staging_and_atomic_publication(self) -> None:
         branch_paths, _, source, plan = self.transfer_fixture()
         sentinel = branch_paths.branch_staging_root / "preserve.sentinel"
