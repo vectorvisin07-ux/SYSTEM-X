@@ -853,11 +853,16 @@ def observe_registry(
             )
         ]
         event_types = [item["event_type"] for item in events]
+        ready_event_indexes = [
+            index
+            for index, event_type in enumerate(event_types)
+            if event_type in {"capability_ready", "replacement_ready"}
+        ]
         if (
             "model_registered" not in event_types
-            or "capability_ready" not in event_types
+            or not ready_event_indexes
             or event_types.index("model_registered")
-            > event_types.index("capability_ready")
+            > min(ready_event_indexes)
         ):
             raise _fail(
                 "REGISTRY_MODEL_VERSION_NOT_READY",

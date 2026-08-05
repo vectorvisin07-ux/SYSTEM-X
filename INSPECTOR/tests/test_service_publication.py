@@ -506,6 +506,17 @@ class RegistryCorrelationTest(unittest.TestCase):
             "EXISTING_IMMUTABLE_VERSION_REUSED",
         )
 
+    def test_replacement_ready_is_valid_ready_progression(self) -> None:
+        self.mutate(
+            "UPDATE registry_events SET event_type='replacement_ready' "
+            "WHERE event_type='capability_ready'"
+        )
+        result = observe_registry(self.branch, handoff_evidence())
+        self.assertEqual(
+            [item["event_type"] for item in result.progression_evidence],
+            ["model_registered", "replacement_ready"],
+        )
+
     def test_missing_location_bundle_state_manifest_and_ambiguity(self) -> None:
         cases = [
             (
