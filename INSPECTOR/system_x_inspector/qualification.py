@@ -3503,15 +3503,14 @@ def observe_qualification_candidate(
             elif state == "READY":
                 manifest = current["manifest_sha256"]
                 if (
-                    not present
-                    or not isinstance(manifest, str)
+                    not isinstance(manifest, str)
                     or re.fullmatch(r"[0-9a-f]{64}", manifest) is None
                 ):
                     raise _qualification_error(
                         "QUALIFICATION_REGISTRY_UNAVAILABLE",
-                        "READY candidate lacks a current capability manifest",
+                        "candidate lacks an authenticated capability manifest",
                     )
-                terminal = "READY"
+                terminal = "READY" if present else "REMOVED"
                 public_model_id = str(current["model_version_id"])
                 artifact_version_id = str(current["bundle_id"])
                 manifest_identity = "sha256:" + manifest

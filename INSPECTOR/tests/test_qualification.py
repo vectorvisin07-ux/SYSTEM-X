@@ -28,6 +28,7 @@ from system_x_inspector.qualification import (
     PROFILE_MAX_OUTPUT_TOKENS,
     PublicProfileProbeAdapter,
     QUALIFICATION_MANAGED_NAME_PATTERN,
+    observe_qualification_candidate,
     _accepted_registration_wait_seconds,
     _operating_profile_identity,
     authenticate_qualification,
@@ -383,6 +384,87 @@ class QualificationAdmissionTest(unittest.TestCase):
             },
         )
         self.assertTrue(removed["registry_location_removed"])
+
+    def test_ready_version_at_removed_location_is_observed_as_removed(self) -> None:
+        database = self.branch / "RUNTIME/api/database/model_registry.sqlite3"
+        database.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        import sqlite3
+
+        connection = sqlite3.connect(database)
+        try:
+            connection.executescript(
+                """
+                CREATE TABLE registry_metadata (key TEXT PRIMARY KEY,value TEXT);
+                CREATE TABLE artifact_rejections (
+                    relative_path TEXT,reason_code TEXT,detail_json TEXT,
+                    first_seen_utc TEXT,last_seen_utc TEXT
+                );
+                CREATE TABLE artifact_locations (
+                    relative_root TEXT PRIMARY KEY,current_bundle_id TEXT,
+                    present INTEGER,first_seen_utc TEXT,last_seen_utc TEXT
+                );
+                CREATE TABLE model_versions (
+                    model_version_id TEXT PRIMARY KEY,bundle_id TEXT,state TEXT,
+                    created_utc TEXT
+                );
+                CREATE TABLE model_version_locations (
+                    model_version_id TEXT,relative_root TEXT
+                );
+                CREATE TABLE capability_manifests (
+                    model_version_id TEXT,manifest_sha256 TEXT
+                );
+                CREATE TABLE registry_events (
+                    generation INTEGER,event_id INTEGER,event_type TEXT,
+                    subject_id TEXT
+                );
+                CREATE TABLE aliases (
+                    alias TEXT,model_version_id TEXT
+                );
+                """
+            )
+            managed_name = (
+                "qualification-candidate-"
+                + "a" * 16
+                + "-"
+                + "b" * 16
+                + ".gguf"
+            )
+            artifact = "sha256:" + "c" * 64
+            bundle = "bundle-" + "c" * 64
+            model_id = "candidate-model"
+            connection.execute(
+                "INSERT INTO registry_metadata VALUES ('registry_generation','9')"
+            )
+            connection.execute(
+                "INSERT INTO artifact_locations VALUES (?,?,0,'t','t')",
+                (managed_name, bundle),
+            )
+            connection.execute(
+                "INSERT INTO model_versions VALUES (?,?,?,'t')",
+                (model_id, bundle, "READY"),
+            )
+            connection.execute(
+                "INSERT INTO model_version_locations VALUES (?,?)",
+                (model_id, managed_name),
+            )
+            connection.execute(
+                "INSERT INTO capability_manifests VALUES (?,?)",
+                (model_id, "d" * 64),
+            )
+            connection.execute(
+                "INSERT INTO registry_events VALUES (9,1,'artifact_location_removed',?)",
+                (managed_name,),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        observed = observe_qualification_candidate(
+            self.branch, managed_name, artifact
+        )
+        self.assertFalse(observed["present"])
+        self.assertEqual(observed["terminal"], "REMOVED")
+        self.assertEqual(observed["public_model_id"], model_id)
+        self.assertEqual(observed["artifact_version_id"], bundle)
 
     def test_runtime_smoke_authentication_and_atomic_admission(self) -> None:
         authorization = self.authorize()
