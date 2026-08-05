@@ -165,10 +165,10 @@
       "sha256": "c79c8958f4d72a623b9d13a7dec24fd1e2aef282771a5ddac6bd081188e859aa"
     },
     {
-      "bytes": 88361,
+      "bytes": 90437,
       "mode": "100644",
       "path": "INSPECTOR/system_x_inspector/deployment.py",
-      "sha256": "c18b0061a2a32c79bfb4219e3193a9689b489000264dfaa89844dfffdfe52d8a"
+      "sha256": "f3dffc21b2f169193da84b5938498bf7de8b3e46d6ead44f24df81116939f1e7"
     },
     {
       "bytes": 549,
@@ -291,10 +291,10 @@
       "sha256": "9f9df937c59950924514a810614aff0b596b29cef919afb5f8c85e8831a8c386"
     },
     {
-      "bytes": 33560,
+      "bytes": 35143,
       "mode": "100644",
       "path": "INSPECTOR/tests/test_deployment.py",
-      "sha256": "9cd57f141ca2be1698c438aa00fb4d7c1c4dcaddb4502e0b450f0fe38fc7153d"
+      "sha256": "55c5c171cf13ae290bfd5f806cfdd5ad28df9cc4db2c91f0a56bb0be74c48d20"
     },
     {
       "bytes": 10363,

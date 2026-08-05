@@ -557,6 +557,49 @@ def _preconditions(mode: str, state: dict[str, Any]) -> None:
         )
 
 
+def _converged_install_first_retry(
+    source: dict[str, Any], state: dict[str, Any]
+) -> bool:
+    """Accept only the exact retry candidate already converged by control."""
+
+    required = {
+        "desired_state",
+        "model_service_state",
+        "ready_model_count",
+        "default_alias",
+        "default_target",
+        "warm_model_id",
+        "artifact_identity",
+        "artifact_version_id",
+        "capability_manifest_identity",
+        "resolved_immutable_model_id",
+        "managed_location_identity",
+        "recovery_state",
+    }
+    return (
+        required <= set(state)
+        and state["desired_state"] == "RUNNING"
+        and state["model_service_state"] == "READY"
+        and state["ready_model_count"] == 1
+        and state["default_alias"] == "default"
+        and isinstance(state["default_target"], str)
+        and state["default_target"]
+        and state["warm_model_id"] == state["default_target"]
+        and state["resolved_immutable_model_id"]
+        == state["default_target"]
+        and state["artifact_identity"] == source["artifact_identity"]
+        and isinstance(state["artifact_version_id"], str)
+        and state["artifact_version_id"]
+        == "bundle-" + source["artifact_identity"].removeprefix("sha256:")
+        and isinstance(state["capability_manifest_identity"], str)
+        and state["capability_manifest_identity"]
+        and isinstance(state["managed_location_identity"], str)
+        and SHA256_PATTERN.fullmatch(state["managed_location_identity"])
+        is not None
+        and state["recovery_state"] == "IDLE"
+    )
+
+
 def _input_identity(
     request: dict[str, str],
     source: dict[str, Any],
@@ -1141,7 +1184,13 @@ def deploy_transaction(
             )
         retryable = _find_retryable_failed_clean(paths, request, source)
         prestate = adapter.capture_prestate(paths)
-        _preconditions(request["deployment_mode"], prestate)
+        converged_retry = (
+            retryable is not None
+            and request["deployment_mode"] == "install-first"
+            and _converged_install_first_retry(source, prestate)
+        )
+        if not converged_retry:
+            _preconditions(request["deployment_mode"], prestate)
         try:
             previous_receipt = load_current_receipt(paths)
         except InspectorError as error:
@@ -1181,7 +1230,14 @@ def deploy_transaction(
             "deployment_result_published": False,
             "source_cleanup": None,
             "warnings": (
-                ["AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED"]
+                [
+                    "AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED",
+                    *(
+                        ["EXACT_INSTALL_FIRST_CANDIDATE_ALREADY_CONVERGED"]
+                        if converged_retry
+                        else []
+                    ),
+                ]
                 if retryable
                 else []
             ),

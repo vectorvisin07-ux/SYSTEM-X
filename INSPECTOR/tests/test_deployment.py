@@ -120,7 +120,16 @@ class FixtureAdapter:
         self, paths: InspectorPaths
     ) -> dict[str, object]:
         self.calls["capture_prestate"] += 1
-        waiting = self.mode == "install-first"
+        waiting = self.default is None
+        if waiting:
+            artifact = version = manifest = location = None
+        else:
+            artifact, version, manifest = self._model_values(self.default)
+            location = (
+                sha("candidate-location")
+                if self.default == CANDIDATE
+                else INCUMBENT_LOCATION
+            )
         return {
             "desired_state": "RUNNING",
             "model_service_state": (
@@ -128,26 +137,16 @@ class FixtureAdapter:
             ),
             "ready_model_count": 0 if waiting else 1,
             "default_alias": None if waiting else "default",
-            "default_target": None if waiting else INCUMBENT,
-            "warm_model_id": None if waiting else INCUMBENT,
+            "default_target": self.default,
+            "warm_model_id": self.warm,
             "operating_profile_identity": PROFILE_IDENTITY,
             "capability_binding_identity": BINDING_IDENTITY,
             "non_secret_key_id": KEY_ID,
-            "artifact_identity": (
-                None if waiting else INCUMBENT_ARTIFACT
-            ),
-            "artifact_version_id": (
-                None if waiting else INCUMBENT_VERSION
-            ),
-            "capability_manifest_identity": (
-                None if waiting else INCUMBENT_MANIFEST
-            ),
-            "resolved_immutable_model_id": (
-                None if waiting else INCUMBENT
-            ),
-            "managed_location_identity": (
-                None if waiting else INCUMBENT_LOCATION
-            ),
+            "artifact_identity": artifact,
+            "artifact_version_id": version,
+            "capability_manifest_identity": manifest,
+            "resolved_immutable_model_id": self.default,
+            "managed_location_identity": location,
             "registry_generation": self.generation,
             "recovery_state": "IDLE",
         }
@@ -770,6 +769,48 @@ class DeploymentTest(unittest.TestCase):
             completed["warnings"],
             ["AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED"],
         )
+        self.assertFalse(fixture.candidate.exists())
+
+    def test_failed_clean_install_first_accepts_exact_converged_retry(
+        self,
+    ) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.fail_at = "handoff"
+        _tx, failed, _path, _identity = fixture.deploy()
+        self.assertEqual(failed["result_class"], "DEPLOYMENT_FAILED_CLEAN")
+        fixture.adapter.fail_at = None
+        fixture.adapter.ready.add(CANDIDATE)
+        fixture.adapter.default = CANDIDATE
+        fixture.adapter.warm = CANDIDATE
+        fixture.transaction_id = (
+            "tx-20260731T000000000002Z-abcdef123458"
+        )
+        fixture.deployment_id = (
+            "deployment-20260731T000000000002Z-"
+            "0123456789abcded"
+        )
+        before = {
+            name: fixture.adapter.calls[name]
+            for name in ("inspect", "decide", "qualify")
+        }
+        _tx, completed, _path, _identity = fixture.deploy()
+        self.assertEqual(completed["result_class"], "DEPLOYMENT_COMPLETE")
+        self.assertEqual(
+            completed["warnings"],
+            [
+                "AUTHENTICATED_FAILED_CLEAN_PREHANDOFF_CHILDREN_REUSED",
+                "EXACT_INSTALL_FIRST_CANDIDATE_ALREADY_CONVERGED",
+            ],
+        )
+        self.assertEqual(
+            {
+                name: fixture.adapter.calls[name]
+                for name in ("inspect", "decide", "qualify")
+            },
+            before,
+        )
+        self.assertEqual(fixture.adapter.default, CANDIDATE)
+        self.assertEqual(fixture.adapter.warm, CANDIDATE)
         self.assertFalse(fixture.candidate.exists())
 
     def test_uncertain_rollback_fails_closed(self) -> None:
