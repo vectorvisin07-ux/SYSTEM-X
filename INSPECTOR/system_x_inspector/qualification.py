@@ -4874,6 +4874,7 @@ def clear_qualification_default(
     observer: Callable[
         [Path, str, str], dict[str, Any]
     ] = observe_qualification_candidate,
+    _conflict_attempt: int = 0,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     refreshed = observer(branch_root, managed_name, artifact_identity)
     if (
@@ -4950,6 +4951,22 @@ def clear_qualification_default(
             "branch alias transaction emitted invalid JSON",
         ) from error
     alias = value.get("alias_transaction") if isinstance(value, dict) else None
+    if (
+        completed.returncode != 0
+        and isinstance(value, dict)
+        and value.get("reason_code") == "ALIAS_TRANSACTION_CONFLICT"
+    ):
+        if _conflict_attempt >= 4:
+            raise _qualification_error(
+                "QUALIFICATION_DEFAULT_CHANGED",
+                "branch alias transaction remained conflicted",
+            )
+        time.sleep(0.05)
+        return clear_qualification_default(
+            branch_root, managed_name, artifact_identity, refreshed,
+            transaction_id, runner=runner, observer=observer,
+            _conflict_attempt=_conflict_attempt + 1,
+        )
     if (
         completed.returncode != 0
         or not isinstance(value, dict)
