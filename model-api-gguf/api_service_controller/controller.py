@@ -53,8 +53,8 @@ DEPENDENCY_FILES = {
         "e62367fdfd1ee24d8ac5a4080332958317d7e77eb431bfce6fdbe2e208963394",
     ),
     "configuration.schema.json": (
-        8713,
-        "a2634a30c71d70699d3c58a953e3867b43040cd618a4efec94d5846e09259abe",
+        8776,
+        "846d37d393b6ee393672df03a3685223c6e7e85160abcc76aba178c0f6b02f4d",
     ),
     "configuration.example.json": (
         1798,
@@ -65,8 +65,8 @@ DEPENDENCY_FILES = {
         "6de72ee10a917feec2bf041b76b904819dd4c748d3663080bf90cffa475440c6",
     ),
     "src/system_x_gguf_api/application.py": (
-        16581,
-        "9e355a34df8375923e6ec84079aff7770f3b872857e279c38e2be55d31b808c3",
+        17701,
+        "0207de7d53f9ca78f1cb73b39df8853bf6fdb2387454a6dd5497423b0f5f5062",
     ),
     "src/system_x_gguf_api/anthropic_adapter.py": (
         10973,
@@ -225,8 +225,8 @@ DEPENDENCY_FILES = {
         "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038",
     ),
     "src/system_x_gguf_api/settings.py": (
-        10146,
-        "60cdea981924dcfea12727a9b2de72c1dd60ddd748f4ed445b89c05b28164234",
+        10757,
+        "28a6882c961d3fe51d0df68b13d52d30c3270680bbc964aa8cf9680aa8fb182d",
     ),
     "src/system_x_gguf_api/warm_model.py": (
         22407,
@@ -592,10 +592,10 @@ def parse_registry_alias(value: str) -> str:
 
 def parse_startup_model_policy(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized != "always_warm":
+    if normalized not in {"always_warm", "router_control", "api_only"}:
         raise ControllerError(
             "INVALID_INPUT",
-            "startup_model_policy must equal always_warm",
+            "startup_model_policy must equal always_warm, router_control or api_only",
         )
     return normalized
 
@@ -864,6 +864,22 @@ def validated_input(namespace: argparse.Namespace) -> dict[str, Any]:
             "INVALID_INPUT",
             "private_backend_enabled must be true when registry is enabled",
         )
+    if values["startup_model_policy"] == "router_control":
+        if not values["private_backend_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "private_backend_enabled must be true for router_control",
+            )
+        if values["registry_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "registry_enabled must be false for router_control",
+            )
+        if values["automatic_recovery_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "automatic_recovery_enabled must be false for router_control",
+            )
     if (
         values["recovery_delay_initial_seconds"]
         > values["recovery_delay_maximum_seconds"]
@@ -1751,10 +1767,31 @@ def operation_plan(paths: dict[str, Path], namespace: argparse.Namespace) -> dic
     validate_runtime_layout(paths)
     values = validated_input(namespace)
     plan = build_plan(paths, values)
+    if paths["active_lock"].exists():
+        raise ControllerError(
+            "SERVICE_LOCK_ACTIVE",
+            "active service lock already exists",
+            paths=path_section(paths),
+        )
+    if paths["active_pid"].exists():
+        raise ControllerError(
+            "SERVICE_STATE_INCONSISTENT",
+            "active PID record exists without an active lock",
+            paths=path_section(paths),
+        )
     if not endpoint_available(values["host"], values["port"]):
         raise ControllerError(
             "ENDPOINT_IN_USE",
             "requested endpoint is not available",
+            input=values,
+            paths=path_section(paths),
+        )
+    if values["private_backend_enabled"] and not endpoint_available(
+        values["private_backend_host"], values["private_backend_port"]
+    ):
+        raise ControllerError(
+            "ENDPOINT_IN_USE",
+            "requested private backend endpoint is not available",
             input=values,
             paths=path_section(paths),
         )

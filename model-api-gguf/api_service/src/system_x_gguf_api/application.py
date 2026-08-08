@@ -93,28 +93,55 @@ def create_application(
         authentication.validate_startup()
         runtime_readiness["authentication_ready"] = True
         operations.startup()
-        await backend.startup()
+        api_only_mode = active_settings.startup_model_policy == "api_only"
+        router_control_mode = active_settings.startup_model_policy == "router_control"
+        backend_started = False
+        registry_started = False
+        warm_started = False
+        recovery_started = False
         try:
-            try:
+            if api_only_mode:
+                try:
+                    yield
+                finally:
+                    await active_streams.shutdown()
+            elif router_control_mode:
+                backend_started = True
+                await backend.startup()
+                try:
+                    yield
+                finally:
+                    await active_streams.shutdown()
+            else:
+                backend_started = True
+                await backend.startup()
+                registry_started = True
                 await registry.startup()
                 try:
+                    warm_started = True
                     await warm_model.startup(start_observer=False)
-                    await runtime_recovery.startup()
                     try:
-                        yield
+                        recovery_started = True
+                        await runtime_recovery.startup()
+                        try:
+                            yield
+                        finally:
+                            if recovery_started:
+                                await runtime_recovery.shutdown()
                     finally:
-                        await runtime_recovery.shutdown()
+                        if warm_started:
+                            await warm_model.shutdown()
                 finally:
-                    await warm_model.shutdown()
-            finally:
-                try:
-                    await active_streams.shutdown()
-                finally:
-                    await registry.shutdown()
+                    try:
+                        await active_streams.shutdown()
+                    finally:
+                        if registry_started:
+                            await registry.shutdown()
         finally:
             runtime_readiness["authentication_ready"] = False
             try:
-                await backend.shutdown()
+                if backend_started:
+                    await backend.shutdown()
             finally:
                 operations.shutdown()
 

@@ -269,7 +269,11 @@
       "type": "string"
     },
     "startup_model_policy": {
-      "const": "always_warm",
+      "enum": [
+        "always_warm",
+        "router_control",
+        "api_only"
+      ],
       "default": "always_warm",
       "title": "Startup Model Policy",
       "type": "string"

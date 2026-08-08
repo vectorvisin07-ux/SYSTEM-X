@@ -345,10 +345,10 @@
       "sha256": "31f98cb1c8b1a0ac4c3c99404be49ca9784160bb2b09e8598231412e9728bf81"
     },
     {
-      "bytes": 48848,
+      "bytes": 54349,
       "mode": "100644",
       "path": "INSPECTOR/tests/test_qualification.py",
-      "sha256": "3943a1f3f6eab53fcb8bc23e40de1af7ae699b1451b61c7e957db34e1a9f0ab9"
+      "sha256": "916e8297f5a2ad5da4d71bb844fcc3c0110c2d897dbb632d979e90da2592e211"
     },
     {
       "bytes": 34081,
@@ -450,7 +450,7 @@
       "bytes": 2755,
       "mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
-      "sha256": "b1b47b27b8ad3167e9e620d2993883cf6c1e315a5ade825941c0daf095409841"
+      "sha256": "064c5d615177e132884a51bf29275ea9881e3691efa00823f15dbf641fc90d7a"
     },
     {
       "bytes": 1009,
@@ -681,10 +681,10 @@
       "sha256": "0b8a50f96232e9bf27b1396659c277d822864572a525eabe2d92b01ac1b9e605"
     },
     {
-      "bytes": 8713,
+      "bytes": 8776,
       "mode": "100644",
       "path": "model-api-gguf/api_service/configuration.schema.json",
-      "sha256": "a2634a30c71d70699d3c58a953e3867b43040cd618a4efec94d5846e09259abe"
+      "sha256": "846d37d393b6ee393672df03a3685223c6e7e85160abcc76aba178c0f6b02f4d"
     },
     {
       "bytes": 113,
@@ -741,10 +741,10 @@
       "sha256": "c9268bb8d859e9d63a0c43f495534f3e8a6588eb8874dcc4500a3aa452c94278"
     },
     {
-      "bytes": 16581,
+      "bytes": 17701,
       "mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/application.py",
-      "sha256": "9e355a34df8375923e6ec84079aff7770f3b872857e279c38e2be55d31b808c3"
+      "sha256": "0207de7d53f9ca78f1cb73b39df8853bf6fdb2387454a6dd5497423b0f5f5062"
     },
     {
       "bytes": 21875,
@@ -951,10 +951,10 @@
       "sha256": "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038"
     },
     {
-      "bytes": 10146,
+      "bytes": 10757,
       "mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/settings.py",
-      "sha256": "60cdea981924dcfea12727a9b2de72c1dd60ddd748f4ed445b89c05b28164234"
+      "sha256": "28a6882c961d3fe51d0df68b13d52d30c3270680bbc964aa8cf9680aa8fb182d"
     },
     {
       "bytes": 8306,
@@ -1047,10 +1047,10 @@
       "sha256": "60ed933ed110030cb2277548027742c00d47186d3beaa402ec4437a10754d6e0"
     },
     {
-      "bytes": 94565,
+      "bytes": 96071,
       "mode": "100755",
       "path": "model-api-gguf/api_service_controller/controller.py",
-      "sha256": "85be244b14f04e26983ee570e433e89933d70c073544200222fa7366ae75a63c"
+      "sha256": "0c4de956a323250a59ef6fe3e9bcec9371bb418180d7c9e628a3f1714a465466"
     },
     {
       "bytes": 73036,
@@ -1164,7 +1164,7 @@
       "bytes": 112503,
       "mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
-      "sha256": "b97a1c83b228d2ad927ad114b9f04a1fba7ac81e484185809a9fa223bd79a308"
+      "sha256": "c0b64764c415fcf9bea797213fcd658800c642e352a6ae424561abe88f6cfebe"
     },
     {
       "bytes": 12445,
