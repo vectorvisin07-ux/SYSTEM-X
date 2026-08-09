@@ -67,7 +67,7 @@ class ServiceSettings(BaseModel):
         max_length=64,
         pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$",
     )
-    startup_model_policy: Literal["always_warm", "router_control", "api_only"] = "always_warm"
+    startup_model_policy: Literal["always_warm", "router_control", "registry_control", "api_only"] = "always_warm"
     automatic_recovery_enabled: bool = False
     recovery_delay_initial_seconds: float = Field(
         default=0.25, ge=0.0, le=3600.0
@@ -205,6 +205,19 @@ class ServiceSettings(BaseModel):
             raise ValueError(
                 "private_backend_enabled must be true when registry is enabled"
             )
+        if self.startup_model_policy == "registry_control":
+            if not self.private_backend_enabled:
+                raise ValueError(
+                    "private_backend_enabled must be true for registry_control"
+                )
+            if not self.registry_enabled:
+                raise ValueError(
+                    "registry_enabled must be true for registry_control"
+                )
+            if self.automatic_recovery_enabled:
+                raise ValueError(
+                    "automatic_recovery_enabled must be false for registry_control"
+                )
         if self.startup_model_policy == "router_control":
             if not self.private_backend_enabled:
                 raise ValueError(

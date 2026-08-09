@@ -53,8 +53,8 @@ DEPENDENCY_FILES = {
         "e62367fdfd1ee24d8ac5a4080332958317d7e77eb431bfce6fdbe2e208963394",
     ),
     "configuration.schema.json": (
-        8776,
-        "846d37d393b6ee393672df03a3685223c6e7e85160abcc76aba178c0f6b02f4d",
+        8804,
+        "21d26864a56b60f0cd57285a7f7d9958b51f4866d4967667f170997fe857d728",
     ),
     "configuration.example.json": (
         1798,
@@ -65,8 +65,8 @@ DEPENDENCY_FILES = {
         "6de72ee10a917feec2bf041b76b904819dd4c748d3663080bf90cffa475440c6",
     ),
     "src/system_x_gguf_api/application.py": (
-        17701,
-        "0207de7d53f9ca78f1cb73b39df8853bf6fdb2387454a6dd5497423b0f5f5062",
+        18273,
+        "abf93cfe8184b36d5b94af7dea447c3c4009b62edbe082c6d08bea5c45626607",
     ),
     "src/system_x_gguf_api/anthropic_adapter.py": (
         10973,
@@ -225,12 +225,12 @@ DEPENDENCY_FILES = {
         "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038",
     ),
     "src/system_x_gguf_api/settings.py": (
-        10757,
-        "28a6882c961d3fe51d0df68b13d52d30c3270680bbc964aa8cf9680aa8fb182d",
+        11369,
+        "caf501abbf6c8e2b2db3fdf3796b1062cdd70edecf40dc7c61e90bf0a6c6cc6a",
     ),
     "src/system_x_gguf_api/warm_model.py": (
-        22407,
-        "b04907eee6c20f5c4a7ca92eec737bce10d8a5649fc69dc9c342af61ae940e3c",
+        22630,
+        "950eb9a2d772650771d0571d15945b392e3e928238c32c83798b03f10717d95c",
     ),
     "src/system_x_gguf_api/runtime_recovery.py": (
         28393,
@@ -592,10 +592,10 @@ def parse_registry_alias(value: str) -> str:
 
 def parse_startup_model_policy(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized not in {"always_warm", "router_control", "api_only"}:
+    if normalized not in {"always_warm", "router_control", "registry_control", "api_only"}:
         raise ControllerError(
             "INVALID_INPUT",
-            "startup_model_policy must equal always_warm, router_control or api_only",
+            "startup_model_policy must equal always_warm, router_control, registry_control or api_only",
         )
     return normalized
 
@@ -864,6 +864,22 @@ def validated_input(namespace: argparse.Namespace) -> dict[str, Any]:
             "INVALID_INPUT",
             "private_backend_enabled must be true when registry is enabled",
         )
+    if values["startup_model_policy"] == "registry_control":
+        if not values["private_backend_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "private_backend_enabled must be true for registry_control",
+            )
+        if not values["registry_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "registry_enabled must be true for registry_control",
+            )
+        if values["automatic_recovery_enabled"]:
+            raise ControllerError(
+                "INVALID_INPUT",
+                "automatic_recovery_enabled must be false for registry_control",
+            )
     if values["startup_model_policy"] == "router_control":
         if not values["private_backend_enabled"]:
             raise ControllerError(

@@ -95,6 +95,7 @@ def create_application(
         operations.startup()
         api_only_mode = active_settings.startup_model_policy == "api_only"
         router_control_mode = active_settings.startup_model_policy == "router_control"
+        registry_control_mode = active_settings.startup_model_policy == "registry_control"
         backend_started = False
         registry_started = False
         warm_started = False
@@ -112,6 +113,19 @@ def create_application(
                     yield
                 finally:
                     await active_streams.shutdown()
+            elif registry_control_mode:
+                backend_started = True
+                await backend.startup()
+                registry_started = True
+                await registry.startup()
+                try:
+                    yield
+                finally:
+                    try:
+                        await active_streams.shutdown()
+                    finally:
+                        if registry_started:
+                            await registry.shutdown()
             else:
                 backend_started = True
                 await backend.startup()

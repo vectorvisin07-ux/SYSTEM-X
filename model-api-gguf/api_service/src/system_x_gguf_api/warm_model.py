@@ -402,6 +402,11 @@ class WarmModelCoordinator:
         """Observe authoritative registry state and verify or adopt it once."""
 
         async with self._lock:
+            if self.settings.startup_model_policy != "always_warm":
+                return self._idle_without_model(
+                    "WAITING_FOR_MODEL",
+                    "startup_policy_unloaded",
+                )
             if self._status.service_readiness_state == "STOPPED":
                 return self._status
             try:

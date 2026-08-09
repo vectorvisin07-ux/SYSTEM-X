@@ -272,6 +272,7 @@
       "enum": [
         "always_warm",
         "router_control",
+        "registry_control",
         "api_only"
       ],
       "default": "always_warm",
