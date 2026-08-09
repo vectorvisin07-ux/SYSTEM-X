@@ -430,7 +430,7 @@ class OperationSpan:
 
     route: OperationRoute
     request_id: str
-    key_id: str
+    key_id: str | None
     api_service_transaction_id: str
     started_utc: str
     started_monotonic_ns: int
@@ -448,7 +448,7 @@ class OperationSpan:
     def __post_init__(self) -> None:
         if REQUEST_ID_PATTERN.fullmatch(self.request_id) is None:
             raise OperationRecordInvariantError("span request ID is invalid")
-        if KEY_ID_PATTERN.fullmatch(self.key_id) is None:
+        if self.key_id is not None and KEY_ID_PATTERN.fullmatch(self.key_id) is None:
             raise OperationRecordInvariantError("span key ID is invalid")
         if (
             TRANSACTION_ID_PATTERN.fullmatch(
@@ -713,7 +713,7 @@ class OperationRecorder:
         route: OperationRoute,
         *,
         request_id: str,
-        key_id: str,
+        key_id: str | None,
     ) -> OperationSpan:
         with self._lock:
             if (

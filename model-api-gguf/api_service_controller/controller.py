@@ -133,8 +133,8 @@ DEPENDENCY_FILES = {
         "15af07e0016e099d29f1b0e963b3a03e1aa2bd6fd806bbd978e972f3f1a39281",
     ),
     "src/system_x_gguf_api/errors.py": (
-        20263,
-        "303ea42061aa83be25b5bb4d438423f59ac59085191a658345d354217990bfca",
+        20402,
+        "7b1fa678a356720e6fc96d26960a01a863f3ec2daf8bc53ce3dea97de16b3707",
     ),
     "src/system_x_gguf_api/external_static.py": (
         7801,
@@ -193,8 +193,8 @@ DEPENDENCY_FILES = {
         "c98cb66f4b84b3c3f9b2bd6d58e537c7e8dca275f0ddd44a3421f4ebbd78732d",
     ),
     "src/system_x_gguf_api/operation_records.py": (
-        29107,
-        "063063589811ede567173d259db905ba1fd22c705363d9263725f2de055bfc0a",
+        29149,
+        "c2e37146a1aeb63140912c833f755fe8ede8f1423237b5d9fc9f9984de83c906",
     ),
     "src/system_x_gguf_api/registry_store.py": (
         105957,
@@ -712,6 +712,9 @@ def validated_input(namespace: argparse.Namespace) -> dict[str, Any]:
     values = {
         "host": parse_loopback(namespace.host, "host"),
         "port": parse_port(namespace.port, "port"),
+        "authentication_enabled": parse_boolean(
+            namespace.authentication_enabled, "authentication_enabled"
+        ),
         "private_backend_host": parse_loopback(namespace.private_backend_host, "private_backend_host"),
         "private_backend_port": parse_port(
             namespace.private_backend_port,
@@ -945,7 +948,9 @@ def build_plan(paths: dict[str, Path], values: dict[str, Any]) -> dict[str, Any]
         "PYTHONNOUSERSITE": "1",
         "SYSTEM_X_GGUF_API_PUBLIC_HOST": values["host"],
         "SYSTEM_X_GGUF_API_PUBLIC_PORT": str(values["port"]),
-        "SYSTEM_X_GGUF_API_AUTHENTICATION_ENABLED": "true",
+        "SYSTEM_X_GGUF_API_AUTHENTICATION_ENABLED": (
+            "true" if values["authentication_enabled"] else "false"
+        ),
         "SYSTEM_X_GGUF_API_PRIVATE_BACKEND_HOST": values["private_backend_host"],
         "SYSTEM_X_GGUF_API_PRIVATE_BACKEND_PORT": (
             str(values["private_backend_port"]) if values["private_backend_port"] is not None else None
@@ -1449,6 +1454,7 @@ def make_record(
         "argv": ownership.get("argv", plan["argv"]),
         "host": values["host"],
         "port": values["port"],
+        "authentication_enabled": values["authentication_enabled"],
         "private_backend_host": values["private_backend_host"],
         "private_backend_port": values["private_backend_port"],
         "private_backend_enabled": values["private_backend_enabled"],
@@ -1515,7 +1521,7 @@ def make_record(
         "external_static_mount_path": values["external_static_mount_path"],
         "registry_database": str(paths["registry_database"]),
         "authentication_contract": AUTHENTICATION_CONTRACT,
-        "authentication_enabled": True,
+        "authentication_enabled": values["authentication_enabled"],
         "auth_root": str(paths["auth_root"]),
         "credential_database": str(paths["credential_database"]),
         "service_start_timeout_seconds": values[
@@ -2360,6 +2366,7 @@ def operation_stop(paths: dict[str, Path]) -> dict[str, Any]:
     transaction_id = str(pid_record["transaction_id"])
     values = {
         "host": pid_record["host"],
+        "authentication_enabled": pid_record.get("authentication_enabled", True),
         "port": pid_record["port"],
         "private_backend_host": pid_record["private_backend_host"],
         "private_backend_port": pid_record["private_backend_port"],
@@ -2536,6 +2543,7 @@ def parser() -> JsonArgumentParser:
         command = subparsers.add_parser(operation, add_help=False)
         command.add_argument("--host", required=True)
         command.add_argument("--port", required=True)
+        command.add_argument("--authentication-enabled", default="true")
         command.add_argument("--private-backend-host", default="127.0.0.1")
         command.add_argument("--private-backend-port", default=None)
         command.add_argument("--private-backend-enabled", default="false")

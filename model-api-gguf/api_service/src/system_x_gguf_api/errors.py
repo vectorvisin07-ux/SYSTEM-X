@@ -310,11 +310,14 @@ def install_system_error_handling(
             and operation_route is not None
             and isinstance(recorder, OperationRecorder)
         ):
-            context = authentication_context_for(request)
+            key_id: str | None = None
+            if authentication is None or authentication.enabled:
+                context = authentication_context_for(request)
+                key_id = context.key_id
             recorder.begin(
                 operation_route,
                 request_id=request_id,
-                key_id=context.key_id,
+                key_id=key_id,
             )
             operation_started = True
         if response is None:
