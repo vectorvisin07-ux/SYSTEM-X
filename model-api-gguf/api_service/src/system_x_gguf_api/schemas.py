@@ -100,6 +100,11 @@ SystemXErrorCode = Literal[
     "system_x_streaming_structured_output_unsupported",
     "system_x_tool_and_output_format_conflict",
     "system_x_internal_error",
+    "system_x_request_too_large",
+    "system_x_token_budget_exceeded",
+    "system_x_concurrency_limit_exceeded",
+    "system_x_rate_limit_exceeded",
+    "system_x_request_deadline_exceeded",
 ]
 
 
@@ -189,6 +194,7 @@ class VersionResponse(StrictModel):
     service_name: str
     service_version: str
     contract_version: str
+    request_governance_contract: Literal["system-x.request-governance.v1"]
     authentication_contract: Literal["system-x.private-authentication.v1"]
     authentication_enabled: bool
     operation_record_contract: OperationRecordSchema

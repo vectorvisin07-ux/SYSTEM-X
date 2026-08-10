@@ -43,6 +43,12 @@ from .request_context import (
     request_id_for,
 )
 from .schemas import ErrorField, SystemXErrorCode, SystemXErrorDetail, SystemXErrorResponse
+from .request_governance import (
+    GovernanceRejection,
+    RequestGovernance,
+    deadline_event,
+    read_body_and_replay,
+)
 from .tool_contract import ToolContractError
 
 
@@ -65,12 +71,20 @@ SYSTEM_X_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
         "model": SystemXErrorResponse,
         "description": "system_x_model_conflict",
     },
+    413: {
+        "model": SystemXErrorResponse,
+        "description": "system_x_request_too_large",
+    },
     422: {
         "model": SystemXErrorResponse,
         "description": (
             "system_x_validation_error or a bounded System X tool/structured "
             "request-contract error"
         ),
+    },
+    429: {
+        "model": SystemXErrorResponse,
+        "description": "system_x_rate_limit_exceeded or system_x_concurrency_limit_exceeded",
     },
     500: {
         "model": SystemXErrorResponse,
@@ -272,6 +286,44 @@ def _note_operation_error(
         return
 
 
+def _governance_response(
+    request: Request,
+    family: str | None,
+    exc: GovernanceRejection,
+) -> JSONResponse:
+    request_id = _request_id(request)
+    retryable = exc.code in {
+        "system_x_concurrency_limit_exceeded",
+        "system_x_rate_limit_exceeded",
+        "system_x_request_deadline_exceeded",
+    }
+    if family == "anthropic" or _is_anthropic_request(request):
+        response = anthropic_system_error_response(
+            request_id,
+            exc.code,
+            exc.public_message,
+            exc.status_code,
+        )
+    elif family == "openai" or _is_openai_request(request):
+        response = system_error_response(
+            request_id,
+            exc.code,
+            exc.public_message,
+            exc.status_code,
+        )
+    else:
+        response = _error_response(
+            request,
+            exc.status_code,
+            exc.code,
+            exc.public_message,
+            retryable=retryable,
+        )
+    if exc.retry_after is not None:
+        response.headers["Retry-After"] = str(exc.retry_after)
+    return response
+
+
 def install_system_error_handling(
     application: FastAPI,
     authentication: AuthenticationManager | None = None,
@@ -305,12 +357,12 @@ def install_system_error_handling(
             ),
         )
         operation_started = False
+        key_id: str | None = None
         if (
             response is None
             and operation_route is not None
             and isinstance(recorder, OperationRecorder)
         ):
-            key_id: str | None = None
             if authentication is None or authentication.enabled:
                 context = authentication_context_for(request)
                 key_id = context.key_id
@@ -320,10 +372,74 @@ def install_system_error_handling(
                 key_id=key_id,
             )
             operation_started = True
+        lease = None
+        deadline: float | None = None
+        governance = getattr(application.state, "governance", None)
+        if response is None and operation_started:
+            try:
+                if isinstance(governance, RequestGovernance):
+                    await read_body_and_replay(
+                        request, governance.max_body_bytes
+                    )
+                    lease = governance.admit(key_id)
+                    request.state.system_x_governance_lease = lease
+                    deadline = governance.new_deadline()
+                    request.state.system_x_request_deadline = deadline
+            except GovernanceRejection as exc:
+                _note_operation_error(request, exc.code)  # type: ignore[arg-type]
+                response = _governance_response(request, family, exc)
+            except asyncio.CancelledError:
+                if lease is not None:
+                    lease.release()
+                try:
+                    recorder.note_cancelled(request_id)
+                    recorder.finalize_if_active(request_id, http_status=499)
+                except OperationRecordInvariantError:
+                    pass
+                raise
+            except BaseException:
+                if lease is not None:
+                    lease.release()
+                try:
+                    recorder.note_error(
+                        request_id, "system_x_internal_error"
+                    )
+                    recorder.finalize_if_active(
+                        request_id, http_status=500
+                    )
+                except OperationRecordInvariantError:
+                    pass
+                raise
         if response is None:
             try:
-                response = await call_next(request)
+                if deadline is None:
+                    response = await call_next(request)
+                else:
+                    async with asyncio.timeout_at(deadline):
+                        response = await call_next(request)
+            except asyncio.TimeoutError:
+                timeout = GovernanceRejection(
+                    504,
+                    "system_x_request_deadline_exceeded",
+                    "Public request deadline exceeded",
+                )
+                _note_operation_error(request, timeout.code)  # type: ignore[arg-type]
+                response = _governance_response(request, family, timeout)
+            except asyncio.CancelledError:
+                if lease is not None:
+                    lease.release()
+                if operation_started:
+                    try:
+                        recorder.note_cancelled(request_id)
+                        recorder.finalize_if_active(
+                            request_id, http_status=499
+                        )
+                    except OperationRecordInvariantError:
+                        pass
+                raise
             except BaseException:
+                if lease is not None:
+                    lease.release()
                 if operation_started:
                     try:
                         recorder.note_error(
@@ -336,19 +452,47 @@ def install_system_error_handling(
                         pass
                 raise
         if operation_started:
-            original_iterator = getattr(
-                response, "body_iterator", None
-            )
+            original_iterator = getattr(response, "body_iterator", None)
             status_code = int(response.status_code)
             if original_iterator is None:
+                if lease is not None:
+                    lease.release()
                 recorder.finalize_if_active(
                     request_id, http_status=status_code
                 )
             else:
 
                 async def operation_tracked_body():
+                    iterator = original_iterator.__aiter__()
                     try:
-                        async for chunk in original_iterator:
+                        while True:
+                            try:
+                                if deadline is None:
+                                    chunk = await iterator.__anext__()
+                                else:
+                                    async with asyncio.timeout_at(deadline):
+                                        chunk = await iterator.__anext__()
+                            except StopAsyncIteration:
+                                return
+                            except asyncio.TimeoutError:
+                                deadline_exc = GovernanceRejection(
+                                    504,
+                                    "system_x_request_deadline_exceeded",
+                                    "Public request deadline exceeded",
+                                )
+                                _note_operation_error(
+                                    request, deadline_exc.code
+                                )  # type: ignore[arg-type]
+                                close = getattr(iterator, "aclose", None)
+                                if close is not None:
+                                    try:
+                                        await asyncio.shield(close())
+                                    except BaseException:
+                                        pass
+                                yield deadline_event(
+                                    family or "system", request_id
+                                )
+                                return
                             yield chunk
                     except (
                         asyncio.CancelledError,
@@ -362,7 +506,17 @@ def install_system_error_handling(
                         except OperationRecordInvariantError:
                             pass
                         raise
+                    except BaseException:
+                        try:
+                            recorder.note_error(
+                                request_id, "system_x_internal_error"
+                            )
+                        except OperationRecordInvariantError:
+                            pass
+                        raise
                     finally:
+                        if lease is not None:
+                            lease.release()
                         recorder.finalize_if_active(
                             request_id, http_status=status_code
                         )
@@ -564,6 +718,20 @@ def install_system_error_handling(
             "system_x_internal_error",
             "System X response validation failed",
         )
+
+    @application.exception_handler(GovernanceRejection)
+    async def governance_rejection_handler(
+        request: Request, exc: GovernanceRejection
+    ) -> JSONResponse:
+        _note_operation_error(request, exc.code)  # type: ignore[arg-type]
+        family = protected_route_family(
+            request.method,
+            request.url.path,
+            anthropic_version_present=(
+                "anthropic-version" in request.headers
+            ),
+        )
+        return _governance_response(request, family, exc)
 
     @application.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception):

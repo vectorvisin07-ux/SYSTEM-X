@@ -374,6 +374,25 @@ class ModelCatalogue:
     def _positive_integer(value: object) -> int | None:
         return value if type(value) is int and value > 0 else None
 
+    async def request_limits(
+        self, snapshot: ModelSnapshot
+    ) -> tuple[int | None, int | None]:
+        """Return active context and maximum-output limits without content."""
+        properties = await self.backend.active_model_properties(
+            snapshot.router_model_id
+        )
+        defaults = (
+            properties.get("default_generation_settings")
+            if isinstance(properties, dict)
+            else None
+        )
+        if not isinstance(defaults, dict):
+            defaults = {}
+        active_context = self._positive_integer(defaults.get("n_ctx"))
+        maximum_output = self._positive_integer(defaults.get("max_tokens"))
+        if maximum_output is None:
+            maximum_output = self._positive_integer(defaults.get("n_predict"))
+        return active_context or snapshot.context_bound, maximum_output
     async def _planner_detail(
         self,
         snapshot: ModelSnapshot,

@@ -1902,19 +1902,56 @@ class RegistryStore:
                         )
                     prior_surfaces = raw_surfaces
                     observations = dict(raw_observations)
+                    if existing.get("state") == "AVAILABLE":
+                        if set(observations) != set(prior_surfaces):
+                            raise RegistryStoreError(
+                                "streaming capability evidence is invalid"
+                            )
+                        for surface in prior_surfaces:
+                            observation = observations.get(surface)
+                            if (
+                                not isinstance(observation, dict)
+                                or any(
+                                    not isinstance(observation.get(field), str)
+                                    or not observation[field]
+                                    or len(observation[field]) > 128
+                                    for field in (
+                                        "request_id",
+                                        "service_transaction_id",
+                                        "router_transaction_id",
+                                    )
+                                )
+                                or not isinstance(
+                                    observation.get("observed_utc"), str
+                                )
+                                or not observation["observed_utc"]
+                            ):
+                                raise RegistryStoreError(
+                                    "streaming capability evidence is invalid"
+                                )
                 merged_surfaces = sorted(
                     set(prior_surfaces).union(protocol_surfaces)
                 )
-                if (
+                same_evidence = (
                     tests.get(capability_name) == "AVAILABLE"
                     and isinstance(existing, dict)
                     and existing.get("state") == "AVAILABLE"
                     and merged_surfaces == sorted(set(prior_surfaces))
                     and all(
                         isinstance(observations.get(surface), dict)
+                        and observations[surface].get("request_id") == request_id
+                        and observations[surface].get(
+                            "service_transaction_id"
+                        )
+                        == service_transaction_id
+                        and observations[surface].get(
+                            "router_transaction_id"
+                        )
+                        == router_transaction_id
                         for surface in protocol_surfaces
                     )
-                ):
+                )
+                if same_evidence:
                     generation = int(
                         connection.execute(
                             "SELECT value FROM registry_metadata "
@@ -1996,12 +2033,17 @@ class RegistryStore:
                 },
                 now,
             )
+            observed_surfaces = (
+                merged_surfaces
+                if capability_name == "streaming"
+                else list(protocol_surfaces)
+            )
             return {
                 "changed": True,
                 "generation": generation,
                 "capability": capability_name,
                 "manifest_sha256": manifest_sha256,
-                "observed_protocol_surfaces": list(protocol_surfaces),
+                "observed_protocol_surfaces": observed_surfaces,
             }
 
         return await self._write(transaction)

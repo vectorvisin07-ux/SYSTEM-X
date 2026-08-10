@@ -137,6 +137,48 @@
       "default": null,
       "title": "Public Port"
     },
+    "request_concurrency_limit_per_key": {
+      "default": 2,
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Request Concurrency Limit Per Key",
+      "type": "integer"
+    },
+    "request_max_body_bytes": {
+      "default": 2097152,
+      "maximum": 16777216,
+      "minimum": 1024,
+      "title": "Request Max Body Bytes",
+      "type": "integer"
+    },
+    "request_max_total_tokens": {
+      "default": 32768,
+      "maximum": 1048576,
+      "minimum": 1,
+      "title": "Request Max Total Tokens",
+      "type": "integer"
+    },
+    "request_rate_limit_requests_per_key": {
+      "default": 60,
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Request Rate Limit Requests Per Key",
+      "type": "integer"
+    },
+    "request_rate_limit_window_seconds": {
+      "default": 60.0,
+      "maximum": 86400.0,
+      "minimum": 0.1,
+      "title": "Request Rate Limit Window Seconds",
+      "type": "number"
+    },
+    "request_timeout_seconds": {
+      "default": 120.0,
+      "maximum": 3600.0,
+      "minimum": 0.1,
+      "title": "Request Timeout Seconds",
+      "type": "number"
+    },
     "recovery_attempt_window_seconds": {
       "default": 60.0,
       "maximum": 3600.0,
@@ -262,7 +304,7 @@
       "type": "string"
     },
     "service_version": {
-      "default": "0.11.0",
+      "default": "0.12.0",
       "maxLength": 64,
       "minLength": 1,
       "title": "Service Version",

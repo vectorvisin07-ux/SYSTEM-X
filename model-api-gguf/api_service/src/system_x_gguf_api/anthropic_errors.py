@@ -23,6 +23,8 @@ ANTHROPIC_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     405: {"model": AnthropicErrorResponse, "description": "method not allowed"},
     409: {"model": AnthropicErrorResponse, "description": "conflict"},
     413: {"model": AnthropicErrorResponse, "description": "request too large"},
+    422: {"model": AnthropicErrorResponse, "description": "token budget exceeded"},
+    429: {"model": AnthropicErrorResponse, "description": "rate or concurrency limit"},
     500: {"model": AnthropicErrorResponse, "description": "API error"},
     502: {"model": AnthropicErrorResponse, "description": "backend protocol error"},
     503: {"model": AnthropicErrorResponse, "description": "service unavailable"},
@@ -45,6 +47,11 @@ TOOL_INPUT_ERROR_CODES = {
 
 SYSTEM_ERROR_MAP: dict[str, tuple[int, str]] = {
     "system_x_validation_error": (400, "invalid_request_error"),
+    "system_x_request_too_large": (413, "invalid_request_error"),
+    "system_x_token_budget_exceeded": (422, "invalid_request_error"),
+    "system_x_concurrency_limit_exceeded": (429, "rate_limit_error"),
+    "system_x_rate_limit_exceeded": (429, "rate_limit_error"),
+    "system_x_request_deadline_exceeded": (504, "api_error"),
     "system_x_model_not_found": (404, "not_found_error"),
     "system_x_no_ready_model": (503, "api_error"),
     "system_x_model_unavailable": (529, "overloaded_error"),

@@ -22,6 +22,7 @@ from .finalization_policy import (
     retain_declared_tools,
 )
 from .model_catalogue import ModelCatalogue, ModelSnapshot
+from .request_governance import RequestGovernance
 from .operation_records import OperationRecorder
 from .response_normalizer import (
     ResponseNormalizationError,
@@ -113,10 +114,13 @@ class InferenceService:
         catalogue: ModelCatalogue,
         backend: object,
         operations: OperationRecorder,
+        *,
+        governance: RequestGovernance | None = None,
     ) -> None:
         self.catalogue = catalogue
         self.backend = backend
         self.operations = operations
+        self.governance = governance
         settings = getattr(backend, "settings", None)
         expected_limits = {
             "tool_max_definitions": MAX_TOOLS,
@@ -148,15 +152,73 @@ class InferenceService:
     def _validate_output_bound(
         snapshot: ModelSnapshot, max_output_tokens: int
     ) -> None:
-        if (
-            snapshot.context_bound is not None
-            and max_output_tokens > snapshot.context_bound
-        ):
-            raise SystemXError(
-                422,
-                "system_x_validation_error",
-                "max_output_tokens exceeds the registered context bound",
-            )
+        return
+
+    async def enforce_request_budget(
+        self,
+        snapshot: ModelSnapshot,
+        input_tokens: int,
+        requested_output_tokens: int,
+    ) -> None:
+        if self.governance is None:
+            return
+        model_context, model_maximum_output = (
+            await self.catalogue.request_limits(snapshot)
+        )
+        self.governance.enforce_total_token_budget(
+            input_tokens=input_tokens,
+            requested_output_tokens=requested_output_tokens,
+            model_context_tokens=model_context,
+            model_maximum_output_tokens=model_maximum_output,
+        )
+
+    async def count_generate_input_tokens(
+        self,
+        request_id: str,
+        lease: InferenceBackendLease,
+        request: GenerateRequest,
+    ) -> int:
+        observation = await lease.router.tokenize(
+            lease.router_model_id, request.input
+        )
+        self._record_private_result(
+            request_id, "/tokenize", lease, observation
+        )
+        return normalize_token_count(observation, tokenize=True)
+
+    async def count_chat_input_tokens(
+        self,
+        request_id: str,
+        lease: InferenceBackendLease,
+        prepared: PreparedChat,
+    ) -> int:
+        observation = await lease.router.chat_input_tokens(
+            lease.router_model_id,
+            prepared.messages,
+            prepared.private_tools,
+            prepared.private_template_kwargs,
+        )
+        self._record_private_result(
+            request_id, "/v1/chat/completions/input_tokens", lease, observation
+        )
+        return normalize_token_count(observation)
+
+    async def count_responses_input_tokens(
+        self,
+        request_id: str,
+        lease: InferenceBackendLease,
+        prepared: PreparedResponses,
+        instructions: str | None,
+    ) -> int:
+        observation = await lease.router.responses_input_tokens(
+            lease.router_model_id,
+            prepared.private_input,
+            instructions,
+        )
+        self._record_private_result(
+            request_id, "/v1/responses/input_tokens", lease, observation
+        )
+        return normalize_token_count(observation)
 
     @staticmethod
     def _record_private_result(
@@ -485,6 +547,12 @@ class InferenceService:
                 snapshot.router_model_id,
                 lambda: self.catalogue.verify(snapshot),
             ) as lease:
+                input_tokens = await self.count_generate_input_tokens(
+                    request_id, lease, request
+                )
+                await self.enforce_request_budget(
+                    snapshot, input_tokens, request.max_output_tokens
+                )
                 self.operations.note_router(
                     request_id,
                     lease.router_identity.transaction_id,
@@ -535,6 +603,12 @@ class InferenceService:
                 snapshot.router_model_id,
                 lambda: self.catalogue.verify(snapshot),
             ) as lease:
+                input_tokens = await self.count_chat_input_tokens(
+                    request_id, lease, prepared
+                )
+                await self.enforce_request_budget(
+                    snapshot, input_tokens, request.max_output_tokens
+                )
                 self.operations.note_router(
                     request_id,
                     lease.router_identity.transaction_id,
@@ -616,6 +690,12 @@ class InferenceService:
                 snapshot.router_model_id,
                 lambda: self.catalogue.verify(snapshot),
             ) as lease:
+                input_tokens = await self.count_responses_input_tokens(
+                    request_id, lease, prepared, request.instructions
+                )
+                await self.enforce_request_budget(
+                    snapshot, input_tokens, request.max_output_tokens
+                )
                 self.operations.note_router(
                     request_id,
                     lease.router_identity.transaction_id,

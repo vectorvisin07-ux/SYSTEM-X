@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .credential_types import AUTHENTICATION_CONTRACT
+from .request_governance import REQUEST_GOVERNANCE_CONTRACT
 
 
 SECURITY_REQUIREMENT = [
@@ -177,8 +178,50 @@ def apply_authentication_openapi(
                 }
             },
         }
+        operation_responses = operation.setdefault("responses", {})
+        if method == "post":
+            operation_responses.setdefault(
+                "413",
+                {
+                    "description": "Raw request body exceeds the configured limit",
+                    "content": {"application/json": {"schema": {"type": "object"}}},
+                },
+            )
+        if path not in {"/system/v1/version"}:
+            operation_responses.setdefault(
+                "429",
+                {
+                    "description": "Request rate or concurrency admission rejected",
+                    "content": {"application/json": {"schema": {"type": "object"}}},
+                },
+            )
+        inference_paths = {
+            "/system/v1/generate",
+            "/system/v1/chat",
+            "/system/v1/responses",
+            "/v1/completions",
+            "/v1/chat/completions",
+            "/v1/responses",
+            "/v1/messages",
+        }
+        if path in inference_paths:
+            operation_responses.setdefault(
+                "422",
+                {
+                    "description": "Total input and requested output token budget exceeded",
+                    "content": {"application/json": {"schema": {"type": "object"}}},
+                },
+            )
+            operation_responses.setdefault(
+                "504",
+                {
+                    "description": "Public request deadline exceeded",
+                    "content": {"application/json": {"schema": {"type": "object"}}},
+                },
+            )
     health = schema["paths"]["/system/v1/health"]["get"]
     health["security"] = []
     schema["x-system-x-authentication-contract"] = AUTHENTICATION_CONTRACT
+    schema["x-system-x-request-governance-contract"] = REQUEST_GOVERNANCE_CONTRACT
     schema["x-system-x-authentication-enabled"] = enabled
     return schema

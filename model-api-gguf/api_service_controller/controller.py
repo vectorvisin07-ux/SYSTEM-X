@@ -53,20 +53,20 @@ DEPENDENCY_FILES = {
         "e62367fdfd1ee24d8ac5a4080332958317d7e77eb431bfce6fdbe2e208963394",
     ),
     "configuration.schema.json": (
-        8804,
-        "21d26864a56b60f0cd57285a7f7d9958b51f4866d4967667f170997fe857d728",
+        9917,
+        "e4d120953fcc9ab37d0d57040ab509abb82c646ec9e275cfc4b40149b1adfaeb",
     ),
     "configuration.example.json": (
-        1798,
-        "0b8a50f96232e9bf27b1396659c277d822864572a525eabe2d92b01ac1b9e605",
+        2040,
+        "12b783517628fb218dc56caa3baeaa0693d58e1d055f8f79fbe9d426494d7127",
     ),
     "src/system_x_gguf_api/__init__.py": (
         205,
         "6de72ee10a917feec2bf041b76b904819dd4c748d3663080bf90cffa475440c6",
     ),
     "src/system_x_gguf_api/application.py": (
-        18273,
-        "abf93cfe8184b36d5b94af7dea447c3c4009b62edbe082c6d08bea5c45626607",
+        18542,
+        "362cfb4526121a7860695e5a8c9f1d358039a7cbbed336458b8ea1e32d39e677",
     ),
     "src/system_x_gguf_api/anthropic_adapter.py": (
         10973,
@@ -77,8 +77,8 @@ DEPENDENCY_FILES = {
         "fe4bd3c3de68bd519b657305aac99ec0cd5f17a48ca98b795aa11095b0b35915",
     ),
     "src/system_x_gguf_api/anthropic_errors.py": (
-        5375,
-        "181177714f0b1f492d80f6d97de6a1f6d16a7d1967270dad154d74085458e7ed",
+        5878,
+        "5ee605b490d45a80bbefdf017abb7cd99cccc0d43ad51a48f86f4494d774881d",
     ),
     "src/system_x_gguf_api/anthropic_routes.py": (
         3014,
@@ -109,8 +109,12 @@ DEPENDENCY_FILES = {
         "23ecd38d97a394e7f5a76bb5ef68c868433281808fa3eb338ee2d9e0fa4bdd18",
     ),
     "src/system_x_gguf_api/authentication_openapi.py": (
-        5916,
-        "5880660ecad007986db561c3953ec686f5d4e026e360605168dc2d0486db7601",
+        7648,
+        "94fb1ac4ee68357babf95dcca1c7039aea64bffff92949f2b6eac21e3d44924a",
+    ),
+    "src/system_x_gguf_api/request_governance.py": (
+        10084,
+        "94ca9a320dfbcf9c0628782a61363113bf6c142c77bab3cb7c036b6291eb4c6d",
     ),
     "src/system_x_gguf_api/credential_admin.py": (
         2289,
@@ -133,8 +137,8 @@ DEPENDENCY_FILES = {
         "15af07e0016e099d29f1b0e963b3a03e1aa2bd6fd806bbd978e972f3f1a39281",
     ),
     "src/system_x_gguf_api/errors.py": (
-        20402,
-        "7b1fa678a356720e6fc96d26960a01a863f3ec2daf8bc53ce3dea97de16b3707",
+        27258,
+        "2cb0966209ce3783077a37cd791fe4c31c7b750c9c8b46ddfe30b74c1877d58f",
     ),
     "src/system_x_gguf_api/external_static.py": (
         7801,
@@ -145,12 +149,12 @@ DEPENDENCY_FILES = {
         "1e94665f7dcd50553cfb903b949c9bf71c84aab7d1e64a387e601f4ebeec9687",
     ),
     "src/system_x_gguf_api/inference_service.py": (
-        28935,
-        "1def4e23eb8cdae8befb039c8446ffdf92c0c87b022559425fb23f01859a99a9",
+        31794,
+        "b125008b916e060f86d58c294bfa5b5970050417a67c8a8ff59288ede9aabce0",
     ),
     "src/system_x_gguf_api/model_catalogue.py": (
-        20981,
-        "f487bb69204ff65d667073f21295125e2db96b9111c8cbf0f106908b8eac58c3",
+        21837,
+        "1debf12288213845e77e7e14ae872e1f60c17245c698ac4ca80cc3448e16e9b1",
     ),
     "src/system_x_gguf_api/model_lifecycle.py": (
         5398,
@@ -173,8 +177,8 @@ DEPENDENCY_FILES = {
         "b6a2cd713e882804372b6f3f98d0780aa069c8af8a546c0fe93ab2ebbcbe1136",
     ),
     "src/system_x_gguf_api/openai_errors.py": (
-        7952,
-        "fb6f6338f65bde35eb67e74366530720d6ba901c0959a3e1ea46e46ca92711e7",
+        8882,
+        "3b756f5d1a0b0081ab9a368e5fbe583381b41b4a050ddc876a48380a6459ce6d",
     ),
     "src/system_x_gguf_api/openai_responses_stream.py": (
         15895,
@@ -197,8 +201,8 @@ DEPENDENCY_FILES = {
         "c2e37146a1aeb63140912c833f755fe8ede8f1423237b5d9fc9f9984de83c906",
     ),
     "src/system_x_gguf_api/registry_store.py": (
-        105957,
-        "d44cfc29b16fcf80ea40f0a6543d78b23f07672baeecde448d24afddfe2f0b45",
+        108117,
+        "fb4716e11c8aaacc11c2043f89893f9fe822d9a6eda18b288932fc841c6df747",
     ),
     "src/system_x_gguf_api/registry_types.py": (
         4737,
@@ -217,16 +221,16 @@ DEPENDENCY_FILES = {
         "c141236a16329a1452027f3829ef5144dac94ad8a9b95a04950584d5c563202f",
     ),
     "src/system_x_gguf_api/schemas.py": (
-        18743,
-        "bf52df836fae653299e77376fc3a33767b0c3874e93ab49bff861e66c35e77b5",
+        19011,
+        "d023918d6a6b688c95ccfaa46a7283145b2c92e1db71cfeb7f700dc9875af0c3",
     ),
     "src/system_x_gguf_api/secret_redaction.py": (
         1264,
         "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038",
     ),
     "src/system_x_gguf_api/settings.py": (
-        11369,
-        "caf501abbf6c8e2b2db3fdf3796b1062cdd70edecf40dc7c61e90bf0a6c6cc6a",
+        12079,
+        "e1d9169fed975e1b4a6355be6c76e20340f4ff517f2993bc4af2a38afb88d432",
     ),
     "src/system_x_gguf_api/warm_model.py": (
         22630,
@@ -249,8 +253,8 @@ DEPENDENCY_FILES = {
         "5b7b13e5359240d655d65386a7bc5c2ae27c11bc5cab16b1f0c641bc0eb5f69e",
     ),
     "src/system_x_gguf_api/streaming_inference.py": (
-        49206,
-        "2a888ffcfe16aa225763aae27298f16f98f33b5c71e2b568e6e859b0eaec7817",
+        50167,
+        "cce1428a9a53de2352ae4838b2d216064e43157c6f3bc8eee5f5281beb5884b0",
     ),
     "src/system_x_gguf_api/system_routes.py": (
         3915,
@@ -715,6 +719,42 @@ def validated_input(namespace: argparse.Namespace) -> dict[str, Any]:
         "authentication_enabled": parse_boolean(
             namespace.authentication_enabled, "authentication_enabled"
         ),
+        "request_max_body_bytes": parse_bounded_integer(
+            namespace.request_max_body_bytes,
+            "request_max_body_bytes",
+            1024,
+            16_777_216,
+        ),
+        "request_max_total_tokens": parse_bounded_integer(
+            namespace.request_max_total_tokens,
+            "request_max_total_tokens",
+            1,
+            1_048_576,
+        ),
+        "request_timeout_seconds": parse_bounded_float(
+            namespace.request_timeout_seconds,
+            "request_timeout_seconds",
+            0.1,
+            3600.0,
+        ),
+        "request_concurrency_limit_per_key": parse_bounded_integer(
+            namespace.request_concurrency_limit_per_key,
+            "request_concurrency_limit_per_key",
+            1,
+            64,
+        ),
+        "request_rate_limit_requests_per_key": parse_bounded_integer(
+            namespace.request_rate_limit_requests_per_key,
+            "request_rate_limit_requests_per_key",
+            1,
+            100_000,
+        ),
+        "request_rate_limit_window_seconds": parse_bounded_float(
+            namespace.request_rate_limit_window_seconds,
+            "request_rate_limit_window_seconds",
+            0.1,
+            86_400.0,
+        ),
         "private_backend_host": parse_loopback(namespace.private_backend_host, "private_backend_host"),
         "private_backend_port": parse_port(
             namespace.private_backend_port,
@@ -848,6 +888,11 @@ def validated_input(namespace: argparse.Namespace) -> dict[str, Any]:
         ),
         "log_level": log_level,
     }
+    if values["request_timeout_seconds"] > values["private_backend_inference_timeout_seconds"]:
+        raise ControllerError(
+            "INVALID_INPUT",
+            "request_timeout_seconds must not exceed private backend inference timeout",
+        )
     if values["private_backend_models_max"] != 1:
         raise ControllerError(
             "INVALID_INPUT", "private_backend_models_max must equal 1"
@@ -950,6 +995,24 @@ def build_plan(paths: dict[str, Path], values: dict[str, Any]) -> dict[str, Any]
         "SYSTEM_X_GGUF_API_PUBLIC_PORT": str(values["port"]),
         "SYSTEM_X_GGUF_API_AUTHENTICATION_ENABLED": (
             "true" if values["authentication_enabled"] else "false"
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_MAX_BODY_BYTES": str(
+            values["request_max_body_bytes"]
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_MAX_TOTAL_TOKENS": str(
+            values["request_max_total_tokens"]
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_TIMEOUT_SECONDS": str(
+            values["request_timeout_seconds"]
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_CONCURRENCY_LIMIT_PER_KEY": str(
+            values["request_concurrency_limit_per_key"]
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_RATE_LIMIT_REQUESTS_PER_KEY": str(
+            values["request_rate_limit_requests_per_key"]
+        ),
+        "SYSTEM_X_GGUF_API_REQUEST_RATE_LIMIT_WINDOW_SECONDS": str(
+            values["request_rate_limit_window_seconds"]
         ),
         "SYSTEM_X_GGUF_API_PRIVATE_BACKEND_HOST": values["private_backend_host"],
         "SYSTEM_X_GGUF_API_PRIVATE_BACKEND_PORT": (
@@ -1455,6 +1518,18 @@ def make_record(
         "host": values["host"],
         "port": values["port"],
         "authentication_enabled": values["authentication_enabled"],
+        "request_max_body_bytes": values["request_max_body_bytes"],
+        "request_max_total_tokens": values["request_max_total_tokens"],
+        "request_timeout_seconds": values["request_timeout_seconds"],
+        "request_concurrency_limit_per_key": values[
+            "request_concurrency_limit_per_key"
+        ],
+        "request_rate_limit_requests_per_key": values[
+            "request_rate_limit_requests_per_key"
+        ],
+        "request_rate_limit_window_seconds": values[
+            "request_rate_limit_window_seconds"
+        ],
         "private_backend_host": values["private_backend_host"],
         "private_backend_port": values["private_backend_port"],
         "private_backend_enabled": values["private_backend_enabled"],
@@ -2367,6 +2442,18 @@ def operation_stop(paths: dict[str, Path]) -> dict[str, Any]:
     values = {
         "host": pid_record["host"],
         "authentication_enabled": pid_record.get("authentication_enabled", True),
+        "request_max_body_bytes": pid_record.get("request_max_body_bytes", 2_097_152),
+        "request_max_total_tokens": pid_record.get("request_max_total_tokens", 32_768),
+        "request_timeout_seconds": pid_record.get("request_timeout_seconds", 120.0),
+        "request_concurrency_limit_per_key": pid_record.get(
+            "request_concurrency_limit_per_key", 2
+        ),
+        "request_rate_limit_requests_per_key": pid_record.get(
+            "request_rate_limit_requests_per_key", 60
+        ),
+        "request_rate_limit_window_seconds": pid_record.get(
+            "request_rate_limit_window_seconds", 60.0
+        ),
         "port": pid_record["port"],
         "private_backend_host": pid_record["private_backend_host"],
         "private_backend_port": pid_record["private_backend_port"],
@@ -2544,6 +2631,24 @@ def parser() -> JsonArgumentParser:
         command.add_argument("--host", required=True)
         command.add_argument("--port", required=True)
         command.add_argument("--authentication-enabled", default="true")
+        command.add_argument(
+            "--request-max-body-bytes", default="2097152"
+        )
+        command.add_argument(
+            "--request-max-total-tokens", default="32768"
+        )
+        command.add_argument(
+            "--request-timeout-seconds", default="120.0"
+        )
+        command.add_argument(
+            "--request-concurrency-limit-per-key", default="2"
+        )
+        command.add_argument(
+            "--request-rate-limit-requests-per-key", default="60"
+        )
+        command.add_argument(
+            "--request-rate-limit-window-seconds", default="60.0"
+        )
         command.add_argument("--private-backend-host", default="127.0.0.1")
         command.add_argument("--private-backend-port", default=None)
         command.add_argument("--private-backend-enabled", default="false")

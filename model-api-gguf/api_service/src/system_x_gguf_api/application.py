@@ -41,6 +41,7 @@ from .registry_types import (
     REGISTRY_SCHEMA_VERSION,
 )
 from .request_context import request_id_for
+from .request_governance import RequestGovernance, REQUEST_GOVERNANCE_CONTRACT
 from .schemas import HealthDetail, HealthResponse, VersionResponse
 from .settings import ServiceSettings
 from .stream_control import ActiveStreamRegistry
@@ -76,7 +77,8 @@ def create_application(
     runtime_recovery = RuntimeRecoveryCoordinator(
         active_settings, backend, warm_model
     )
-    inference = InferenceService(catalogue, backend, operations)
+    governance = RequestGovernance(active_settings)
+    inference = InferenceService(catalogue, backend, operations, governance=governance)
     compatibility = OpenAICompatibilityAdapter(catalogue, inference)
     anthropic_compatibility = AnthropicCompatibilityAdapter(catalogue, inference)
     active_streams = ActiveStreamRegistry(operations)
@@ -188,6 +190,7 @@ def create_application(
     application.state.credentials = credentials
     application.state.authentication = authentication
     application.state.operations = operations
+    application.state.governance = governance
     install_system_error_handling(application, authentication)
 
     @application.get(
@@ -285,6 +288,7 @@ def create_application(
             service_name=active_settings.service_name,
             service_version=active_settings.service_version,
             contract_version=active_settings.contract_version,
+            request_governance_contract=REQUEST_GOVERNANCE_CONTRACT,
             authentication_contract=AUTHENTICATION_CONTRACT,
             authentication_enabled=active_settings.authentication_enabled,
             operation_record_contract=OPERATION_RECORD_SCHEMA,

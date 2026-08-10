@@ -1120,12 +1120,12 @@ class StreamingInferenceService:
                     ),
                 )
             )
+            input_tokens = (
+                await preopen(lease) if preopen is not None else None
+            )
             self.inference.operations.note_router(
                 request_id,
                 lease.router_identity.transaction_id,
-            )
-            input_tokens = (
-                await preopen(lease) if preopen is not None else None
             )
             upstream = await stack.enter_async_context(private_context(lease))
             await control.attach_upstream(upstream)
@@ -1204,6 +1204,15 @@ class StreamingInferenceService:
                 request.stop,
             )
 
+        async def preopen(lease: InferenceBackendLease) -> int:
+            input_tokens = await self.inference.count_generate_input_tokens(
+                request_id, lease, request
+            )
+            await self.inference.enforce_request_budget(
+                snapshot, input_tokens, request.max_output_tokens
+            )
+            return input_tokens
+
         return await self._open_session(
             request_id=request_id,
             public_endpoint=public_endpoint,
@@ -1223,6 +1232,7 @@ class StreamingInferenceService:
                     None,
                 ),
             },
+            preopen=preopen,
         )
 
     async def open_chat(
@@ -1271,7 +1281,11 @@ class StreamingInferenceService:
                 lease,
                 observation,
             )
-            return normalize_token_count(observation)
+            input_tokens = normalize_token_count(observation)
+            await self.inference.enforce_request_budget(
+                snapshot, input_tokens, request.max_output_tokens
+            )
+            return input_tokens
 
         return await self._open_session(
             request_id=request_id,
@@ -1292,7 +1306,7 @@ class StreamingInferenceService:
                     prepared.selected,
                 ),
             },
-            preopen=preopen if require_input_tokens else None,
+            preopen=preopen,
         )
 
     async def open_responses(
@@ -1327,6 +1341,15 @@ class StreamingInferenceService:
                 prepared.private_template_kwargs,
             )
 
+        async def preopen(lease: InferenceBackendLease) -> int:
+            input_tokens = await self.inference.count_responses_input_tokens(
+                request_id, lease, prepared, request.instructions
+            )
+            await self.inference.enforce_request_budget(
+                snapshot, input_tokens, request.max_output_tokens
+            )
+            return input_tokens
+
         return await self._open_session(
             request_id=request_id,
             public_endpoint=public_endpoint,
@@ -1346,4 +1369,5 @@ class StreamingInferenceService:
                     request.max_output_tokens,
                 ),
             },
+            preopen=preopen,
         )
