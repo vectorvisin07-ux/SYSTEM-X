@@ -53,20 +53,20 @@ DEPENDENCY_FILES = {
         "e62367fdfd1ee24d8ac5a4080332958317d7e77eb431bfce6fdbe2e208963394",
     ),
     "configuration.schema.json": (
-        9917,
-        "e4d120953fcc9ab37d0d57040ab509abb82c646ec9e275cfc4b40149b1adfaeb",
+        10105,
+        "7ae1eb6baede789dc9b6d0f4cffea9e1e7b5944e43d7661ff9a83d08dc3d5dab",
     ),
     "configuration.example.json": (
-        2040,
-        "12b783517628fb218dc56caa3baeaa0693d58e1d055f8f79fbe9d426494d7127",
+        2076,
+        "04b3e34cb8e77c473838137d48b7e9a6c5fbd7f810a37c430fb156d6c9926dde",
     ),
     "src/system_x_gguf_api/__init__.py": (
         205,
         "6de72ee10a917feec2bf041b76b904819dd4c748d3663080bf90cffa475440c6",
     ),
     "src/system_x_gguf_api/application.py": (
-        18542,
-        "362cfb4526121a7860695e5a8c9f1d358039a7cbbed336458b8ea1e32d39e677",
+        19714,
+        "b4e067ee05b47b1575afa765f6b4a4bd568f14be835b2b2cb08b5edc4fb5baaf",
     ),
     "src/system_x_gguf_api/anthropic_adapter.py": (
         10973,
@@ -105,12 +105,12 @@ DEPENDENCY_FILES = {
         "3a65078a19b86a4ebc1be0ec3c9cb939bde30cd9449745546723cea2732adc51",
     ),
     "src/system_x_gguf_api/authentication.py": (
-        10253,
-        "23ecd38d97a394e7f5a76bb5ef68c868433281808fa3eb338ee2d9e0fa4bdd18",
+        10292,
+        "a9a86df5745a8bf24f9890a7940f5b2e9f3d803e75e681f91fbf9a0d18b7c070",
     ),
     "src/system_x_gguf_api/authentication_openapi.py": (
-        7648,
-        "94fb1ac4ee68357babf95dcca1c7039aea64bffff92949f2b6eac21e3d44924a",
+        7755,
+        "3753365b416a1f5479792f07d8b16bd21948f58b18a4b9eedf24df365bb24612",
     ),
     "src/system_x_gguf_api/request_governance.py": (
         10084,
@@ -197,8 +197,16 @@ DEPENDENCY_FILES = {
         "c98cb66f4b84b3c3f9b2bd6d58e537c7e8dca275f0ddd44a3421f4ebbd78732d",
     ),
     "src/system_x_gguf_api/operation_records.py": (
-        29149,
-        "c2e37146a1aeb63140912c833f755fe8ede8f1423237b5d9fc9f9984de83c906",
+        30407,
+        "affa00eec23f496054706cc5265936d3befd90309f362d708c81539b63c18571",
+    ),
+    "src/system_x_gguf_api/privacy_diagnostics.py": (
+        3149,
+        "1d9d147996d78fafc62e28f3a3439715f8f76a639a4caf3a6116c1eef23db406",
+    ),
+    "src/system_x_gguf_api/operation_metrics.py": (
+        8866,
+        "ed5c3c7a5511627488306c41c8a04779b93130ca4a3cc3fcce09836d17463daa",
     ),
     "src/system_x_gguf_api/registry_store.py": (
         108117,
@@ -221,16 +229,16 @@ DEPENDENCY_FILES = {
         "c141236a16329a1452027f3829ef5144dac94ad8a9b95a04950584d5c563202f",
     ),
     "src/system_x_gguf_api/schemas.py": (
-        19011,
-        "d023918d6a6b688c95ccfaa46a7283145b2c92e1db71cfeb7f700dc9875af0c3",
+        19215,
+        "676b9e0ced58c3f009630b9c6a9e2115902375e13256a56e882a0211af856afd",
     ),
     "src/system_x_gguf_api/secret_redaction.py": (
         1264,
         "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038",
     ),
     "src/system_x_gguf_api/settings.py": (
-        12079,
-        "e1d9169fed975e1b4a6355be6c76e20340f4ff517f2993bc4af2a38afb88d432",
+        12143,
+        "09bc9638b3954192ec0dd3b0bfa1335ceffbfbf224d2be549cd0485d1390cdf0",
     ),
     "src/system_x_gguf_api/warm_model.py": (
         22630,

@@ -14,6 +14,7 @@ SECURITY_REQUIREMENT = [
 ]
 PROTECTED_OPENAPI_OPERATIONS = (
     ("/system/v1/version", "get", "system"),
+    ("/system/v1/metrics", "get", "system"),
     ("/system/v1/models", "get", "system"),
     ("/system/v1/models/{model_id}", "get", "system"),
     ("/system/v1/generate", "post", "system"),
@@ -178,6 +179,8 @@ def apply_authentication_openapi(
                 }
             },
         }
+        if path == "/system/v1/metrics":
+            continue
         operation_responses = operation.setdefault("responses", {})
         if method == "post":
             operation_responses.setdefault(

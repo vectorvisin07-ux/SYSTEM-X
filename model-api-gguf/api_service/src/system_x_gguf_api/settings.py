@@ -22,7 +22,8 @@ class ServiceSettings(BaseModel):
         min_length=1,
         max_length=128,
     )
-    service_version: str = Field(default="0.12.0", min_length=1, max_length=64)
+    service_version: str = Field(default="0.13.0", min_length=1, max_length=64)
+    privacy_diagnostic_mode: Literal["off", "metadata"] = "off"
     contract_version: str = Field(
         default="system-x.gguf-api.native-inference.v1",
         min_length=1,

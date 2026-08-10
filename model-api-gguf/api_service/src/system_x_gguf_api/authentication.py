@@ -38,6 +38,7 @@ SYSTEM_MODEL_DETAIL = re.compile(r"^/system/v1/models/[^/]+$")
 PROTECTED_OPERATIONS: frozenset[tuple[str, str]] = frozenset(
     {
         ("GET", "/system/v1/version"),
+        ("GET", "/system/v1/metrics"),
         ("GET", "/system/v1/models"),
         ("POST", "/system/v1/generate"),
         ("POST", "/system/v1/chat"),

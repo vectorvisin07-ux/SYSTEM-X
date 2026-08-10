@@ -304,10 +304,19 @@
       "type": "string"
     },
     "service_version": {
-      "default": "0.12.0",
+      "default": "0.13.0",
       "maxLength": 64,
       "minLength": 1,
       "title": "Service Version",
+      "type": "string"
+    },
+    "privacy_diagnostic_mode": {
+      "default": "off",
+      "enum": [
+        "off",
+        "metadata"
+      ],
+      "title": "Privacy Diagnostic Mode",
       "type": "string"
     },
     "startup_model_policy": {

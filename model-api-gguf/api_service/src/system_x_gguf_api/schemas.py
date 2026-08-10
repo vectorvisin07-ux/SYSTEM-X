@@ -198,6 +198,9 @@ class VersionResponse(StrictModel):
     authentication_contract: Literal["system-x.private-authentication.v1"]
     authentication_enabled: bool
     operation_record_contract: OperationRecordSchema
+    operation_metrics_contract: Literal["system-x.operation-metrics.v1"]
+    privacy_diagnostic_contract: Literal["system-x.privacy-diagnostic.v1"]
+    privacy_diagnostic_mode: Literal["off", "metadata"]
     model_adaptation_contract: Literal["system-x.gguf-model-adaptation.v1"]
     compatibility_version: Literal["system-x.openai-compatible.v1"]
     anthropic_compatibility_version: Literal["system-x.anthropic-compatible.v1"]

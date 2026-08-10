@@ -8,6 +8,7 @@ from importlib.metadata import version as distribution_version
 import sqlite3
 
 from fastapi import FastAPI, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from .authentication import AuthenticationManager
 from .authentication_openapi import apply_authentication_openapi
@@ -35,6 +36,8 @@ from .openai_contract import (
 from .openai_routes import build_openai_router
 from .openai_stream import OPENAI_STREAMING_CONTRACT
 from .operation_records import OPERATION_RECORD_SCHEMA, OperationRecorder
+from .operation_metrics import OperationMetrics, OperationRecordObserver
+from .privacy_diagnostics import PrivacyDiagnostics
 from .registry_types import (
     MODEL_ADAPTATION_CONTRACT,
     REGISTRY_SCHEMA_IDENTITY,
@@ -69,7 +72,13 @@ def create_application(
     external_static = configured_external_static(active_settings)
     backend = BackendCoordinator(active_settings)
     registry = ModelRegistry(active_settings, backend)
-    operations = OperationRecorder()
+    metrics = OperationMetrics()
+    privacy_diagnostics = PrivacyDiagnostics(
+        active_settings.privacy_diagnostic_mode
+    )
+    operations = OperationRecorder(
+        observer=OperationRecordObserver(metrics, privacy_diagnostics)
+    )
     catalogue = ModelCatalogue(registry, backend, operations)
     warm_model = WarmModelCoordinator(
         active_settings, catalogue, registry, backend
@@ -190,6 +199,8 @@ def create_application(
     application.state.credentials = credentials
     application.state.authentication = authentication
     application.state.operations = operations
+    application.state.metrics = metrics
+    application.state.privacy_diagnostics = privacy_diagnostics
     application.state.governance = governance
     install_system_error_handling(application, authentication)
 
@@ -292,6 +303,9 @@ def create_application(
             authentication_contract=AUTHENTICATION_CONTRACT,
             authentication_enabled=active_settings.authentication_enabled,
             operation_record_contract=OPERATION_RECORD_SCHEMA,
+            operation_metrics_contract="system-x.operation-metrics.v1",
+            privacy_diagnostic_contract="system-x.privacy-diagnostic.v1",
+            privacy_diagnostic_mode=active_settings.privacy_diagnostic_mode,
             model_adaptation_contract=MODEL_ADAPTATION_CONTRACT,
             compatibility_version=COMPATIBILITY_VERSION,
             anthropic_compatibility_version=ANTHROPIC_COMPATIBILITY_VERSION,
@@ -311,6 +325,20 @@ def create_application(
             registry_schema_version=REGISTRY_SCHEMA_VERSION,
             watchfiles_version=distribution_version("watchfiles"),
             sqlite_library_version=sqlite3.sqlite_version,
+        )
+
+    @application.get(
+        "/system/v1/metrics",
+        response_class=JSONResponse,
+        responses={200: {"description": "Bounded operation metrics snapshot."}},
+        tags=["system"],
+    )
+    async def system_metrics(request: Request) -> JSONResponse:
+        return JSONResponse(
+            content=metrics.snapshot(
+                request_id=request_id_for(request),
+                active_operations=operations.active_count,
+            )
         )
 
     application.include_router(

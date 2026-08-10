@@ -10,7 +10,7 @@ import os
 import re
 import threading
 import time
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 
 OPERATION_RECORD_SCHEMA: Final = "system-x.operation-record.v1"
@@ -637,6 +637,7 @@ class OperationRecorder:
         *,
         logger: logging.Logger | None = None,
         failure_logger: logging.Logger | None = None,
+        observer: Any | None = None,
     ) -> None:
         self._logger = logger or logging.getLogger("uvicorn.error")
         self._failure_logger = failure_logger or logging.getLogger(
@@ -647,6 +648,8 @@ class OperationRecorder:
         self._service_transaction_id: str | None = None
         self._running = False
         self._emission_failed = False
+        self._emission_failure_count = 0
+        self._observer = observer
 
     @staticmethod
     def _read_service_transaction_id() -> str:
@@ -707,6 +710,11 @@ class OperationRecorder:
     def emission_failure_observed(self) -> bool:
         with self._lock:
             return self._emission_failed
+
+    @property
+    def emission_failure_count(self) -> int:
+        with self._lock:
+            return self._emission_failure_count
 
     def begin(
         self,
@@ -850,6 +858,27 @@ class OperationRecorder:
         except Exception:
             return
 
+    def _notify_observer(self, method: str, *args: object) -> None:
+        observer = self._observer
+        if observer is None:
+            return
+        callback = getattr(observer, method, None)
+        if callback is None:
+            return
+        try:
+            callback(*args)
+        except Exception:
+            if method == "observe_observer_failure":
+                return
+            failure_callback = getattr(
+                observer, "observe_observer_failure", None
+            )
+            if failure_callback is not None:
+                try:
+                    failure_callback()
+                except Exception:
+                    return
+
     def finalize(
         self, request_id: str, *, http_status: int
     ) -> OperationRecord | None:
@@ -871,12 +900,20 @@ class OperationRecorder:
                 )
             except Exception as exc:
                 self._emission_failed = True
+                self._emission_failure_count += 1
                 self._record_emission_failure(
                     request_id, type(exc).__name__
+                )
+                self._notify_observer(
+                    "observe_operation_record_emission_failure",
+                    request_id,
+                    type(exc).__name__,
                 )
                 record = None
             finally:
                 del self._active[request_id]
+            if record is not None:
+                self._notify_observer("observe", record)
             return record
 
     def finalize_if_active(
