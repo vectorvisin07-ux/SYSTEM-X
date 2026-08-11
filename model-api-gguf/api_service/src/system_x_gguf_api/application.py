@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import logging
 import platform
 from importlib.metadata import version as distribution_version
 import sqlite3
@@ -74,7 +75,8 @@ def create_application(
     registry = ModelRegistry(active_settings, backend)
     metrics = OperationMetrics()
     privacy_diagnostics = PrivacyDiagnostics(
-        active_settings.privacy_diagnostic_mode
+        active_settings.privacy_diagnostic_mode,
+        logger=logging.getLogger("uvicorn.error"),
     )
     operations = OperationRecorder(
         observer=OperationRecordObserver(metrics, privacy_diagnostics)

@@ -201,6 +201,35 @@ class UsageMetricsPrivacyTests(unittest.TestCase):
         self.assertEqual(snapshot["operations_total"], 1)
         self.assertEqual(snapshot["operation_observer_failures"], 1)
 
+    def test_privacy_sink_failure_reaches_observer_boundary(self) -> None:
+        logger = logging.getLogger("usage-metrics-privacy-sink-test")
+        previous = (logger.handlers[:], logger.level, logger.propagate, logger.disabled)
+
+        class _FailingHandler(logging.Handler):
+            def emit(self, _record: logging.LogRecord) -> None:
+                raise RuntimeError("diagnostic sink fixture failure")
+
+        failing = _FailingHandler()
+        try:
+            logger.handlers = [failing]
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
+            logger.disabled = False
+            metrics = OperationMetrics()
+            observer = OperationRecordObserver(
+                metrics,
+                PrivacyDiagnostics("metadata", logger=logger),
+            )
+            observer.observe(_record())
+            snapshot = metrics.snapshot(
+                request_id="sx_req_" + "1" * 32,
+                active_operations=0,
+            )
+            self.assertEqual(snapshot["operations_total"], 1)
+            self.assertEqual(snapshot["operation_observer_failures"], 1)
+        finally:
+            logger.handlers[:], logger.level, logger.propagate, logger.disabled = previous
+
     def test_authenticated_nonrecursive_metrics_route_is_published(self) -> None:
         settings = ServiceSettings(startup_model_policy="api_only")
         application = create_application(settings)

@@ -65,8 +65,8 @@ DEPENDENCY_FILES = {
         "6de72ee10a917feec2bf041b76b904819dd4c748d3663080bf90cffa475440c6",
     ),
     "src/system_x_gguf_api/application.py": (
-        19714,
-        "b4e067ee05b47b1575afa765f6b4a4bd568f14be835b2b2cb08b5edc4fb5baaf",
+        19781,
+        "5a60ecd87b6ba1807ae9f4c8b2e57283b5f5525a2bd242d81e0b16d202c053b3",
     ),
     "src/system_x_gguf_api/anthropic_adapter.py": (
         10973,
@@ -201,8 +201,8 @@ DEPENDENCY_FILES = {
         "affa00eec23f496054706cc5265936d3befd90309f362d708c81539b63c18571",
     ),
     "src/system_x_gguf_api/privacy_diagnostics.py": (
-        3149,
-        "1d9d147996d78fafc62e28f3a3439715f8f76a639a4caf3a6116c1eef23db406",
+        3148,
+        "d044ee703c35b6ec53073a01e48ba8c80c04f419f641b086025e63dcaa1a325c",
     ),
     "src/system_x_gguf_api/operation_metrics.py": (
         8866,

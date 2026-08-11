@@ -87,4 +87,4 @@ class PrivacyDiagnostics:
                 encoded,
             )
         except Exception:
-            return
+            raise
