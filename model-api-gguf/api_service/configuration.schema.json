@@ -304,7 +304,7 @@
       "type": "string"
     },
     "service_version": {
-      "default": "0.13.0",
+      "default": "0.14.0",
       "maxLength": 64,
       "minLength": 1,
       "title": "Service Version",

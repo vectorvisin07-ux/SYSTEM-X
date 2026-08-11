@@ -54,11 +54,11 @@ DEPENDENCY_FILES = {
     ),
     "configuration.schema.json": (
         10105,
-        "7ae1eb6baede789dc9b6d0f4cffea9e1e7b5944e43d7661ff9a83d08dc3d5dab",
+        "5519472b704db16b4bd4dd9469ec4312a4dd501b1ab10bbb8c502765704fb3ed",
     ),
     "configuration.example.json": (
         2076,
-        "04b3e34cb8e77c473838137d48b7e9a6c5fbd7f810a37c430fb156d6c9926dde",
+        "fcc1b8fd0eef4bed7bfdb0374c456be0ab27ceeef33a2a3d982e840796cbeb03",
     ),
     "src/system_x_gguf_api/__init__.py": (
         205,
@@ -238,7 +238,7 @@ DEPENDENCY_FILES = {
     ),
     "src/system_x_gguf_api/settings.py": (
         12143,
-        "09bc9638b3954192ec0dd3b0bfa1335ceffbfbf224d2be549cd0485d1390cdf0",
+        "2cbaf065de14c0f60f1a52c9e59a87054ab552d974de8eb2bcc10bf97ecc86da",
     ),
     "src/system_x_gguf_api/warm_model.py": (
         22630,
