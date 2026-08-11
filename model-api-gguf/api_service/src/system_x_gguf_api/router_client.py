@@ -1025,14 +1025,29 @@ class RouterClient:
     async def responses_input_tokens(
         self,
         model_id: str,
-        input_text: str,
+        input_value: str | list[dict[str, Any]],
         instructions: str | None = None,
     ) -> RouterObservation:
+        if isinstance(input_value, str):
+            normalized_input: str | list[dict[str, Any]] = _validate_text(
+                input_value, "responses token input", 1_048_576
+            )
+        elif isinstance(input_value, list):
+            encoded = json.dumps(
+                input_value, separators=(",", ":"), allow_nan=False
+            ).encode()
+            if (
+                not input_value
+                or len(input_value) > 512
+                or len(encoded) > MAX_BODY_BYTES
+            ):
+                raise ValueError("responses token input items are invalid")
+            normalized_input = input_value
+        else:
+            raise ValueError("responses token input is invalid")
         body: dict[str, Any] = {
             "model": _validate_model_id(model_id),
-            "input": _validate_text(
-                input_text, "responses token input", 1_048_576
-            ),
+            "input": normalized_input,
         }
         if instructions is not None:
             body["instructions"] = _validate_text(
