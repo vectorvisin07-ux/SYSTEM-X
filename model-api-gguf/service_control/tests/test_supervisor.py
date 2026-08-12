@@ -718,6 +718,31 @@ class ForegroundBehaviorTests(SupervisorFixtureCase):
         self.assertEqual(transaction["outcome"], "CANCELLED_BY_STOPPED")
         self.assertEqual(stopped.desired_state, "STOPPED")
 
+    def test_restricted_router_control_startup_policy(self) -> None:
+        self.initialize("RUNNING")
+        arguments = supervisor_api.build_argument_parser().parse_args(
+            ["plan", "--startup-model-policy", "router_control"]
+        )
+        self.assertEqual(arguments.startup_model_policy, "router_control")
+        values = supervisor_api._api_arguments(
+            "plan",
+            self.profile,
+            self.state_path,
+            startup_model_policy=arguments.startup_model_policy,
+        )
+        value_map = dict(zip(values[::2], values[1::2]))
+        self.assertEqual(value_map["--startup-model-policy"], "router_control")
+        self.assertEqual(value_map["--registry-enabled"], "false")
+        self.assertEqual(value_map["--automatic-recovery-enabled"], "false")
+        plan = self.adapter.invoke("api", "plan", values)
+        supervisor_api._verify_api_plan(
+            plan,
+            self.profile,
+            startup_model_policy=arguments.startup_model_policy,
+        )
+        self.assertFalse(plan["input"]["registry_enabled"])
+        self.assertFalse(plan["input"]["automatic_recovery_enabled"])
+
     def test_stopped_at_start_creates_no_api_start(self) -> None:
         self.initialize("STOPPED")
         result = self.supervisor().run()

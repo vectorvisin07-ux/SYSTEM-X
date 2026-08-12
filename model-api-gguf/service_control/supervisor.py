@@ -75,7 +75,7 @@ LOG_SCHEMA = "system-x.service-supervisor-log-event.v1"
 API_CONTROLLER_SCHEMA = "system-x.gguf-api-service-controller.v1"
 BRANCH_CONTROLLER_SCHEMA = "system-x.gguf-branch-controller.v1"
 API_CONTROLLER_SHA256 = (
-    "e2f2852a209982e8bc7257b8ba43ef6e67119b8a694089c18081f385c928557a"
+    "31954f9510e9fcc1d381dcf6680c0a1e47d4dea47c486b47693f5c25fc22523d"
 )
 BRANCH_CONTROLLER_SHA256 = (
     "ba6aed963bf41fd630311e002d39e5b6912d5447377842e4809a36ef36a604bc"
@@ -704,11 +704,36 @@ class ControllerAdapter:
         return result
 
 
+def _startup_configuration(
+    profile: OperatingProfile, startup_model_policy: str | None
+) -> tuple[str, bool, bool]:
+    effective_policy = startup_model_policy or profile.startup_model_policy
+    if effective_policy not in {"always_warm", "router_control"}:
+        _fail(
+            "unsupported_startup_model_policy",
+            f"unsupported startup_model_policy: {effective_policy}",
+        )
+    registry_enabled = effective_policy != "router_control"
+    automatic_recovery_enabled = (
+        profile.automatic_recovery_enabled
+        if effective_policy != "router_control"
+        else False
+    )
+    return effective_policy, registry_enabled, automatic_recovery_enabled
+
+
 def _api_arguments(
     operation: str,
     profile: OperatingProfile,
     state_path: Path = DEFAULT_DESIRED_STATE_PATH,
+    *,
+    startup_model_policy: str | None = None,
 ) -> list[str]:
+    (
+        effective_policy,
+        registry_enabled,
+        automatic_recovery_enabled,
+    ) = _startup_configuration(profile, startup_model_policy)
     return [
         "--host",
         profile.public_endpoint.host,
@@ -731,13 +756,13 @@ def _api_arguments(
         "--private-backend-poll-interval-seconds",
         "0.25",
         "--registry-enabled",
-        "true",
+        "true" if registry_enabled else "false",
         "--registry-default-alias",
         profile.default_model_alias,
         "--startup-model-policy",
-        profile.startup_model_policy,
+        effective_policy,
         "--automatic-recovery-enabled",
-        "true" if profile.automatic_recovery_enabled else "false",
+        "true" if automatic_recovery_enabled else "false",
         "--recovery-delay-initial-seconds",
         str(profile.recovery_delay_initial_seconds),
         "--recovery-delay-maximum-seconds",
@@ -762,8 +787,16 @@ def _api_arguments(
 
 
 def _verify_api_plan(
-    result: Mapping[str, Any], profile: OperatingProfile
+    result: Mapping[str, Any],
+    profile: OperatingProfile,
+    *,
+    startup_model_policy: str | None = None,
 ) -> None:
+    (
+        effective_policy,
+        registry_enabled,
+        automatic_recovery_enabled,
+    ) = _startup_configuration(profile, startup_model_policy)
     values = result.get("input")
     plan = result.get("plan")
     if not isinstance(values, dict) or not isinstance(plan, dict):
@@ -775,10 +808,10 @@ def _verify_api_plan(
         "private_backend_port": profile.private_router_endpoint.port,
         "private_backend_enabled": True,
         "private_backend_models_max": 1,
-        "registry_enabled": True,
+        "registry_enabled": registry_enabled,
         "registry_default_alias": profile.default_model_alias,
-        "startup_model_policy": profile.startup_model_policy,
-        "automatic_recovery_enabled": profile.automatic_recovery_enabled,
+        "startup_model_policy": effective_policy,
+        "automatic_recovery_enabled": automatic_recovery_enabled,
         "recovery_maximum_attempts_in_window": (
             profile.recovery_maximum_attempts_in_window
         ),
@@ -1097,6 +1130,7 @@ class ForegroundSupervisor:
         adapter: ControllerAdapter,
         *,
         monitor_interval_seconds: float = 0.25,
+        startup_model_policy: str | None = None,
         install_signal_handlers: bool = True,
         health_observer: (
             Callable[[OperatingProfile], dict[str, Any]] | None
@@ -1118,6 +1152,7 @@ class ForegroundSupervisor:
         )
         self.adapter = adapter
         self.monitor_interval_seconds = float(monitor_interval_seconds)
+        self.startup_model_policy = startup_model_policy
         self.install_signal_handlers = install_signal_handlers
         self.health_observer = health_observer or _public_health
         self.shutdown_requested = threading.Event()
@@ -1477,9 +1512,18 @@ class ForegroundSupervisor:
         desired = load_desired_state(self.state_path, profile.identity)
         dependencies = self.adapter.validate()
         plan = self.adapter.invoke(
-            "api", "plan", _api_arguments("plan", profile, self.state_path)
+            "api", "plan", _api_arguments(
+                "plan",
+                profile,
+                self.state_path,
+                startup_model_policy=self.startup_model_policy,
+            )
         )
-        _verify_api_plan(plan, profile)
+        _verify_api_plan(
+            plan,
+            profile,
+            startup_model_policy=self.startup_model_policy,
+        )
         return _result(
             "plan",
             True,
@@ -1989,7 +2033,12 @@ class ForegroundSupervisor:
             api_start = self.adapter.invoke(
                 "api",
                 "start",
-                _api_arguments("start", profile, self.state_path),
+                _api_arguments(
+                "start",
+                profile,
+                self.state_path,
+                startup_model_policy=self.startup_model_policy,
+            ),
             )
             expected_api = _observed_api(api_start, profile)
             recovery.transition(
@@ -2169,9 +2218,18 @@ class ForegroundSupervisor:
                 api_plan = self.adapter.invoke(
                     "api",
                     "plan",
-                    _api_arguments("plan", profile, self.state_path),
+                    _api_arguments(
+                "plan",
+                profile,
+                self.state_path,
+                startup_model_policy=self.startup_model_policy,
+            ),
                 )
-                _verify_api_plan(api_plan, profile)
+                _verify_api_plan(
+                    api_plan,
+                    profile,
+                    startup_model_policy=self.startup_model_policy,
+                )
                 self._write_status(
                     self._status_value(
                         profile=profile,
@@ -2188,7 +2246,12 @@ class ForegroundSupervisor:
                 api_start = self.adapter.invoke(
                     "api",
                     "start",
-                    _api_arguments("start", profile, self.state_path),
+                    _api_arguments(
+                "start",
+                profile,
+                self.state_path,
+                startup_model_policy=self.startup_model_policy,
+            ),
                 )
                 api_started = True
                 expected_api = _observed_api(api_start, profile)
@@ -2941,6 +3004,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     for name in ("plan", "run", "status"):
         command = operations.add_parser(name)
         _add_common(command)
+        if name in ("plan", "run"):
+            command.add_argument(
+                "--startup-model-policy",
+                choices=("always_warm", "router_control"),
+                default=None,
+            )
         if name == "run":
             command.add_argument(
                 "--monitor-interval-seconds", type=float, default=0.25
@@ -2993,6 +3062,9 @@ def execute(arguments: argparse.Namespace) -> dict[str, Any]:
             _adapter_from_arguments(arguments),
             monitor_interval_seconds=getattr(
                 arguments, "monitor_interval_seconds", 0.25
+            ),
+            startup_model_policy=getattr(
+                arguments, "startup_model_policy", None
             ),
         )
         return supervisor.plan() if operation == "plan" else supervisor.run()
