@@ -245,8 +245,8 @@ DEPENDENCY_FILES = {
         "950eb9a2d772650771d0571d15945b392e3e928238c32c83798b03f10717d95c",
     ),
     "src/system_x_gguf_api/runtime_recovery.py": (
-        28393,
-        "67ce8bdf01ab99730d42747abc1ebac47bea381feb722fec61a286107676cf63",
+        29383,
+        "efc1c1a3eca03aeb4106ccde3c750db3476a407e0d62711dca20e9a93cd1a8fc",
     ),
     "src/system_x_gguf_api/sse.py": (
         8306,

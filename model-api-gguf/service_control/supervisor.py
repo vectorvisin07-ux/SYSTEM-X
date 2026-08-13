@@ -75,7 +75,7 @@ LOG_SCHEMA = "system-x.service-supervisor-log-event.v1"
 API_CONTROLLER_SCHEMA = "system-x.gguf-api-service-controller.v1"
 BRANCH_CONTROLLER_SCHEMA = "system-x.gguf-branch-controller.v1"
 API_CONTROLLER_SHA256 = (
-    "31954f9510e9fcc1d381dcf6680c0a1e47d4dea47c486b47693f5c25fc22523d"
+    "a80c1e6a32cfdc20852d6be1eff4f304d52a63942c0a5a29cbf97aa7cf0c4e03"
 )
 BRANCH_CONTROLLER_SHA256 = (
     "ba6aed963bf41fd630311e002d39e5b6912d5447377842e4809a36ef36a604bc"

@@ -6,6 +6,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass
 import datetime as dt
+import hashlib
 import json
 import logging
 import math
@@ -151,6 +152,31 @@ class RuntimeRecoveryAttempt:
     delay_seconds: float
 
 
+def _profile_latch_path(recovery_root: Path, profile_identity: str | None) -> Path:
+    """Keep fail-closed latch ownership isolated from another profile."""
+
+    base = recovery_root / "fail-closed/api-runtime.json"
+    if not profile_identity:
+        return base
+    if not base.exists():
+        return base
+    try:
+        metadata = base.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_size > MAX_RECORD_BYTES
+        ):
+            return base
+        value = json.loads(base.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return base
+    if isinstance(value, dict) and value.get("profile_identity") == profile_identity:
+        return base
+    digest = hashlib.sha256(profile_identity.encode("utf-8")).hexdigest()
+    return base.with_name(f"api-runtime-{digest}.json")
+
+
 class RuntimeRecoveryCoordinator:
     """Own one shutdown-fenced router/model recovery loop per API lifespan."""
 
@@ -175,7 +201,9 @@ class RuntimeRecoveryCoordinator:
         self._status_path = recovery_root / "status/api-runtime.json"
         self._transaction_root = recovery_root / "transactions"
         self._history_path = recovery_root / "history/api-runtime.jsonl"
-        self._latch_path = recovery_root / "fail-closed/api-runtime.json"
+        self._latch_path = _profile_latch_path(
+            recovery_root, settings.service_control_profile_identity
+        )
         self._lock = asyncio.Lock()
         self._stop_event = asyncio.Event()
         self._task: asyncio.Task[None] | None = None

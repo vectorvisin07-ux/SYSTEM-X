@@ -352,6 +352,34 @@ class RuntimeRecoveryTests(unittest.IsolatedAsyncioTestCase):
             "AUTOMATIC_RECOVERY_DISABLED",
         )
 
+    async def test_foreign_profile_latch_is_not_reused_or_overwritten(
+        self,
+    ) -> None:
+        foreign_path = self.root / "recovery/fail-closed/api-runtime.json"
+        foreign_path.parent.mkdir(parents=True)
+        foreign = {
+            "schema_version": "system-x.api-runtime-recovery-fail-closed.v1",
+            "profile_identity": "sha256:" + "f" * 64,
+            "reason_code": "RECOVERY_LOOP_DETECTED",
+        }
+        foreign_path.write_text(
+            json.dumps(foreign, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        original = foreign_path.read_bytes()
+        coordinator = self.coordinator()
+        self.assertNotEqual(coordinator._latch_path, foreign_path)
+        self.backend.controller.result = controller_result(
+            ok=False,
+            reason_code="PRIVATE_LISTENER_LOST",
+            exit_status=3,
+        )
+        await coordinator.observe_once()
+        self.assertEqual(self.backend.recover_calls, 1)
+        self.assertEqual(foreign_path.read_bytes(), original)
+        self.assertFalse(coordinator._latch_path.exists())
+        self.assertFalse(coordinator.public_status["fail_closed_latched"])
+
     async def test_rapid_failures_persist_fail_closed_latch(self) -> None:
         coordinator = self.coordinator(attempts=2)
         self.warm.observe_result = WarmStatus(
