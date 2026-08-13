@@ -637,6 +637,67 @@ class ControllerAdapterTests(SupervisorFixtureCase):
 
 
 class ForegroundBehaviorTests(SupervisorFixtureCase):
+    def test_router_observation_failure_has_router_reason(self) -> None:
+        supervisor = object.__new__(supervisor_api.ForegroundSupervisor)
+        expected_api = {
+            "transaction_id": "api-transaction",
+            "pid": 1001,
+            "process_start_identity": "api-start",
+            "pgid": 1001,
+            "endpoint": "public",
+            "active": True,
+            "consistent": True,
+            "listener_owned": True,
+        }
+        expected_router = {
+            "transaction_id": "router-transaction",
+            "pid": 2001,
+            "process_start_identity": "router-start",
+            "pgid": 2001,
+            "endpoint": "private",
+        }
+        api = dict(expected_api)
+        for mutation, reason in (
+            (
+                {
+                    "active": False,
+                    "consistent": False,
+                    "listener_owned": False,
+                },
+                "ROUTER_PROCESS_LOST",
+            ),
+            (
+                {
+                    "active": True,
+                    "consistent": True,
+                    "listener_owned": False,
+                },
+                "PRIVATE_LISTENER_LOST",
+            ),
+        ):
+            with self.subTest(reason=reason):
+                router = dict(expected_router)
+                router.update(mutation)
+                with self.assertRaises(
+                    supervisor_api.SupervisorError
+                ) as caught:
+                    supervisor._verify_observation(
+                        expected_api, expected_router, api, router
+                    )
+                self.assertEqual(caught.exception.reason_code, reason)
+
+    def test_router_recovery_preserves_api_identity(self) -> None:
+        recovery_source = inspect.getsource(
+            supervisor_api.ForegroundSupervisor._recover_router_only
+        )
+        dispatch_source = inspect.getsource(
+            supervisor_api.ForegroundSupervisor.run
+        )
+        self.assertIn("API_OWNED_ROUTER_RESTART", recovery_source)
+        self.assertNotIn('self.adapter.invoke("api", "stop")', recovery_source)
+        self.assertNotIn('self.adapter.invoke("api", "start"', recovery_source)
+        self.assertIn("self._recover_router_only", dispatch_source)
+
     def test_api_recovery_waits_for_both_stack_endpoints(self) -> None:
         recovery_source = inspect.getsource(
             supervisor_api.ForegroundSupervisor._recover_api_stack

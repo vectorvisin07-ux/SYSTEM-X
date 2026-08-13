@@ -1629,6 +1629,30 @@ class ForegroundSupervisor:
                 exit_code=4,
             )
 
+        router_structurally_ready = (
+            router.get("active") is True
+            and router.get("consistent") is True
+            and router.get("listener_owned") is True
+        )
+        if not router_structurally_ready:
+            reason_code = (
+                "ROUTER_PROCESS_LOST"
+                if router.get("active") is not True
+                else "PRIVATE_LISTENER_LOST"
+            )
+            _fail(
+                reason_code,
+                "router process or private-listener ownership was lost",
+                details={"expected": expected_router, "observed": router},
+                exit_code=4,
+            )
+        if not _same_runtime_identity(expected_router, router):
+            _fail(
+                "OWNERSHIP_UNCERTAIN",
+                "live router identity changed without a recovery transaction",
+                details={"expected": expected_router, "observed": router},
+                exit_code=4,
+            )
     def _controller_owned_stop(
         self, profile: OperatingProfile
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -1815,6 +1839,8 @@ class ForegroundSupervisor:
     @staticmethod
     def _api_failure_reason(error: SupervisorError) -> str:
         if error.reason_code in {
+            "ROUTER_PROCESS_LOST",
+            "PRIVATE_LISTENER_LOST",
             "OWNERSHIP_UNCERTAIN",
             "ENDPOINT_CONFLICT",
         }:
@@ -1886,6 +1912,169 @@ class ForegroundSupervisor:
             self.shutdown_requested.wait(
                 min(self.monitor_interval_seconds, remaining)
             )
+
+    def _recover_router_only(
+        self,
+        *,
+        profile: OperatingProfile,
+        desired: DesiredState,
+        recovery: RecoveryStore,
+        reason_code: str,
+        expected_api: Mapping[str, Any],
+        expected_router: Mapping[str, Any],
+        pre_observation: Mapping[str, Any],
+    ) -> (
+        tuple[
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            str,
+            dict[str, Any] | None,
+            dict[str, Any],
+            str,
+        ]
+        | None
+    ):
+        """Wait for the API-owned router recovery without restarting API."""
+
+        attempt = recovery.begin(
+            reason_code=reason_code,
+            desired_state=desired.desired_state,
+            desired_generation=desired.generation,
+            observation=pre_observation,
+            selected_action="API_OWNED_ROUTER_RESTART",
+        )
+        if attempt is None:
+            if desired.desired_state == "STOPPED":
+                return None
+            _fail(
+                "FAIL_CLOSED_LATCHED",
+                "automatic router recovery is not permitted",
+                exit_code=4,
+            )
+        try:
+            current = load_desired_state(self.state_path, profile.identity)
+            if current.desired_state == "STOPPED":
+                recovery.complete(
+                    attempt,
+                    desired_state=current.desired_state,
+                    desired_generation=current.generation,
+                    outcome="CANCELLED_BY_STOPPED",
+                    observation=pre_observation,
+                )
+                return None
+            recovery.transition(
+                attempt,
+                desired_state=current.desired_state,
+                desired_generation=current.generation,
+                recovery_state="WAITING_FOR_ROUTER_RECOVERY",
+                observation=pre_observation,
+            )
+            deadline = time.monotonic() + min(
+                300.0, max(30.0, self.adapter.timeout_seconds)
+            )
+            last_error: str | None = None
+            while time.monotonic() < deadline:
+                current = load_desired_state(
+                    self.state_path, profile.identity
+                )
+                if (
+                    current.desired_state == "STOPPED"
+                    or self.shutdown_requested.is_set()
+                ):
+                    recovery.complete(
+                        attempt,
+                        desired_state=current.desired_state,
+                        desired_generation=current.generation,
+                        outcome="CANCELLED_BY_STOPPED",
+                        observation=pre_observation,
+                    )
+                    return None
+                try:
+                    (
+                        api_now,
+                        router_now,
+                        model_now,
+                        readiness,
+                        warm,
+                        health,
+                    ) = self._observe(
+                        profile, tolerate_router_failure=True
+                    )
+                    api_ready = (
+                        api_now.get("active") is True
+                        and api_now.get("consistent") is True
+                        and api_now.get("listener_owned") is True
+                    )
+                    router_ready = (
+                        router_now.get("active") is True
+                        and router_now.get("consistent") is True
+                        and router_now.get("listener_owned") is True
+                    )
+                    if (
+                        api_ready
+                        and _same_runtime_identity(expected_api, api_now)
+                        and router_ready
+                        and not _same_runtime_identity(
+                            expected_router, router_now
+                        )
+                        and model_now.get("present") is True
+                        and readiness == "READY"
+                        and warm is not None
+                    ):
+                        observation = self._coherent_observation(
+                            profile=profile,
+                            desired=current,
+                            api=api_now,
+                            router=router_now,
+                            model_child=model_now,
+                            readiness=readiness,
+                            warm=warm,
+                            health=health,
+                        )
+                        recovery.complete(
+                            attempt,
+                            desired_state=current.desired_state,
+                            desired_generation=current.generation,
+                            outcome="RECOVERED",
+                            observation=observation,
+                        )
+                        return (
+                            api_now,
+                            router_now,
+                            model_now,
+                            readiness,
+                            warm,
+                            health,
+                            attempt.recovery_transaction_id,
+                        )
+                except SupervisorError as exc:
+                    last_error = exc.reason_code
+                self.shutdown_requested.wait(
+                    self.monitor_interval_seconds
+                )
+            _fail(
+                "RECOVERY_ATTEMPT_FAILED",
+                f"router-only recovery readiness timed out: {last_error}",
+                exit_code=4,
+            )
+        except (SupervisorError, ServiceControlError, RecoveryError) as exc:
+            current = load_desired_state(self.state_path, profile.identity)
+            recovery.complete(
+                attempt,
+                desired_state=current.desired_state,
+                desired_generation=current.generation,
+                outcome=(
+                    "CANCELLED_BY_STOPPED"
+                    if current.desired_state == "STOPPED"
+                    else "FAILED"
+                ),
+                observation=pre_observation,
+                error_category=getattr(exc, "reason_code", type(exc).__name__),
+            )
+            if current.desired_state == "STOPPED":
+                return None
+            raise
 
     def _recover_api_stack(
         self,
@@ -2402,7 +2591,21 @@ class ForegroundSupervisor:
                                 observation=pre_observation,
                             )
                             raise
-                        recovered = self._recover_api_stack(
+                        if reason_code in {
+                            "ROUTER_PROCESS_LOST",
+                            "PRIVATE_LISTENER_LOST",
+                        }:
+                            recovered = self._recover_router_only(
+                                profile=profile,
+                                desired=desired,
+                                recovery=recovery,
+                                reason_code=reason_code,
+                                expected_api=expected_api,
+                                expected_router=expected_router,
+                                pre_observation=pre_observation,
+                            )
+                        else:
+                            recovered = self._recover_api_stack(
                             profile=profile,
                             desired=desired,
                             recovery=recovery,
@@ -2431,7 +2634,12 @@ class ForegroundSupervisor:
                             "recovery_transaction_ids", []
                         ).append(recovery_transaction_id)
                         self._log(
-                            "api_stack_recovered",
+                            "router_recovered"
+                            if reason_code in {
+                                "ROUTER_PROCESS_LOST",
+                                "PRIVATE_LISTENER_LOST",
+                            }
+                            else "api_stack_recovered",
                             recovery_transaction_id=(
                                 recovery_transaction_id
                             ),
