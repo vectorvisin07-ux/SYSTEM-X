@@ -1328,11 +1328,42 @@ class ForegroundProcessHostAdapter:
             "last_activation_result": None,
             "last_failure_reason": None,
         }
+        registration_transaction_id = self._new_transaction_id()
+        registration_transaction = {
+            "schema_version": ACTIVATION_TRANSACTION_SCHEMA,
+            "adapter_transaction_id": registration_transaction_id,
+            "operation": "register",
+            "configuration_identity": config["configuration_identity"],
+            "profile_identity": profile.identity,
+            "activation_identity": None,
+            "supervisor_identity": None,
+            "supervisor_argv": None,
+            "controller_configuration": None,
+            "start_utc": timestamp,
+            "active_utc": None,
+            "completion_utc": timestamp,
+            "supervisor_exit_status": None,
+            "signals_relayed": [],
+            "stdout_evidence": None,
+            "stderr_evidence": None,
+            "outcome": "REGISTERED",
+        }
         _exclusive_write_json(
             self.paths.manifest,
             manifest,
             conflict_reason="ADAPTER_ALREADY_REGISTERED",
         )
+        try:
+            self._write_transaction(
+                registration_transaction_id, registration_transaction
+            )
+        except Exception:
+            try:
+                self.paths.manifest.unlink()
+            except FileNotFoundError:
+                pass
+            _fsync_directory(self.paths.root)
+            raise
         observation = ActiveObservation(False, None, None, None, None)
         status = self._status_value(manifest, desired, observation)
         return self._state_result(
@@ -1345,6 +1376,7 @@ class ForegroundProcessHostAdapter:
                 "status": status,
                 "desired_state_preserved": True,
                 "process_started": False,
+                "registration_transaction_id": registration_transaction_id,
             },
         )
 
@@ -1509,7 +1541,10 @@ class ForegroundProcessHostAdapter:
             try:
                 evidence = self._supervisor_evidence(manifest)
             except AdapterError as exc:
-                if exc.reason_code != "ADAPTER_NOT_REGISTERED":
+                if (
+                    exc.reason_code
+                    != "SUPERVISOR_IDENTITY_UNCERTAIN"
+                ):
                     raise
                 evidence = None
             if evidence is not None:

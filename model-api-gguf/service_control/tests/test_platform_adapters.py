@@ -120,6 +120,31 @@ class AdapterCase(unittest.TestCase):
 
 
 class ContractAndSchemaTests(AdapterCase):
+    def test_startup_retries_transient_supervisor_identity_publication(self) -> None:
+        child = mock.Mock()
+        child.pid = 12345
+        child.poll.side_effect = [None, None]
+        identity = {
+            "pid": child.pid,
+            "process_start_identity": "start-1",
+        }
+        status = {"supervisor_state": "RUNNING"}
+        uncertain = contract.AdapterError(
+            "SUPERVISOR_IDENTITY_UNCERTAIN",
+            "status publication is still converging",
+            exit_code=3,
+        )
+        with mock.patch.object(
+            self.adapter,
+            "_supervisor_evidence",
+            side_effect=[uncertain, (identity, status)],
+        ):
+            with mock.patch.object(foreground.time, "sleep"):
+                observed = self.adapter._wait_for_child_evidence(
+                    child, {}, 1.0
+                )
+        self.assertEqual(observed, (identity, status))
+
     def test_schema_documents_and_generated_records_validate_shape(self) -> None:
         schema_dir = BRANCH_ROOT / "service_control/platform_adapters"
         expected = {
@@ -321,6 +346,28 @@ class RegistrationLifecycleTests(AdapterCase):
             self.adapter.disable()
         self.assertEqual(
             caught.exception.reason_code, "ADAPTER_ALREADY_DISABLED"
+        )
+
+    def test_register_creates_one_registration_transaction(self) -> None:
+        result = self.register()
+        history = sorted(self.adapter.paths.transactions.glob("*.json"))
+        self.assertEqual(len(history), 1)
+        transaction = json.loads(
+            history[0].read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            transaction["schema_version"],
+            foreground.ACTIVATION_TRANSACTION_SCHEMA,
+        )
+        self.assertEqual(transaction["operation"], "register")
+        self.assertEqual(transaction["outcome"], "REGISTERED")
+        self.assertEqual(
+            transaction["configuration_identity"],
+            self.manifest()["configuration_identity"],
+        )
+        self.assertEqual(
+            result["data"]["registration_transaction_id"],
+            transaction["adapter_transaction_id"],
         )
 
     def test_unregistered_start_and_all_operation_dispatch_boundaries(self) -> None:
