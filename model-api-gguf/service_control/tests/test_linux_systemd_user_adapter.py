@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -293,6 +294,17 @@ class ContractRendererRegistryTests(SelectedAdapterCase):
                 "system-x.unbounded.module.v1", self.adapter_runtime
             )
 
+    def test_native_enable_skips_reload_to_preserve_stopped_floor(self) -> None:
+        manager = selected.SystemdUserManager(self.unit_path)
+        with mock.patch.object(
+            manager, "_run", return_value={"exit_status": 0}
+        ) as run:
+            result = manager.enable()
+        self.assertEqual(result["exit_status"], 0)
+        run.assert_called_once_with(
+            ["enable", "--no-reload", selected.SERVICE_NAME]
+        )
+
     def test_renderer_is_deterministic_manager_bounded_and_secret_free(self) -> None:
         values = self.adapter._render_configuration(
             **self.configuration()
@@ -389,6 +401,53 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
         self.assertTrue(self.unit_path.is_file())
         self.assertTrue(self.adapter.paths.manifest.is_file())
 
+    def test_registered_stale_configuration_is_reconciled_without_start(
+        self,
+    ) -> None:
+        self.register()
+        stale_unit = self.unit_path.read_text(encoding="utf-8")
+        stale_api_sha = "a" * 64
+        stale_unit = stale_unit.replace(
+            selected.API_CONTROLLER_SHA256, stale_api_sha
+        )
+        self.unit_path.write_text(stale_unit, encoding="utf-8")
+        stale_manifest = self.manifest()
+        stale_manifest["configuration_identity"] = "sha256:stale-fixture"
+        stale_native = dict(stale_manifest["native_service"])
+        stale_api = dict(stale_native["api_controller"])
+        stale_api["sha256"] = stale_api_sha
+        stale_native["api_controller"] = stale_api
+        stale_native["service_definition_sha256"] = hashlib.sha256(
+            stale_unit.encode("utf-8")
+        ).hexdigest()
+        stale_manifest["native_service"] = stale_native
+        write_json(self.adapter.paths.manifest, stale_manifest)
+
+        result = self.register()
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["registered"])
+        self.assertFalse(result["enabled"])
+        self.assertFalse(result["active"])
+        self.assertTrue(
+            result["data"]["reconciled_existing_registration"]
+        )
+        self.assertFalse(result["data"]["process_started"])
+        self.assertEqual(self.manager.start_calls, 0)
+        self.assertGreaterEqual(self.manager.reload_calls, 2)
+        current_unit = self.unit_path.read_text(encoding="utf-8")
+        self.assertIn(selected.API_CONTROLLER_SHA256, current_unit)
+        self.assertNotIn(stale_api_sha, current_unit)
+        current_manifest = self.manifest()
+        self.assertEqual(
+            current_manifest["configuration_identity"],
+            result["configuration_identity"],
+        )
+        self.assertEqual(
+            current_manifest["native_service"]["api_controller"]["sha256"],
+            selected.API_CONTROLLER_SHA256,
+        )
+
     def test_registration_collision_and_symlink_fail_closed(self) -> None:
         self.unit_path.parent.mkdir(parents=True)
         self.unit_path.write_text("foreign\n", encoding="utf-8")
@@ -425,6 +484,44 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
         self.assertEqual(
             caught.exception.reason_code, "ACTIVE_DISABLE_FORBIDDEN"
         )
+
+    def test_stop_allows_stale_manifest_identity_before_floor(self) -> None:
+        self.register()
+        self.adapter.enable()
+        running = operating_profile.set_desired_state(
+            self.profile,
+            "RUNNING",
+            self.state_path,
+            expected_generation=1,
+        )
+        self.publish_supervisor_records()
+        stale_manifest = self.manifest()
+        stale_manifest["configuration_identity"] = "sha256:stale-fixture"
+        write_json(self.adapter.paths.manifest, stale_manifest)
+        supervisor_paths = supervisor.SupervisorPaths(
+            self.supervisor_runtime
+        )
+
+        def stop_and_remove_supervisor_records() -> dict:
+            result = FakeManager.stop(self.manager)
+            supervisor_paths.active_lock.unlink(missing_ok=True)
+            supervisor_paths.active_pid.unlink(missing_ok=True)
+            return result
+
+        with mock.patch.object(
+            self.manager,
+            "stop",
+            side_effect=stop_and_remove_supervisor_records,
+        ):
+            stopped = self.adapter.stop(
+                expected_generation=running.generation,
+                wait_timeout_seconds=1.0,
+            )
+
+        self.assertTrue(stopped["ok"])
+        self.assertEqual(stopped["desired_state"], "STOPPED")
+        self.assertEqual(self.manager.stop_calls, 1)
+        self.assertFalse(self.manager.active)
 
     def test_stop_cancels_native_auto_restart_state(self) -> None:
         self.register()

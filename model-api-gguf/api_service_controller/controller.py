@@ -97,8 +97,8 @@ DEPENDENCY_FILES = {
         "d3fa631d1a9c24e3e8045f77d33398c78e3a9bb4141fbac37fbdd47f8a6a11cd",
     ),
     "src/system_x_gguf_api/backend.py": (
-        46925,
-        "6e2ca3e4513e979ab24df481dfc4b780f84bb8bb70c4ae95be6a68848ae6e66f",
+        48043,
+        "77c8fef0395c5acd0790e54f9e83d96efaa291ce89da4a289154b8828bee8ebf",
     ),
     "src/system_x_gguf_api/capability_inspector.py": (
         6822,
@@ -1140,6 +1140,7 @@ def child_environment(plan: dict[str, Any]) -> dict[str, str]:
 def endpoint_available(host: str, port: int) -> bool:
     probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         probe.bind((host, port))
         return True
     except OSError as exc:
@@ -1872,6 +1873,9 @@ def operation_plan(paths: dict[str, Path], namespace: argparse.Namespace) -> dic
     validate_runtime_layout(paths)
     values = validated_input(namespace)
     plan = build_plan(paths, values)
+    reconciliation = None
+    if paths["active_lock"].exists() or paths["active_pid"].exists():
+        reconciliation = operation_reconcile(paths)
     if paths["active_lock"].exists():
         raise ControllerError(
             "SERVICE_LOCK_ACTIVE",
@@ -2132,6 +2136,7 @@ def verify_active_ownership(
     pid_record: dict[str, Any],
     *,
     require_listener: bool = True,
+    allow_process_absent: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     transaction_id = str(pid_record["transaction_id"])
     status = read_json(paths["service_status"])
@@ -2155,6 +2160,8 @@ def verify_active_ownership(
         raise ControllerError("SERVICE_STATE_INCONSISTENT", "active lock and PID ownership fields differ")
     matched, observed = identity_matches(pid_record)
     if not matched:
+        if allow_process_absent and observed is None:
+            return {}, {}
         raise ControllerError(
             "PROCESS_IDENTITY_MISMATCH",
             "active process identity does not match its PID record",
@@ -2421,14 +2428,73 @@ def operation_reconcile(paths: dict[str, Path]) -> dict[str, Any]:
         paths=path_section(paths, transaction_id),
     )
 
+def _reconciled_absent_stop(
+    paths: dict[str, Path], transaction_id: str
+) -> dict[str, Any]:
+    reconciliation_result = operation_reconcile(paths)
+    runtime = reconciliation_result.get("runtime")
+    if not isinstance(runtime, dict) or runtime.get("active") is not False:
+        raise ControllerError(
+            "OWNERSHIP_UNCERTAIN",
+            "API active state changed before absent-process reconciliation completed",
+            reconciliation=reconciliation_result,
+        )
+    reconciliation = reconciliation_result.get("reconciliation", {})
+    if not isinstance(reconciliation, dict):
+        reconciliation = {}
+    removed_records = reconciliation.get("removed_records", [])
+    if not isinstance(removed_records, list):
+        removed_records = []
+    cleanup = {
+        "signal": None,
+        "force_used": False,
+        "owned_process_group_gone": True,
+        "listener_absent": True,
+        "active_pid_removed": "active_pid" in removed_records,
+        "active_lock_removed": "active_lock" in removed_records,
+        "unrelated_process_signaled": False,
+    }
+    return result(
+        paths,
+        "stop",
+        True,
+        str(reconciliation_result.get("reason_code", "API_STATE_STALE")),
+        "owned API-service process was already absent; stale controller records reconciled",
+        runtime={
+            "active": False,
+            "consistent": True,
+            "lifecycle_state": "RECONCILED",
+            "transaction_id": transaction_id,
+            "pid": None,
+            "pgid": None,
+            "sid": None,
+            "process_start_identity": None,
+        },
+        listener={
+            "recorded": None,
+            "absent": True,
+            "unrelated_process_signaled": False,
+        },
+        cleanup=cleanup,
+        reconciliation=reconciliation,
+        paths=path_section(paths, transaction_id),
+    )
+
 
 def operation_stop(paths: dict[str, Path]) -> dict[str, Any]:
     validate_dependency(paths)
     validate_runtime_layout(paths)
     lock_record, pid_record = active_records(paths)
     observed, listener = verify_active_ownership(
-        paths, lock_record, pid_record, require_listener=False
+        paths,
+        lock_record,
+        pid_record,
+        require_listener=False,
+        allow_process_absent=True,
     )
+    transaction_id = str(pid_record["transaction_id"])
+    if not observed:
+        return _reconciled_absent_stop(paths, transaction_id)
     endpoint_owners = endpoint_listener_owners(
         str(pid_record["host"]), int(pid_record["port"])
     )
@@ -2446,7 +2512,6 @@ def operation_stop(paths: dict[str, Path]) -> dict[str, Any]:
                 "unrelated_process_signaled": False,
             },
         )
-    transaction_id = str(pid_record["transaction_id"])
     values = {
         "host": pid_record["host"],
         "authentication_enabled": pid_record.get("authentication_enabled", True),
@@ -2564,7 +2629,9 @@ def operation_stop(paths: dict[str, Path]) -> dict[str, Any]:
         stopping_cleanup,
     )
     matched, reobserved = identity_matches(pid_record)
-    if not matched or reobserved is None:
+    if not matched:
+        if reobserved is None:
+            return _reconciled_absent_stop(paths, transaction_id)
         raise ControllerError("PROCESS_IDENTITY_MISMATCH", "ownership changed before graceful signal")
     pgid = int(reobserved["pgid"])
     os.killpg(pgid, signal.SIGTERM)

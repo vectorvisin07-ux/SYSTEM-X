@@ -388,6 +388,37 @@ class BackendCoordinator:
                 await self._stop_exact_router()
             raise
 
+    async def _shutdown_router_status(self) -> dict[str, Any]:
+        """Read or conservatively reconcile router state during API teardown."""
+
+        try:
+            status = await self.controller.status()
+        except ControllerClientError:
+            status = None
+        if status is not None:
+            if status.ok and status.exit_status == 0:
+                return status.data
+            if status.reason_code not in {
+                "ACTIVE_STATE_INCONSISTENT",
+                "PRIVATE_LISTENER_LOST",
+            }:
+                return _require_controller_success(status, "status")
+        return _require_controller_success(
+            await self.controller.reconcile(), "reconcile"
+        )
+
+    def _shutdown_router_identity_matches(self, data: dict[str, Any]) -> bool:
+        identity = self.identity
+        return bool(
+            identity
+            and data.get("active") is True
+            and data.get("transaction_id") == identity.transaction_id
+            and data.get("pid") == identity.pid
+            and data.get("pgid") == identity.pgid
+            and data.get("sid") == identity.sid
+            and data.get("launch_mode") == "router"
+        )
+
     async def _stop_exact_router(self) -> None:
         close_error: BaseException | None = None
         if self.router is not None:
@@ -396,9 +427,9 @@ class BackendCoordinator:
             except BaseException as exc:
                 close_error = exc
             self.router = None
-        status = _require_controller_success(await self.controller.status(), "status")
+        status = await self._shutdown_router_status()
         if status.get("active") is True:
-            if not self._status_matches_identity(status):
+            if not self._shutdown_router_identity_matches(status):
                 raise BackendError("active router ownership did not match lifespan identity")
             stopped = _require_controller_success(
                 await self.controller.stop(), "stop"
@@ -409,9 +440,7 @@ class BackendCoordinator:
                 or stopped.get("active_lock_removed") is not True
             ):
                 raise BackendError("branch controller stop proof was incomplete")
-        final_status = _require_controller_success(
-            await self.controller.status(), "status"
-        )
+        final_status = await self._shutdown_router_status()
         if (
             final_status.get("active") is not False
             or final_status.get("active_state_consistent") is not True

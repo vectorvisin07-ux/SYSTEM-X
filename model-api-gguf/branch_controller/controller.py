@@ -628,6 +628,7 @@ def endpoint_probe(host: str, port: int) -> dict[str, Any]:
     for family, socktype, protocol, sockaddr in unique:
         probe = socket.socket(family, socktype, protocol)
         try:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
                 probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             probe.bind(sockaddr)
@@ -1528,6 +1529,24 @@ def status_operation(paths: dict[str, Path]) -> dict[str, Any]:
         **recorded_launch_details(pid_value),
     }
     if not predicates.get("all_match"):
+        if not predicates.get("process_alive"):
+            reconciliation = reconcile_operation(paths)
+            if reconciliation.get("active") is False:
+                data.update(
+                    {
+                        "active": False,
+                        "lifecycle_state": "RECONCILED",
+                        "active_state_consistent": True,
+                        "transaction_id": pid_value.get("transaction_id"),
+                        "pid": None,
+                        "pgid": None,
+                        "sid": None,
+                        "process_alive": False,
+                        "listener_owned": False,
+                        "reconciliation": reconciliation,
+                    }
+                )
+                return data
         raise ControllerError(
             "ACTIVE_STATE_INCONSISTENT",
             "recorded active process identity does not match the live process",

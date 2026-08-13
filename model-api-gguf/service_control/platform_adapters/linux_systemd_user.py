@@ -727,7 +727,7 @@ class SystemdUserManager:
         return self._run(["daemon-reload"])
 
     def enable(self) -> dict[str, Any]:
-        return self._run(["enable", self.service_name])
+        return self._run(["enable", "--no-reload", self.service_name])
 
     def disable(self) -> dict[str, Any]:
         return self._run(["disable", self.service_name])
@@ -1591,6 +1591,140 @@ class LinuxSystemdUserServiceAdapter:
             },
         )
 
+    def _reconcile_registered(
+        self,
+        *,
+        profile_path: Path | str,
+        state_path: Path | str,
+        supervisor_runtime_root: Path | str,
+        supervisor_entrypoint: Path | str,
+    ) -> dict[str, Any]:
+        old_manifest, _old_profile, _old_desired, _old_unit = (
+            self._load_manifest(
+                allow_stale_configuration_for_inactive_removal=True
+            )
+        )
+        config, profile, desired, unit = self._render_configuration(
+            profile_path=profile_path,
+            state_path=state_path,
+            supervisor_runtime_root=supervisor_runtime_root,
+            supervisor_entrypoint=supervisor_entrypoint,
+        )
+        if desired.desired_state != "STOPPED":
+            _fail(
+                "DESIRED_STATE_PROFILE_MISMATCH",
+                "registration reconciliation requires desired state STOPPED",
+            )
+        old_reference = old_manifest["configuration_reference"]
+        if old_reference != config["configuration_reference"]:
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "registered adapter references a different production configuration",
+            )
+        old_native = old_manifest["native_service"]
+        if (
+            old_native.get("service_name") != SERVICE_NAME
+            or old_native.get("registration_path") != str(self.unit_path)
+        ):
+            _fail(
+                "SERVICE_NAME_COLLISION",
+                "registered adapter ownership does not match the selected service",
+            )
+        metadata = self.unit_path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            _fail(
+                "FOREIGN_SERVICE_DEFINITION",
+                "registered native service definition is not private and user-owned",
+            )
+        before = self.manager.status()
+        if (
+            not before.get("registered")
+            or before.get("active")
+            or before.get("active_state")
+            in {"activating", "deactivating", "reloading", "auto-restart"}
+        ):
+            _fail(
+                "MANAGER_STATE_MISMATCH",
+                "registered service must be inactive before reconciliation",
+                data={"manager_status": before},
+            )
+        self._prepare_runtime()
+        _atomic_write(self.unit_path, unit)
+        verify = self.manager.verify_unit()
+        reload_result = self.manager.daemon_reload()
+        after = self.manager.status()
+        if (
+            not after.get("registered")
+            or after.get("active")
+            or after.get("fragment_path") != str(self.unit_path)
+            or bool(after.get("enabled")) != bool(before.get("enabled"))
+        ):
+            _fail(
+                "MANAGER_STATE_MISMATCH",
+                "registration reconciliation did not preserve inactive enablement state",
+                data={"manager_before": before, "manager_after": after},
+            )
+        timestamp = utc_now()
+        manifest = dict(old_manifest)
+        manifest.update(
+            {
+                "supervisor_entrypoint": config["supervisor_entrypoint"],
+                "configuration_reference": config[
+                    "configuration_reference"
+                ],
+                "configuration_identity": config[
+                    "configuration_identity"
+                ],
+                "registered": True,
+                "enabled": bool(after.get("enabled")),
+                "active": False,
+                "manifest_generation": int(
+                    old_manifest["manifest_generation"]
+                )
+                + 1,
+                "updated_utc": timestamp,
+                "last_activation_result": None,
+                "last_failure_reason": None,
+                "native_service": config["native_service"],
+            }
+        )
+        _atomic_json(self.paths.manifest, manifest)
+        identity, supervisor_status, manager = self._correlate(manifest)
+        status = self._status_value(
+            manifest,
+            profile,
+            desired,
+            identity,
+            supervisor_status,
+            manager,
+        )
+        result = self._result(
+            "register",
+            manifest,
+            profile,
+            desired,
+            manager,
+            message=(
+                "existing systemd user service reconciled without activation"
+            ),
+            data={
+                "status": status,
+                "unit_verify": verify,
+                "daemon_reload": reload_result,
+                "process_started": False,
+                "reconciled_existing_registration": True,
+            },
+        )
+        transaction_id = self._record_transaction(
+            "register", before=before, after=manager, result=result
+        )
+        result["data"]["adapter_transaction_id"] = transaction_id
+        return result
+
     def register(
         self,
         *,
@@ -1600,9 +1734,11 @@ class LinuxSystemdUserServiceAdapter:
         supervisor_entrypoint: Path | str,
     ) -> dict[str, Any]:
         if self._manifest_exists():
-            _fail(
-                "ADAPTER_ALREADY_REGISTERED",
-                "systemd user adapter is already registered",
+            return self._reconcile_registered(
+                profile_path=profile_path,
+                state_path=state_path,
+                supervisor_runtime_root=supervisor_runtime_root,
+                supervisor_entrypoint=supervisor_entrypoint,
             )
         config, profile, desired, unit = self._render_configuration(
             profile_path=profile_path,
@@ -1886,7 +2022,9 @@ class LinuxSystemdUserServiceAdapter:
         expected_generation: int | None = None,
         wait_timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        manifest, profile, desired, _unit = self._load_manifest()
+        manifest, profile, desired, _unit = self._load_manifest(
+            allow_stale_configuration_for_inactive_removal=True
+        )
         _identity, _supervisor_status, before = self._correlate(manifest)
         if desired.desired_state == "RUNNING":
             try:

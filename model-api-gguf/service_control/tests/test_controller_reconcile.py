@@ -172,6 +172,75 @@ class ApiControllerReconcileTests(unittest.TestCase):
                 result["reconciliation"]["unrelated_process_signaled"]
             )
 
+    def test_plan_reconciles_stale_records_before_new_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = api_paths(Path(temporary))
+            api_records(paths)
+            values = {
+                "host": "127.0.0.1",
+                "port": 49801,
+                "private_backend_enabled": False,
+            }
+            with (
+                mock.patch.object(api, "validate_dependency", return_value={}),
+                mock.patch.object(
+                    api, "validate_runtime_layout", return_value=None
+                ),
+                mock.patch.object(
+                    api, "identity_matches", return_value=(False, None)
+                ),
+                mock.patch.object(
+                    api, "matching_recorded_processes", return_value=[]
+                ),
+                mock.patch.object(
+                    api, "endpoint_listener_owners", return_value=[]
+                ),
+                mock.patch.object(
+                    api, "validated_input", return_value=values
+                ),
+                mock.patch.object(api, "build_plan", return_value={}),
+                mock.patch.object(
+                    api, "endpoint_available", return_value=True
+                ),
+            ):
+                result = api.operation_plan(paths, mock.Mock())
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["operation"], "plan")
+            self.assertFalse(paths["active_pid"].exists())
+            self.assertFalse(paths["active_lock"].exists())
+
+    def test_stop_reconciles_records_after_owned_process_exits(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = api_paths(Path(temporary))
+            transaction_id = api_records(paths)
+            with (
+                mock.patch.object(api, "validate_dependency", return_value={}),
+                mock.patch.object(
+                    api, "validate_runtime_layout", return_value=None
+                ),
+                mock.patch.object(
+                    api, "identity_matches", return_value=(False, None)
+                ),
+                mock.patch.object(
+                    api, "matching_recorded_processes", return_value=[]
+                ),
+                mock.patch.object(
+                    api, "endpoint_listener_owners", return_value=[]
+                ),
+                mock.patch.object(api.os, "killpg") as killpg,
+            ):
+                result = api.operation_stop(paths)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["operation"], "stop")
+            self.assertEqual(result["reason_code"], "API_STATE_STALE")
+            self.assertEqual(
+                result["runtime"]["transaction_id"], transaction_id
+            )
+            self.assertFalse(paths["active_pid"].exists())
+            self.assertFalse(paths["active_lock"].exists())
+            self.assertFalse(result["cleanup"]["unrelated_process_signaled"])
+            killpg.assert_not_called()
+
     def test_pid_reuse_and_foreign_endpoint_fail_closed(self) -> None:
         for reused, foreign, expected in (
             (
@@ -265,6 +334,44 @@ class ApiControllerReconcileTests(unittest.TestCase):
 
 
 class BranchControllerReconcileTests(unittest.TestCase):
+    def test_status_reconciles_dead_owned_record_without_signal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = branch_paths(Path(temporary))
+            state = branch_records(paths)
+            patches = (
+                mock.patch.object(
+                    branch, "validate_layout", return_value=paths
+                ),
+                mock.patch.object(
+                    branch,
+                    "ownership_predicates",
+                    return_value={"all_match": False, "process_alive": False},
+                ),
+                mock.patch.object(
+                    branch, "matching_recorded_processes", return_value=[]
+                ),
+                mock.patch.object(
+                    branch, "endpoint_listener_owners", return_value=[]
+                ),
+            )
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patches[3],
+                mock.patch.object(branch.os, "killpg") as killpg,
+            ):
+                result = branch.status_operation(paths)
+            self.assertFalse(result["active"])
+            self.assertTrue(result["active_state_consistent"])
+            self.assertEqual(result["lifecycle_state"], "RECONCILED")
+            self.assertEqual(
+                result["reconciliation"]["reason_code"], "ROUTER_STATE_STALE"
+            )
+            self.assertFalse(state["pid_path"].exists())
+            self.assertFalse(state["lock_path"].exists())
+            killpg.assert_not_called()
+
     def test_stale_router_records_and_pid_reuse(self) -> None:
         for alive, expected in (
             (False, "ROUTER_STATE_STALE"),
@@ -336,6 +443,37 @@ class BranchControllerReconcileTests(unittest.TestCase):
             )
         finally:
             listener.close()
+
+
+class EndpointReuseProbeTests(unittest.TestCase):
+    def test_api_endpoint_probe_allows_owned_time_wait_reuse(self) -> None:
+        probe = mock.Mock()
+        with mock.patch.object(api.socket, "socket", return_value=probe):
+            self.assertTrue(api.endpoint_available("127.0.0.1", 49802))
+        probe.setsockopt.assert_called_once_with(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1
+        )
+
+    def test_branch_endpoint_probe_allows_owned_time_wait_reuse(self) -> None:
+        probe = mock.Mock()
+        addresses = [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                ("127.0.0.1", 49803),
+            )
+        ]
+        with (
+            mock.patch.object(branch.socket, "getaddrinfo", return_value=addresses),
+            mock.patch.object(branch.socket, "socket", return_value=probe),
+        ):
+            result = branch.endpoint_probe("127.0.0.1", 49803)
+        self.assertEqual(result["port"], 49803)
+        probe.setsockopt.assert_called_once_with(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1
+        )
 
 
 if __name__ == "__main__":

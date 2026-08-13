@@ -1094,3 +1094,103 @@ class ReadinessAndPrivacyTests(unittest.TestCase):
             warm_identity=public,
         )
         self.assertTrue(response.ready)
+
+
+class RouterShutdownReconciliationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_shutdown_reconciles_lost_router_status_before_stopping(self) -> None:
+        identity = RouterIdentity("router-tx", 100, 100, 100, "start")
+        calls: list[str] = []
+
+        def response(
+            operation: str,
+            *,
+            ok: bool,
+            reason_code: str,
+            data: dict[str, object],
+            exit_status: int,
+        ) -> ControllerResult:
+            return ControllerResult(
+                operation=operation,
+                ok=ok,
+                reason_code=reason_code,
+                message="fixture",
+                data=data,
+                stderr="",
+                exit_status=exit_status,
+            )
+
+        class ShutdownController:
+            async def status(self) -> ControllerResult:
+                calls.append("status")
+                if calls.count("status") == 1:
+                    return response(
+                        "status",
+                        ok=False,
+                        reason_code="PRIVATE_LISTENER_LOST",
+                        data={
+                            "active": True,
+                            "transaction_id": identity.transaction_id,
+                            "pid": identity.pid,
+                            "pgid": identity.pgid,
+                            "sid": identity.sid,
+                            "launch_mode": "router",
+                        },
+                        exit_status=3,
+                    )
+                return response(
+                    "status",
+                    ok=True,
+                    reason_code="OK",
+                    data={
+                        "active": False,
+                        "active_state_consistent": True,
+                    },
+                    exit_status=0,
+                )
+
+            async def reconcile(self) -> ControllerResult:
+                calls.append("reconcile")
+                return response(
+                    "reconcile",
+                    ok=True,
+                    reason_code="PRIVATE_LISTENER_LOST",
+                    data={
+                        "active": True,
+                        "active_state_consistent": False,
+                        "transaction_id": identity.transaction_id,
+                        "pid": identity.pid,
+                        "pgid": identity.pgid,
+                        "sid": identity.sid,
+                        "launch_mode": "router",
+                    },
+                    exit_status=0,
+                )
+
+            async def stop(self) -> ControllerResult:
+                calls.append("stop")
+                return response(
+                    "stop",
+                    ok=True,
+                    reason_code="OK",
+                    data={
+                        "owned_group_absent": True,
+                        "active_pid_record_removed": True,
+                        "active_lock_removed": True,
+                    },
+                    exit_status=0,
+                )
+
+        backend = object.__new__(BackendCoordinator)
+        backend.settings = SimpleNamespace(private_backend_enabled=True)
+        backend.controller = ShutdownController()
+        backend.router = None
+        backend.identity = identity
+        backend._router_ready = True
+        backend._loaded_by_transaction = set()
+        backend._warm_model_id = None
+
+        await backend._stop_exact_router()
+
+        self.assertEqual(calls, ["status", "reconcile", "stop", "status"])
+        self.assertIsNone(backend.identity)
+        self.assertFalse(backend._router_ready)
