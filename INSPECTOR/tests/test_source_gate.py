@@ -130,7 +130,7 @@ class SourceGateTest(unittest.TestCase):
         )
 
     def test_source_freeze_manifest_is_deterministic(self) -> None:
-        self.assertFalse((self.root / "environment.lock.json").exists())
+        self.assertTrue((self.root / "environment.lock.json").is_file())
         self.assertTrue(all(path.is_file() for path in self.all_sources))
         manifest = [
             {
