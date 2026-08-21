@@ -195,6 +195,18 @@ class SelectedAdapterCase(unittest.TestCase):
     def register(self) -> dict:
         return self.adapter.register(**self.configuration())
 
+    def test_root_registration_handoffs_generated_user_files(self) -> None:
+        if Path.home().stat().st_uid == 0:
+            self.skipTest("root-owned home cannot model a non-root repository user")
+        with mock.patch.object(selected.os, "geteuid", return_value=0):
+            self.adapter._prepare_runtime()
+            selected._atomic_write(self.unit_path, b"[Unit]\n")
+        owner = Path.home().stat()
+        self.assertEqual(self.unit_path.parent.stat().st_uid, owner.st_uid)
+        self.assertEqual(self.unit_path.parent.stat().st_gid, owner.st_gid)
+        self.assertEqual(self.unit_path.stat().st_uid, owner.st_uid)
+        self.assertEqual(self.unit_path.stat().st_gid, owner.st_gid)
+
     def manifest(self) -> dict:
         return json.loads(
             self.adapter.paths.manifest.read_text(encoding="utf-8")
@@ -447,6 +459,45 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
             current_manifest["native_service"]["api_controller"]["sha256"],
             selected.API_CONTROLLER_SHA256,
         )
+
+
+    def test_existing_owned_unit_without_manifest_is_reconciled(self) -> None:
+        old_root = self.root / "canonical-system-x"
+        old_model = old_root / "model-api-gguf"
+        old_unit = selected.render_unit(
+            interpreter=str(selected.PYTHON),
+            supervisor_entrypoint=str(old_model / "service_control/supervisor.py"),
+            profile_path=str(old_model / "RUNTIME/service_control/operating-profile.json"),
+            state_path=str(old_model / "RUNTIME/service_control/desired-state.json"),
+            supervisor_runtime_root=str(old_model / "RUNTIME/service_control"),
+            api_controller=str(old_model / "api_service_controller/controller.py"),
+            branch_controller=str(old_model / "branch_controller/controller.py"),
+            api_controller_sha256=selected.API_CONTROLLER_SHA256,
+            branch_controller_sha256=selected.BRANCH_CONTROLLER_SHA256,
+            timeout_stop_seconds=20,
+        )
+        old_unit = old_unit.replace(str(selected.BRANCH_ROOT), str(old_model))
+        self.unit_path.parent.mkdir(parents=True)
+        self.unit_path.write_text(old_unit, encoding="utf-8")
+        self.unit_path.chmod(0o600)
+        self.manager.registered = True
+        self.manager.enabled = True
+        self.manager.active = True
+        self.manager.main_pid = 731
+
+        result = self.register()
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["registered"])
+        self.assertTrue(result["enabled"])
+        self.assertFalse(result["active"])
+        self.assertTrue(result["data"]["reconciled_existing_registration"])
+        self.assertEqual(self.manager.stop_calls, 1)
+        self.assertEqual(self.manager.start_calls, 0)
+        current_unit = self.unit_path.read_text(encoding="utf-8")
+        self.assertIn(str(self.profile_path), current_unit)
+        self.assertNotIn(str(old_model), current_unit)
+        self.assertTrue(self.adapter.paths.manifest.is_file())
 
     def test_registration_collision_and_symlink_fail_closed(self) -> None:
         self.unit_path.parent.mkdir(parents=True)
@@ -735,6 +786,44 @@ class CorrelationAndNegativeTests(SelectedAdapterCase):
 
 
 class StaticIsolationTests(unittest.TestCase):
+
+    def test_missing_user_config_directory_is_creatable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            home.mkdir()
+            unit_path = home / ".config/systemd/user" / selected.SERVICE_NAME
+            manager = selected.SystemdUserManager(unit_path=unit_path)
+            with mock.patch.object(selected.Path, "home", return_value=home):
+                with mock.patch.object(
+                    manager,
+                    "_run",
+                    return_value={"exit_status": 0, "stdout": "running\n"},
+                ):
+                    capability = manager.capability()
+            self.assertTrue(capability["available"])
+            self.assertTrue(
+                capability["checks"]["user_unit_registration"]
+            )
+            self.assertFalse((home / ".config").exists())
+
+    def test_prepare_runtime_creates_missing_user_unit_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            unit_path = root / ".config/systemd/user" / selected.SERVICE_NAME
+            adapter_runtime = root / "adapter-runtime"
+            adapter = selected.LinuxSystemdUserServiceAdapter(
+                adapter_runtime,
+                manager=FakeManager(unit_path),
+            )
+            self.assertFalse(unit_path.parent.exists())
+            adapter._prepare_runtime()
+            self.assertTrue(unit_path.parent.is_dir())
+            self.assertEqual(
+                unit_path.parent.stat().st_mode & 0o777,
+                0o700,
+            )
+            self.assertFalse(unit_path.exists())
+
     def test_platform_logic_is_isolated_and_no_direct_runtime_bypass(
         self,
     ) -> None:

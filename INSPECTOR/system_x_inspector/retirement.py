@@ -27,7 +27,7 @@ from .constants import (
 from .errors import InspectorError
 from .locking import TransactionLock, inspect_active_lock
 from .paths import BranchHandoffPaths, InspectorPaths
-from .qualification import restore_with_accepted_platform_manager
+from .qualification import recover_with_accepted_platform_manager
 from .records import (
     atomic_create_json,
     canonical_json_bytes,
@@ -649,7 +649,7 @@ class CurrentSourceRetirementAdapter:
         self,
         paths: InspectorPaths,
         *,
-        observation_attempts: int = 60,
+        observation_attempts: int = 2400,
         observation_interval_seconds: float = 0.1,
     ) -> None:
         self.paths = paths
@@ -669,7 +669,7 @@ class CurrentSourceRetirementAdapter:
         )
         if (
             type(observation_attempts) is not int
-            or not 1 <= observation_attempts <= 600
+            or not 1 <= observation_attempts <= 2400
             or type(observation_interval_seconds) not in {int, float}
             or not 0.0 <= float(observation_interval_seconds) <= 2.0
         ):
@@ -890,16 +890,111 @@ class CurrentSourceRetirementAdapter:
     def activity_snapshot(
         self, target: RetirementTarget
     ) -> dict[str, Any]:
-        # Current source owns exact in-process counters, but the accepted live
-        # process predates this local retirement surface.  Fail closed for a
-        # mutating production call; the required live REJECT is ordered before
-        # this fence and isolated current-source fixtures prove the full path.
+        profile = read_json_record(
+            self.branch.branch_root
+            / "RUNTIME"
+            / "service_control"
+            / "operating-profile.json"
+        )
+        public = profile.get("public_endpoint")
+        if not isinstance(public, dict):
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "target_public_model_id": target.public_model_id,
+            }
+        host = public.get("host")
+        port = public.get("port")
+        if host != "127.0.0.1" or type(port) is not int:
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "target_public_model_id": target.public_model_id,
+            }
+        try:
+            credential = read_local_credential(self.branch.branch_root)
+            credential_key_id = credential.key_id
+            connection = http.client.HTTPConnection(
+                host, port, timeout=5.0
+            )
+            try:
+                connection.request(
+                    "GET",
+                    "/system/v1/metrics",
+                    headers={
+                        "Accept": "application/json",
+                        "Authorization": "Bearer " + credential.raw,
+                        "Connection": "close",
+                    },
+                )
+                response = connection.getresponse()
+                raw = response.read(MAX_CONTROL_JSON_BYTES + 1)
+                status_code = response.status
+                request_id = response.getheader(
+                    "X-System-X-Request-ID"
+                )
+            finally:
+                connection.close()
+                credential = None
+        except (
+            InspectorError,
+            KeyError,
+            OSError,
+            TypeError,
+            ValueError,
+            http.client.HTTPException,
+        ):
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "target_public_model_id": target.public_model_id,
+            }
+        if len(raw) > MAX_CONTROL_JSON_BYTES or status_code != 200:
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "metrics_http_status": status_code,
+                "metrics_request_id": request_id,
+                "target_public_model_id": target.public_model_id,
+            }
+        try:
+            value = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "metrics_http_status": status_code,
+                "metrics_request_id": request_id,
+                "target_public_model_id": target.public_model_id,
+            }
+        if not isinstance(value, dict):
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "metrics_http_status": status_code,
+                "metrics_request_id": request_id,
+                "target_public_model_id": target.public_model_id,
+            }
+        active = value.get("active_operations")
+        if type(active) is not int or active < 0:
+            return {
+                "available": False,
+                "reason_code": "RETIREMENT_ACTIVITY_METRICS_UNAVAILABLE",
+                "metrics_http_status": status_code,
+                "metrics_request_id": request_id,
+                "target_public_model_id": target.public_model_id,
+            }
         return {
-            "available": False,
-            "active_requests": None,
-            "active_streams": None,
-            "nonterminal_operations": None,
+            "available": True,
+            "active_requests": active,
+            "active_streams": active,
+            "nonterminal_operations": active,
             "target_public_model_id": target.public_model_id,
+            "metrics_contract": value.get("contract"),
+            "metrics_active_operations": active,
+            "metrics_http_status": status_code,
+            "metrics_request_id": request_id,
+            "key_id": credential_key_id,
         }
 
     def _alias_transaction(
@@ -1091,13 +1186,20 @@ class CurrentSourceRetirementAdapter:
     def observe_service(
         self, target: RetirementTarget, *, last_model: bool
     ) -> dict[str, Any]:
-        value = _bounded_health(self.branch.branch_root)
-        return {
-            **value,
-            "exact": self._service_exact(
+        for attempt in range(1, self.observation_attempts + 1):
+            value = _bounded_health(self.branch.branch_root)
+            exact = self._service_exact(
                 value, target, last_model=last_model
-            ),
-        }
+            )
+            if exact or attempt == self.observation_attempts:
+                return {
+                    **value,
+                    "exact": exact,
+                    "observation_attempts": attempt,
+                }
+            if self.observation_interval_seconds:
+                time.sleep(self.observation_interval_seconds)
+        raise AssertionError("unreachable")
 
     def recover(
         self,
@@ -1155,7 +1257,7 @@ class CurrentSourceRetirementAdapter:
                 "ownership_certain": True,
             }
         if level == "L4_PLATFORM_MANAGER_RESTART":
-            result = restore_with_accepted_platform_manager(
+            result = recover_with_accepted_platform_manager(
                 self.branch.branch_root
             )
             return {
@@ -1274,10 +1376,180 @@ class CurrentSourceRetirementAdapter:
             ),
         }
 
+    def _authenticated_model_detail(
+        self, target: RetirementTarget
+    ) -> dict[str, Any]:
+        replacement = target.replacement or {}
+        replacement_model_id = replacement.get("public_model_id")
+        if (
+            not isinstance(replacement_model_id, str)
+            or not replacement_model_id
+            or any(
+                ord(character) < 0x21
+                or character in "/?#%"
+                for character in replacement_model_id
+            )
+        ):
+            raise _retirement_error(
+                "RETIREMENT_RECOVERY_FAILED",
+                "replacement public model identity is absent or unsafe",
+            )
+        profile = read_json_record(
+            self.branch.branch_root
+            / "RUNTIME"
+            / "service_control"
+            / "operating-profile.json"
+        )
+        public = profile["public_endpoint"]
+        credential = read_local_credential(self.branch.branch_root)
+        request_path = "/system/v1/models/" + replacement_model_id
+        connection = http.client.HTTPConnection(
+            public["host"], public["port"], timeout=30.0
+        )
+        try:
+            connection.request(
+                "GET",
+                request_path,
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": "Bearer " + credential.raw,
+                    "Connection": "close",
+                },
+            )
+            response = connection.getresponse()
+            raw = response.read(1024 * 1024 + 1)
+            status_code = response.status
+            request_id = response.getheader("X-System-X-Request-ID")
+        except (OSError, http.client.HTTPException) as error:
+            raise _retirement_error(
+                "RETIREMENT_RECOVERY_FAILED",
+                "replacement model detail observation failed",
+            ) from error
+        finally:
+            connection.close()
+        if len(raw) > 1024 * 1024:
+            raise _retirement_error(
+                "RETIREMENT_RECOVERY_FAILED",
+                "replacement model detail exceeded its bound",
+            )
+        try:
+            value = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise _retirement_error(
+                "RETIREMENT_RECOVERY_FAILED",
+                "replacement model detail is invalid JSON",
+            ) from error
+        model = value.get("model") if isinstance(value, dict) else None
+        passed = bool(
+            status_code == 200
+            and isinstance(value, dict)
+            and value.get("object") == "system_x.model"
+            and isinstance(model, dict)
+            and model.get("public_model_id") == replacement_model_id
+            and model.get("resolved_model_id") == replacement_model_id
+            and model.get("state") == "ready"
+        )
+        if not passed:
+            raise _retirement_error(
+                "RETIREMENT_RECOVERY_FAILED",
+                "replacement model detail did not match",
+            )
+        return {
+            "passed": True,
+            "request_id": request_id,
+            "http_status": status_code,
+            "http_method": "GET",
+            "http_path": request_path,
+            "response_model_match": True,
+            "bounded_content_present": True,
+            "credential_key_id": credential.key_id,
+            "reason_code": "MODEL_DETAIL_OK",
+        }
+
+    def _restored_registry_observation(
+        self, target: RetirementTarget
+    ) -> dict[str, Any]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT mv.state,mv.bundle_id,mvl.relative_root,
+                       al.present,al.current_bundle_id
+                FROM model_versions AS mv
+                JOIN model_version_locations AS mvl
+                  ON mvl.model_version_id=mv.model_version_id
+                JOIN artifact_locations AS al
+                  ON al.relative_root=mvl.relative_root
+                WHERE mv.model_version_id=?
+                """,
+                (target.public_model_id,),
+            ).fetchone()
+            catalogue = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM model_versions AS mv
+                JOIN model_version_locations AS mvl
+                  ON mvl.model_version_id=mv.model_version_id
+                JOIN artifact_locations AS al
+                  ON al.relative_root=mvl.relative_root
+                WHERE mv.model_version_id=?
+                  AND mv.state='READY' AND al.present=1
+                """,
+                (target.public_model_id,),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        if row is None:
+            return {
+                "proved": False,
+                "subject_present": False,
+                "reason_code": "RESTORED_REGISTRY_SUBJECT_ABSENT",
+            }
+        state = str(row["state"])
+        location_present = int(row["present"]) == 1
+        bundle_match = (
+            str(row["bundle_id"]) == target.artifact_identity
+            and str(row["current_bundle_id"]) == target.artifact_identity
+        )
+        relative_root_match = (
+            str(row["relative_root"]) == target.relative_root
+        )
+        catalogue_present = int(catalogue) == 1
+        catalogue_coherent = (
+            catalogue_present if state == "READY" else not catalogue_present
+        )
+        present_state = state in {
+            "REGISTERED",
+            "PROBING",
+            "READY",
+            "UNAVAILABLE",
+        }
+        return {
+            "proved": bool(
+                present_state
+                and location_present
+                and bundle_match
+                and relative_root_match
+                and catalogue_coherent
+            ),
+            "subject_present": True,
+            "model_state": state,
+            "location_present": location_present,
+            "bundle_identity_match": bundle_match,
+            "relative_root_match": relative_root_match,
+            "catalogue_present": catalogue_present,
+            "catalogue_coherent": catalogue_coherent,
+            "reason_code": (
+                "RESTORED_REGISTRY_PRESENT"
+                if present_state and location_present
+                else "RESTORED_REGISTRY_NOT_PRESENT"
+            ),
+        }
+
     def later_request(
         self, target: RetirementTarget
     ) -> dict[str, Any]:
-        return self._authenticated_request(target, expect_waiting=False)
+        return self._authenticated_model_detail(target)
 
     def waiting_proof(
         self, target: RetirementTarget
@@ -1297,7 +1569,24 @@ class CurrentSourceRetirementAdapter:
         }
 
     def on_restored(self, target: RetirementTarget) -> None:
-        return None
+        try:
+            observation = self._restored_registry_observation(target)
+        except (InspectorError, OSError, sqlite3.Error):
+            observation = None
+        if (
+            isinstance(observation, dict)
+            and observation.get("proved") is True
+        ):
+            return None
+        result = recover_with_accepted_platform_manager(
+            self.branch.branch_root
+        )
+        if not isinstance(result, dict) or result.get("used") is not True:
+            raise _retirement_error(
+                "RETIREMENT_RESTORATION_FAILED",
+                "accepted manager did not reconcile restored registry",
+                internal=True,
+            )
 
     def restore_default(
         self,
@@ -1342,17 +1631,63 @@ class CurrentSourceRetirementAdapter:
     def observe_restored(
         self, target: RetirementTarget
     ) -> dict[str, Any]:
-        value = _bounded_health(self.branch.branch_root)
-        warm = value.get("warm")
-        proved = bool(
-            value.get("service_readiness") == "READY"
-            and value.get("recovery_state") == "IDLE"
-            and value.get("default_target") == target.public_model_id
-            and isinstance(warm, dict)
-            and warm.get("resolved_public_model_id")
-            == target.public_model_id
+        expected_default = (
+            target.public_model_id
+            if target.is_default
+            else target.default_target
         )
-        return {**value, "proved": proved}
+        for attempt in range(1, self.observation_attempts + 1):
+            try:
+                registry = self._restored_registry_observation(target)
+            except (InspectorError, OSError, sqlite3.Error):
+                registry = {
+                    "proved": False,
+                    "subject_present": False,
+                    "reason_code": (
+                        "RESTORED_REGISTRY_OBSERVATION_UNAVAILABLE"
+                    ),
+                }
+            try:
+                value = _bounded_health(self.branch.branch_root)
+            except (
+                InspectorError,
+                KeyError,
+                OSError,
+                TypeError,
+                ValueError,
+                http.client.HTTPException,
+            ):
+                value = {
+                    "http_status": None,
+                    "service_readiness": None,
+                    "recovery_state": None,
+                    "default_target": None,
+                    "warm": None,
+                    "reason_code": "RESTORED_HEALTH_OBSERVATION_UNAVAILABLE",
+                }
+            warm = value.get("warm")
+            service_proved = bool(
+                isinstance(expected_default, str)
+                and expected_default
+                and value.get("service_readiness") == "READY"
+                and value.get("recovery_state") == "IDLE"
+                and value.get("default_target") == expected_default
+                and isinstance(warm, dict)
+                and warm.get("resolved_public_model_id") == expected_default
+            )
+            proved = bool(registry.get("proved") is True and service_proved)
+            if proved or attempt == self.observation_attempts:
+                return {
+                    **value,
+                    "proved": proved,
+                    "expected_default_target": expected_default,
+                    "registry_restoration": registry,
+                    "service_proved": service_proved,
+                    "observation_attempts": attempt,
+                }
+            if self.observation_interval_seconds:
+                time.sleep(self.observation_interval_seconds)
+        raise AssertionError("unreachable")
 
     def checkpoint(self, state: str) -> None:
         return None

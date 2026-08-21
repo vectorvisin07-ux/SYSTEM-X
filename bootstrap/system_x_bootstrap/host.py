@@ -282,5 +282,19 @@ def python_ready(inspection: Mapping[str, Any]) -> bool:
     )
 
 
+def python_capability_state(inspection: Mapping[str, Any], planned_package_names: set[str] | frozenset[str] = frozenset()) -> str:
+    """Classify Python prerequisites before host mutation without false blocking."""
+    python = inspection.get("python", {})
+    if python_ready(inspection):
+        return "SATISFIED"
+    if python.get("present") and python.get("version", [])[:2] != [3, 14]:
+        return "UNSUPPORTED"
+    if python.get("present") and python.get("version", [])[:2] == [3, 14]:
+        return "MISSING_INSTALLABLE"
+    if "python3.14" in planned_package_names or "python3.14-venv" in planned_package_names:
+        return "MISSING_INSTALLABLE"
+    return "UNSUPPORTED"
+
+
 def cuda_toolkit_ready(inspection: Mapping[str, Any]) -> bool:
     return inspection.get("tools", {}).get("nvcc", {}).get("major_minor") == "13.3"

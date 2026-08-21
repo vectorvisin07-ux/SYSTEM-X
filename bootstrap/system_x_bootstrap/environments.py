@@ -150,7 +150,7 @@ def _verify_imports(
         "assert site.ENABLE_USER_SITE is False;"
         "print(json.dumps({'imports':'passed','python':list(sys.version_info[:3])}))"
     )
-    flags = ("-B", "-I", "-S") if not environment.get("artifacts") else ("-B", "-I", "-s")
+    flags = ("-B", "-I", "-s")
     require_success(
         runner((str(python), *flags, "-c", script), timeout=120),
         purpose="private environment post-install import proof failed",

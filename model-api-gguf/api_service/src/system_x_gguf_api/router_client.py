@@ -658,18 +658,22 @@ class RouterClient:
     async def health(self) -> RouterObservation:
         return await self._request("GET", "/health")
 
-    def _contained_path(self, supplied: str) -> str:
+    def _contained_path(self, supplied: str, *, strict: bool = True) -> str:
         candidate = Path(supplied)
         if not candidate.is_absolute():
             candidate = self._models_root / candidate
         if candidate.is_symlink():
             raise ValueError("model path is a symlink")
-        canonical = candidate.resolve(strict=True)
+        canonical = candidate.resolve(strict=strict)
         canonical.relative_to(self._models_root)
         return str(canonical)
 
     def _entry_paths(
-        self, entry: dict[str, Any], status_object: dict[str, Any]
+        self,
+        entry: dict[str, Any],
+        status_object: dict[str, Any],
+        *,
+        allow_missing: bool = False,
     ) -> tuple[str | None, tuple[str, ...]]:
         supplied: list[str] = []
         top_level = entry.get("path")
@@ -713,7 +717,12 @@ class RouterClient:
                         supplied.append(normalized_value)
         connected = []
         for value in supplied:
-            canonical = self._contained_path(value)
+            try:
+                canonical = self._contained_path(value)
+            except FileNotFoundError:
+                if not allow_missing:
+                    raise
+                canonical = self._contained_path(value, strict=False)
             if canonical not in connected:
                 connected.append(canonical)
         return (
@@ -783,7 +792,9 @@ class RouterClient:
                 ):
                     raise ValueError("model source is invalid")
                 physical_path, connected_paths = self._entry_paths(
-                    entry, status_object
+                    entry,
+                    status_object,
+                    allow_missing=upstream_status == "unloaded",
                 )
                 input_modalities, output_modalities = self._modalities(
                     entry.get("architecture")

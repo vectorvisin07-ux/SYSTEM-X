@@ -13,7 +13,7 @@ from typing import Any, Mapping
 from .command import Runner, SubprocessRunner
 from .config import canonical_json_bytes
 from .errors import BootstrapError, ErrorCode
-from .paths import RepositoryPaths, resolve_contained
+from .paths import RepositoryPaths, resolve_contained, validate_relative_path
 from .transaction import BootstrapTransaction
 
 
@@ -75,13 +75,41 @@ def credential_status(paths: RepositoryPaths, contract: Mapping[str, Any]) -> di
     return {"state": state, "physical": physical, "key_id": marker.get("key_id") if expected_marker else None}
 
 
+def _credential_python(paths: RepositoryPaths, contract: Mapping[str, Any]) -> Path:
+    relative = validate_relative_path(contract["python_environment"])
+    candidate = paths.root.joinpath(*relative.parts)
+    resolve_contained(paths.root, str(relative.parent), allow_missing=False)
+    if not candidate.is_file():
+        raise BootstrapError(
+            ErrorCode.PATH_UNSAFE,
+            "credential interpreter is not a regular file",
+            context={"path": contract["python_environment"]},
+        )
+    if candidate.is_symlink():
+        try:
+            target = candidate.resolve(strict=True)
+        except OSError as exc:
+            raise BootstrapError(
+                ErrorCode.PATH_UNSAFE,
+                "credential interpreter symlink target is unavailable",
+                context={"path": contract["python_environment"]},
+            ) from exc
+        if target != Path("/usr/bin/python3.14"):
+            raise BootstrapError(
+                ErrorCode.PATH_UNSAFE,
+                "credential interpreter symlink target is not the pinned CPython 3.14 executable",
+                context={"path": contract["python_environment"], "target": str(target)},
+            )
+    return candidate
+
+
 def _credential_command(
     paths: RepositoryPaths,
     contract: Mapping[str, Any],
     operation: tuple[str, ...],
     runner: Runner,
 ) -> dict[str, Any]:
-    python = resolve_contained(paths.root, contract["python_environment"], allow_missing=False)
+    python = _credential_python(paths, contract)
     source = resolve_contained(paths.root, contract["source_root"], allow_missing=False)
     script = (
         "import runpy,sys;"

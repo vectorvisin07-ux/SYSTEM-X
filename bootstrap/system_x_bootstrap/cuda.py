@@ -14,6 +14,8 @@ from typing import Any, Callable, Mapping, Sequence
 from .command import Runner, require_success
 from .errors import BootstrapError, ErrorCode
 
+CUDA_KEYRING_PATH = Path("/usr/share/keyrings/cuda-archive-keyring.gpg")
+
 
 def forbidden_package(name: str, patterns: Sequence[str]) -> bool:
     base = name.split(":", 1)[0]
@@ -67,6 +69,6 @@ def configure_official_cuda_source(cuda_lock: Mapping[str, Any], runner: Runner)
             runner(("dpkg", "--install", str(package_path)), timeout=120),
             purpose="pinned CUDA repository keyring installation failed",
         )
-    keyring_path = Path("/usr/share/keyrings/cuda-wsl-ubuntu-keyring.gpg")
+    keyring_path = CUDA_KEYRING_PATH
     if not keyring_path.is_file():
         raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "CUDA repository keyring was not installed")

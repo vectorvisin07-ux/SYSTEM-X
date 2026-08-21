@@ -22,7 +22,7 @@ class FoundationTest(unittest.TestCase):
     def setUp(self) -> None:
         self.production_paths = InspectorPaths.discover()
         self.temporary = Path(
-            tempfile.mkdtemp(prefix="inspector-foundation-", dir=os.environ["TMPDIR"])
+            tempfile.mkdtemp(prefix="inspector-foundation-", dir=os.environ.get("TMPDIR") or tempfile.gettempdir())
         )
         self.explicit_root = self.temporary / "INSPECTOR"
         self.explicit_root.mkdir(mode=0o700)

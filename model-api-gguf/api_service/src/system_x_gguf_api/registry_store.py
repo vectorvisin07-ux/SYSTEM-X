@@ -2352,7 +2352,7 @@ class RegistryStore:
                         ON al.relative_root=mvl.relative_root
                     LEFT JOIN capability_manifests AS cm
                         ON cm.model_version_id=mv.model_version_id
-                    WHERE mv.state IN ('REGISTERED','UNAVAILABLE')
+                    WHERE mv.state IN ('REGISTERED','PROBING','UNAVAILABLE')
                       AND cm.model_version_id IS NULL
                       AND al.present=1
                       AND al.current_bundle_id=mv.bundle_id

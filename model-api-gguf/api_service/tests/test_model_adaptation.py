@@ -1,4 +1,4 @@
-"""Focused Mini 05.14 automatic model adaptation regression tests."""
+"""Focused automatic model adaptation regression tests."""
 
 from __future__ import annotations
 
@@ -112,6 +112,16 @@ class ModelAdaptationTests(unittest.IsolatedAsyncioTestCase):
         bundle, router = self.bundle(marker)
         await self.store.register_bundle(bundle, router, model)
 
+    async def test_present_probing_without_capability_is_requeued(self) -> None:
+        await self.register("sx-probing-recovery", "r")
+        await self.store.transition_state(
+            "sx-probing-recovery", ModelState.PROBING, "fixture_probe_started"
+        )
+        rows = await self.store.models_needing_capability()
+        self.assertEqual(
+            [row["model_version_id"] for row in rows],
+            ["sx-probing-recovery"],
+        )
     async def stage_pair(self) -> None:
         await self.register("sx-version-a", "a")
         await self.store.transition_state(

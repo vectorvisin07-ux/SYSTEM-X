@@ -8,7 +8,7 @@
     "inrelease_url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/InRelease",
     "packages_url": "https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/Packages.gz",
     "signing_fingerprint": "EB693B3035CD5710E231E123A4B469963BF863CC",
-    "source_line": "deb [signed-by=/usr/share/keyrings/cuda-wsl-ubuntu-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/ /"
+    "source_line": "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/ /"
   },
   "keyring_package": {
     "name": "cuda-keyring",

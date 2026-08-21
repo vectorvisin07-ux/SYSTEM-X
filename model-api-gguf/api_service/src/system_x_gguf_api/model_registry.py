@@ -232,9 +232,12 @@ class ModelRegistry:
     async def _full_reconcile(self, reasons: list[str]) -> None:
         self._reconcile_run_count += 1
         physical_units = await asyncio.to_thread(self._physical_units_sync)
-        seen_roots = set(physical_units)
         prior_present_roots = await self.store.present_location_roots()
         removed_roots = prior_present_roots - physical_units
+        # Persist physical absence before backend inventory refresh. Recovery
+        # can raise while refreshing the router; removal evidence must survive
+        # that transient failure for the next branch-owned reconciliation.
+        await self.store.mark_missing(physical_units)
         outcomes: list[dict[str, Any]] = []
         locally_validated: dict[str, Any] = {}
         changed_roots: set[str] = set()
@@ -377,7 +380,6 @@ class ModelRegistry:
                     "changed": registration["changed"],
                 }
             )
-        await self.store.mark_missing(seen_roots)
         observed = utc_now()
         await self.store.set_last_reconcile(observed)
         self._last_outcomes = outcomes
@@ -441,7 +443,18 @@ class ModelRegistry:
                 await self.store.store_capability_ready(
                     capability, self.settings.registry_default_alias
                 )
+                await self.mark_recovered("capability_probe_failure")
             except asyncio.CancelledError:
+                if transitioned:
+                    try:
+                        await self.store.transition_state(
+                            model_version_id,
+                            ModelState.UNAVAILABLE,
+                            "capability_probe_cancelled",
+                            {"error_type": "CancelledError"},
+                        )
+                    except Exception:
+                        pass
                 raise
             except Exception as exc:
                 if transitioned:

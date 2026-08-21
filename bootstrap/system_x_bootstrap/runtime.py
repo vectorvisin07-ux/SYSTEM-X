@@ -70,6 +70,27 @@ def _marker(contract: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def verify_registry_schema(paths: RepositoryPaths, contract: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the current registry schema while preserving model history."""
+    database = resolve_contained(paths.root, contract["registry"]["database"], allow_missing=False)
+    info = database.lstat()
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
+        raise BootstrapError(ErrorCode.RUNTIME_COLLISION, "registry database type or mode is invalid")
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    try:
+        integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        metadata = dict(connection.execute("SELECT key,value FROM registry_metadata").fetchall())
+        tables = ("artifact_bundles", "artifact_files", "artifact_locations", "model_versions", "aliases", "model_version_locations", "alias_bindings", "capability_manifests", "artifact_rejections", "registry_events")
+        counts = {table: int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]) for table in tables}
+    except sqlite3.Error as exc:
+        raise BootstrapError(ErrorCode.RUNTIME_COLLISION, "registry database schema is invalid") from exc
+    finally:
+        connection.close()
+    expected = contract["registry"]
+    if integrity != "ok" or metadata.get("schema_identity") != expected["schema_identity"] or metadata.get("schema_version") != str(expected["schema_version"]):
+        raise BootstrapError(ErrorCode.RUNTIME_COLLISION, "registry is not current schema")
+    return {"integrity": integrity, "metadata_rows": len(metadata), "model_or_event_rows": sum(counts.values()), "counts": counts}
+
 def verify_empty_registry(paths: RepositoryPaths, contract: Mapping[str, Any]) -> dict[str, Any]:
     database = resolve_contained(paths.root, contract["registry"]["database"], allow_missing=False)
     info = database.lstat()
@@ -113,8 +134,21 @@ def runtime_status(paths: RepositoryPaths, contract: Mapping[str, Any]) -> str:
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return "collision"
-    if marker != _marker(contract):
-        return "mismatch"
+    expected = _marker(contract)
+    if marker != expected:
+        immutable_keys = (
+            "schema", "version", "runtime_layout_identity",
+            "entry_count", "registry_schema_identity", "registry_schema_version",
+        )
+        historical_hash = marker.get("runtime_layout_sha256")
+        if (
+            set(marker) != set(expected)
+            or any(marker.get(key) != expected[key] for key in immutable_keys)
+            or not isinstance(historical_hash, str)
+            or len(historical_hash) != 64
+            or any(character not in "0123456789abcdef" for character in historical_hash)
+        ):
+            return "mismatch"
     try:
         entries = expand_runtime_layout(paths, contract)
         for entry in entries:
@@ -122,7 +156,7 @@ def runtime_status(paths: RepositoryPaths, contract: Mapping[str, Any]) -> str:
             info = target.lstat()
             if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != entry["mode"]:
                 return "mismatch"
-        verify_empty_registry(paths, contract)
+        verify_registry_schema(paths, contract)
     except (BootstrapError, OSError):
         return "mismatch"
     return "ready"
@@ -172,12 +206,12 @@ def initialize_runtime(
     try:
         for entry in entries:
             target = transaction.claim_created_path(entry["path"])
-            target.mkdir(mode=entry["mode"])
+            target.mkdir(mode=entry["mode"], parents=True)
             os.chmod(target, entry["mode"])
             created_directories.append(target)
         api_python = paths.root / "model-api-gguf" / "api_service" / ".venv" / "bin" / "python"
         source_root = paths.root / "model-api-gguf" / "api_service" / "src"
-        if not api_python.is_file() or api_python.is_symlink():
+        if not api_python.is_file():
             raise BootstrapError(ErrorCode.PRECONDITION_FAILED, "GGUF API private environment is not ready")
         script = (
             "import asyncio,json,sys;from pathlib import Path;"

@@ -391,6 +391,7 @@ class FakeRouter:
         self.loads: list[str] = []
         self.unloads: list[str] = []
         self.health_ready = True
+        self.recover_health_on_load = False
 
     def _model(self, model_id: str, state: str) -> RouterModel:
         return RouterModel(
@@ -420,6 +421,8 @@ class FakeRouter:
     async def load_model(self, model_id: str) -> RouterObservation:
         self.loads.append(model_id)
         self.states[model_id] = "loaded"
+        if self.recover_health_on_load:
+            self.health_ready = True
         return RouterObservation(
             200, '{"success":true}', {"success": True}, None
         )
@@ -497,6 +500,23 @@ class BackendWarmBoundaryTests(unittest.IsolatedAsyncioTestCase):
         router.health_ready = False
         with self.assertRaises(BackendModelUnavailable):
             await backend.verify_warm_model("router-b", valid)
+
+    async def test_loaded_model_child_loss_forces_exact_reload(self) -> None:
+        backend, router = self.make_backend({"router-a": "loaded"})
+        router.health_ready = False
+        router.recover_health_on_load = True
+
+        async def valid() -> bool:
+            return True
+
+        observation = await backend.ensure_warm_model(
+            "router-a", "router-a", valid
+        )
+        self.assertTrue(observation.unload_performed)
+        self.assertTrue(observation.load_performed)
+        self.assertEqual(router.unloads, ["router-a"])
+        self.assertEqual(router.loads, ["router-a"])
+        self.assertEqual(router.states["router-a"], "loaded")
 
     async def test_model_child_identity_fail_closed(self) -> None:
         identity = RouterIdentity("router-tx", 100, 100, 100, "start")
@@ -622,11 +642,67 @@ class BackendWarmBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         backend.controller = StaleController()
         result = await backend._startup_prestate()
-        self.assertEqual(
-            result,
-            {"active": False, "active_state_consistent": True},
-        )
-        self.assertEqual(calls, ["status", "reconcile", "status"])
+        self.assertFalse(result["active"])
+        self.assertTrue(result["active_state_consistent"])
+        self.assertEqual(calls, ["status", "reconcile"])
+
+    async def test_startup_reconciles_stale_status_without_active_records(
+        self,
+    ) -> None:
+        backend, _router = self.make_backend({})
+        calls: list[str] = []
+
+        class StaleStatusController:
+            async def status(self) -> ControllerResult:
+                calls.append("status")
+                if calls.count("status") == 1:
+                    return ControllerResult(
+                        operation="status",
+                        ok=True,
+                        reason_code="OK",
+                        message="stale STARTED status fixture",
+                        data={
+                            "active": False,
+                            "active_state_consistent": False,
+                            "lifecycle_state": "STARTED",
+                        },
+                        stderr="",
+                        exit_status=0,
+                    )
+                return ControllerResult(
+                    operation="status",
+                    ok=True,
+                    reason_code="OK",
+                    message="reconciled fixture",
+                    data={
+                        "active": False,
+                        "active_state_consistent": True,
+                    },
+                    stderr="",
+                    exit_status=0,
+                )
+
+            async def reconcile(self) -> ControllerResult:
+                calls.append("reconcile")
+                return ControllerResult(
+                    operation="reconcile",
+                    ok=True,
+                    reason_code="OK",
+                    message="stale status reconciled",
+                    data={
+                        "active": False,
+                        "active_state_consistent": True,
+                        "reconciled": False,
+                    },
+                    stderr="",
+                    exit_status=0,
+                )
+
+        backend.controller = StaleStatusController()
+        result = await backend._startup_prestate()
+        self.assertFalse(result["active"])
+        self.assertTrue(result["active_state_consistent"])
+        self.assertEqual(calls, ["status", "reconcile"])
 
     async def test_startup_stale_reconcile_remains_ownership_safe(
         self,

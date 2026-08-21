@@ -316,7 +316,18 @@ class BackendCoordinator:
         """Reconcile only a controller-owned stale inactive prestate."""
 
         result = await self.controller.status()
+        stale_inactive_prestate = (
+            result.operation == "status"
+            and not result.stderr
+            and result.ok
+            and result.exit_status == 0
+            and isinstance(result.data, dict)
+            and result.data.get("active") is False
+            and result.data.get("active_state_consistent") is False
+        )
         if (
+            stale_inactive_prestate
+            or (
             (
                 not result.ok
                 or result.exit_status != 0
@@ -326,6 +337,7 @@ class BackendCoordinator:
             and result.operation == "status"
             and result.reason_code == "ACTIVE_STATE_INCONSISTENT"
             and not result.stderr
+            )
         ):
             reconciled = _require_controller_success(
                 await self.controller.reconcile(), "reconcile"
@@ -338,8 +350,9 @@ class BackendCoordinator:
                     "branch controller stale prestate reconciliation "
                     "did not reach inactive-consistent"
                 )
-            result = await self.controller.status()
-        status = _require_controller_success(result, "status")
+            status = reconciled
+        else:
+            status = _require_controller_success(result, "status")
         if status.get("active") is not False or status.get(
             "active_state_consistent"
         ) is not True:
@@ -792,7 +805,70 @@ class BackendCoordinator:
                     "registry model snapshot changed during warming"
                 )
             identity = await self._assert_router_identity()
-            child = await self._private_model_health(model_id, identity)
+            try:
+                child = await self._private_model_health(model_id, identity)
+            except BackendModelUnavailable:
+                # A router can retain a loaded model entry after its child has
+                # exited. Recovery must replace that exact stale loaded state;
+                # retrying health alone never reaches the load branch.
+                if not permit_load:
+                    raise
+                unload = await self.unload_model(model_id)
+                if (
+                    unload.status_code != 200
+                    or unload.error is not None
+                    or not isinstance(unload.json_value, dict)
+                    or unload.json_value.get("success") is not True
+                ):
+                    raise BackendModelUnavailable(
+                        "stale warm target unload failed"
+                    )
+                await self._wait_for_model_status(
+                    model_id, {"unloaded"}
+                )
+                unload_performed = True
+                if not await snapshot_verifier():
+                    raise BackendSnapshotConflict(
+                        "registry model snapshot changed before stale warm reload"
+                    )
+                load = await self.load_model(model_id)
+                if (
+                    load.status_code != 200
+                    or load.error is not None
+                    or not isinstance(load.json_value, dict)
+                    or load.json_value.get("success") is not True
+                ):
+                    raise BackendModelUnavailable(
+                        "stale warm target reload failed"
+                    )
+                load_performed = True
+                final_status = await self._wait_for_model_status(
+                    model_id, {"loaded", "sleeping"}
+                )
+                final_inventory = await self.current_router_inventory()
+                final_matches = [
+                    model
+                    for model in final_inventory.models
+                    if model.model_id == model_id
+                ]
+                if (
+                    len(final_matches) != 1
+                    or final_matches[0].status not in {"loaded", "sleeping"}
+                    or any(
+                        model.model_id != model_id
+                        and model.status in active_states
+                        for model in final_inventory.models
+                    )
+                ):
+                    raise BackendModelUnavailable(
+                        "private stale warm-model reload state is inconsistent"
+                    )
+                if not await snapshot_verifier():
+                    raise BackendSnapshotConflict(
+                        "registry model snapshot changed during stale warm reload"
+                    )
+                identity = await self._assert_router_identity()
+                child = await self._private_model_health(model_id, identity)
             return WarmBackendObservation(
                 router_identity=identity,
                 router_model_id=model_id,

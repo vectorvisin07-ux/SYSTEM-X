@@ -9,11 +9,13 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 from system_x_inspector.errors import InspectorError
 from system_x_inspector.machine import build_parser
 from system_x_inspector.paths import InspectorPaths
 from system_x_inspector.retirement import (
+    CurrentSourceRetirementAdapter,
     RetirementRequest,
     RetirementTarget,
     managed_location_identity,
@@ -928,6 +930,97 @@ class RetirementTests(unittest.TestCase):
                     "/caller/model.gguf",
                 ]
             )
+
+
+class RestoredRegistryProofTests(unittest.TestCase):
+    def test_restored_registry_proof_rejects_removed_and_accepts_coherent_present(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "registry.sqlite3"
+            connection = sqlite3.connect(database)
+            try:
+                connection.executescript(
+                    """
+                    CREATE TABLE model_versions(
+                        model_version_id TEXT PRIMARY KEY,
+                        state TEXT NOT NULL,
+                        bundle_id TEXT NOT NULL
+                    );
+                    CREATE TABLE model_version_locations(
+                        model_version_id TEXT NOT NULL,
+                        relative_root TEXT NOT NULL
+                    );
+                    CREATE TABLE artifact_locations(
+                        relative_root TEXT PRIMARY KEY,
+                        present INTEGER NOT NULL,
+                        current_bundle_id TEXT NOT NULL
+                    );
+                    """
+                )
+                connection.execute(
+                    "INSERT INTO model_versions VALUES (?,?,?)",
+                    ("restored-model", "READY", "bundle-restored"),
+                )
+                connection.execute(
+                    "INSERT INTO model_version_locations VALUES (?,?)",
+                    ("restored-model", "restored.gguf"),
+                )
+                connection.execute(
+                    "INSERT INTO artifact_locations VALUES (?,?,?)",
+                    ("restored.gguf", 1, "bundle-restored"),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+            adapter = object.__new__(CurrentSourceRetirementAdapter)
+            adapter.database = database
+            target = type(
+                "Target",
+                (),
+                {
+                    "public_model_id": "restored-model",
+                    "artifact_identity": "bundle-restored",
+                    "relative_root": "restored.gguf",
+                },
+            )()
+            self.assertTrue(
+                adapter._restored_registry_observation(target)["proved"]
+            )
+            connection = sqlite3.connect(database)
+            try:
+                connection.execute(
+                    "UPDATE model_versions SET state='REMOVED' "
+                    "WHERE model_version_id='restored-model'"
+                )
+                connection.execute(
+                    "UPDATE artifact_locations SET present=0 "
+                    "WHERE relative_root='restored.gguf'"
+                )
+                connection.commit()
+            finally:
+                connection.close()
+            self.assertFalse(
+                adapter._restored_registry_observation(target)["proved"]
+            )
+
+    def test_restoration_reconcile_uses_manager_for_removed_registry(self) -> None:
+        adapter = object.__new__(CurrentSourceRetirementAdapter)
+        adapter.branch = type("Branch", (), {"branch_root": Path("/r4-branch")})()
+        target = object()
+        with (
+            mock.patch.object(
+                adapter,
+                "_restored_registry_observation",
+                return_value={"proved": False},
+            ),
+            mock.patch(
+                "system_x_inspector.retirement.recover_with_accepted_platform_manager",
+                return_value={"used": True},
+            ) as manager,
+        ):
+            adapter.on_restored(target)
+        manager.assert_called_once_with(Path("/r4-branch"))
 
 
 if __name__ == "__main__":

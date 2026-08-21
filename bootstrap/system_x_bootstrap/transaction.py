@@ -76,6 +76,7 @@ class BootstrapTransaction:
     prestate: Mapping[str, Any]
     authorized: bool
     state_root: Path | None = None
+    resume_record: Path | None = None
     token: str = field(default_factory=lambda: secrets.token_hex(24))
     owned_paths: list[Path] = field(default_factory=list)
     record_path: Path | None = None
@@ -97,6 +98,9 @@ class BootstrapTransaction:
             raise BootstrapError(ErrorCode.PLAN_MISMATCH, "plan identity must be SHA-256") from exc
 
         transaction_dir, lock_path = self._locations()
+        if self.resume_record is not None:
+            self._resume_existing(transaction_dir, lock_path)
+            return self
         _mkdir_owned(transaction_dir, self.owned_paths)
         _mkdir_owned(lock_path.parent, self.owned_paths)
         _return_ownership_to_repository_user(self.paths, self.owned_paths)
@@ -146,6 +150,77 @@ class BootstrapTransaction:
         except BaseException:
             self._release_lock()
             raise
+
+    def _resume_existing(self, transaction_dir: Path, lock_path: Path) -> None:
+        path = self.resume_record
+        if path is None or path.is_symlink() or not path.is_file():
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record is not a regular file")
+        if path.resolve(strict=True).parent != transaction_dir.resolve(strict=True):
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record is outside the transaction directory")
+        try:
+            events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record cannot be read") from exc
+        if not events or events[0].get("event") != "write-ahead":
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record lacks a write-ahead event")
+        first = events[0]
+        if first.get("operation") != self.operation or first.get("plan_identity") != self.plan_identity:
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record operation or plan identity mismatch")
+        if first.get("prestate") != dict(self.prestate):
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record prestate mismatch")
+        if events[-1].get("event") in {"complete", "failed-clean", "recovered"}:
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record is not interrupted")
+        token = first.get("token")
+        if not isinstance(token, str) or not token:
+            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "resume record token is invalid")
+        stale_lock_pid: int | None = None
+        if lock_path.exists() or lock_path.is_symlink():
+            if lock_path.is_symlink() or not lock_path.is_file():
+                raise BootstrapError(ErrorCode.LOCK_HELD, "interrupted transaction lock is unsafe", context={"lock": str(lock_path)})
+            try:
+                existing_lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise BootstrapError(ErrorCode.LOCK_HELD, "interrupted transaction lock is unreadable", context={"lock": str(lock_path)}) from exc
+            if (
+                existing_lock.get("schema") != "system-x.bootstrap.lock.v1"
+                or existing_lock.get("operation") != self.operation
+                or existing_lock.get("token") != token
+            ):
+                raise BootstrapError(ErrorCode.LOCK_HELD, "interrupted transaction lock does not match resume record", context={"lock": str(lock_path)})
+            pid = existing_lock.get("pid")
+            if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0 or Path("/proc").joinpath(str(pid)).exists():
+                raise BootstrapError(ErrorCode.LOCK_HELD, "interrupted transaction lock is still owned", context={"lock": str(lock_path), "pid": pid})
+            lock_path.unlink()
+            directory_fd = os.open(lock_path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            stale_lock_pid = pid
+        _mkdir_owned(lock_path.parent, self.owned_paths)
+        self.token = token
+        self.record_path = path
+        lock_payload = canonical_json_bytes(
+            {
+                "schema": "system-x.bootstrap.lock.v1",
+                "version": 1,
+                "operation": self.operation,
+                "token": self.token,
+                "pid": os.getpid(),
+                "resumed": True,
+                "created_utc": utc_now(),
+            }
+        )
+        try:
+            _write_exclusive(lock_path, lock_payload)
+        except FileExistsError as exc:
+            raise BootstrapError(ErrorCode.LOCK_HELD, "another transaction claimed the interrupted record") from exc
+        self.owned_paths.append(lock_path)
+        _return_ownership_to_repository_user(self.paths, (lock_path,))
+        self._entered = True
+        self.record("resumed-after-interrupt", {"prior_events": [event.get("event") for event in events]})
+        if stale_lock_pid is not None:
+            self.record("stale-lock-reclaimed", {"pid": stale_lock_pid})
 
     def _locations(self) -> tuple[Path, Path]:
         if self.state_root is None:

@@ -139,6 +139,31 @@ def branch_records(paths: dict[str, Path]) -> dict[str, Path]:
 
 
 class ApiControllerReconcileTests(unittest.TestCase):
+    def test_process_identity_accepts_pinned_venv_symlink_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "python"
+            executable.symlink_to("/usr/bin/python3.14")
+            argv = [str(executable), "-B", "-m", "uvicorn"]
+            observed = {"executable": "/usr/bin/python3.14", "argv": argv}
+            plan = {"executable": str(executable), "argv": argv}
+            with mock.patch.object(api, "process_identity", return_value=observed):
+                result = api.wait_for_expected_identity(123, plan, timeout=0.1)
+            self.assertEqual(result, observed)
+    def test_pinned_venv_interpreter_symlink_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            branch_root = Path(temporary)
+            controller_dir = branch_root / "api_service_controller"
+            controller_dir.mkdir()
+            controller_file = controller_dir / "controller.py"
+            controller_file.write_text("# fixture\n", encoding="utf-8")
+            api_service = branch_root / "api_service"
+            (api_service / ".venv/bin").mkdir(parents=True)
+            (api_service / "src").mkdir()
+            (api_service / ".venv/bin/python").symlink_to("/usr/bin/python3.14")
+            paths = api.derive_paths(controller_file)
+            with mock.patch.object(api, "DEPENDENCY_FILES", {}):
+                result = api.validate_dependency(paths)
+            self.assertEqual(result["venv_python"], str(api_service / ".venv/bin/python"))
     def test_stale_records_are_removed_but_history_is_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = api_paths(Path(temporary))
@@ -334,6 +359,20 @@ class ApiControllerReconcileTests(unittest.TestCase):
 
 
 class BranchControllerReconcileTests(unittest.TestCase):
+    def test_child_environment_resolves_build_libraries(self) -> None:
+        with mock.patch.dict(
+            branch.os.environ, {"LD_LIBRARY_PATH": "/existing"}, clear=True
+        ):
+            value = branch._child_environment(
+                Path("/repo/build/bin/llama-server"),
+                launch_mode="router",
+                router_cache=Path("/repo/cache"),
+            )
+        self.assertEqual(
+            value["LD_LIBRARY_PATH"], "/repo/build/bin:/existing"
+        )
+        self.assertEqual(value["LLAMA_CACHE"], "/repo/cache")
+
     def test_status_reconciles_dead_owned_record_without_signal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             paths = branch_paths(Path(temporary))

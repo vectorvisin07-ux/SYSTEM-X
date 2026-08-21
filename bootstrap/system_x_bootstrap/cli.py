@@ -28,6 +28,7 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--authorize", action="store_true")
         if name in ("apply-host", "reconstruct"):
             command.add_argument("--allow-patch-difference", action="store_true")
+            command.add_argument("--install-user", help="validated non-root installation owner for elevated entry")
         if name == "initialize-credentials":
             command.add_argument("--mode", choices=("generate-new", "import-encrypted"), default="generate-new")
     return value
@@ -54,7 +55,7 @@ def execute(arguments: argparse.Namespace, orchestrator: BootstrapOrchestrator) 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser().parse_args(argv)
     try:
-        result = execute(arguments, BootstrapOrchestrator())
+        result = execute(arguments, BootstrapOrchestrator(installation_user=getattr(arguments, "install_user", None)))
     except BootstrapError as error:
         result = MachineResult.from_error(arguments.operation, "FAIL_CLOSED", error)
     if isinstance(result, list):

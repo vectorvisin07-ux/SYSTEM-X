@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from . import BOOTSTRAP_VERSION
-from .command import Runner, SubprocessRunner
+from .command import Runner, SubprocessRunner, ensure_user_manager, exec_elevated_reconstruct, installation_user_context, resolve_installation_user, user_manager_ready
 from .config import LoadedConfiguration, canonical_json_bytes, load_registry
 from .credentials import credential_status, initialize_credentials
 from .environments import build_environments, environment_status
@@ -21,9 +21,9 @@ from .packages import apply_host, build_host_plan
 from .paths import RepositoryPaths
 from .result import MachineResult
 from .runtime import expand_runtime_layout, initialize_runtime, runtime_status
-from .service import register_platform_service, service_status
+from .service import activate_platform_service, register_platform_service, service_status
 from .state import StateDocument, read_state, write_failure_state, write_receipt, write_success_state
-from .transaction import BootstrapTransaction, incomplete_transactions
+from .transaction import BootstrapTransaction, incomplete_transactions, recover_failed_clean_transactions
 from .verify import verify_level
 
 
@@ -46,10 +46,13 @@ class BootstrapOrchestrator:
         *,
         runner: Runner | None = None,
         home: Path | None = None,
+        installation_user: str | None = None,
     ) -> None:
         self.paths = paths or RepositoryPaths.discover()
         self.runner = runner or SubprocessRunner()
-        self.home = home
+        self.installation_user = resolve_installation_user(installation_user)
+        self.installation_user.validate_repository(self.paths.root)
+        self.home = home or self.installation_user.home
         self.loaded: dict[str, LoadedConfiguration] = load_registry(self.paths, CONFIGURATION_NAMES)
         self.configs = {name: item.data for name, item in self.loaded.items()}
 
@@ -157,7 +160,8 @@ class BootstrapOrchestrator:
         return MachineResult("status", "ok", state.state, details=details)
 
     def verify(self, level: str) -> MachineResult:
-        details = verify_level(self.paths, self.configs, level, runner=self.runner, home=self.home)
+        with installation_user_context(self.installation_user):
+            details = verify_level(self.paths, self.configs, level, runner=self.runner, home=self.home)
         state = {
             "source-only": "CLONED",
             "host-ready": "HOST_READY",
@@ -175,15 +179,31 @@ class BootstrapOrchestrator:
         allowed: tuple[str, ...],
         authorized: bool,
         provider: Callable[[BootstrapTransaction], Mapping[str, Any]],
+        user_owned: bool = False,
+        allow_failure_recovery: bool = False,
     ) -> MachineResult:
         if not authorized:
             raise BootstrapError(ErrorCode.AUTHORIZATION_REQUIRED, f"{operation} requires --authorize")
         previous = read_state(self.paths)
+        recovered_transactions: list[str] = []
         if previous.state in ("FAILED_CLEAN", "FAIL_CLOSED"):
-            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "bootstrap failure state requires explicit recovery")
+            if not allow_failure_recovery or previous.state != "FAILED_CLEAN":
+                raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "bootstrap failure state requires explicit recovery")
+            recovered_transactions = recover_failed_clean_transactions(
+                self.paths.transaction_directory, authorized=authorized
+            )
+            if not recovered_transactions:
+                raise BootstrapError(
+                    ErrorCode.TRANSACTION_RECOVERY_REQUIRED,
+                    "failed-clean state has no bounded transaction recovery record",
+                )
+            previous = read_state(self.paths)
         pending = incomplete_transactions(self.paths.transaction_directory)
+        resume_record: Path | None = None
         if pending:
-            raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "incomplete bootstrap transaction requires recovery")
+            if operation != "apply-host" or len(pending) != 1:
+                raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "incomplete bootstrap transaction requires recovery")
+            resume_record = pending[0]
         if previous.stable_state not in allowed and previous.stable_state != target:
             raise BootstrapError(
                 ErrorCode.PRECONDITION_FAILED,
@@ -201,14 +221,21 @@ class BootstrapOrchestrator:
             )
         ).hexdigest()
         transaction = BootstrapTransaction(
-            self.paths, operation, plan_identity, previous.as_dict(), True
+            self.paths, operation, plan_identity, previous.as_dict(), True,
+            resume_record=resume_record,
         )
         receipt_id = secrets.token_hex(16)
         try:
             with transaction:
                 try:
-                    details = dict(provider(transaction))
+                    if user_owned:
+                        with installation_user_context(self.installation_user):
+                            details = dict(provider(transaction))
+                    else:
+                        details = dict(provider(transaction))
                     changed = bool(details.get("changed"))
+                    if recovered_transactions:
+                        details["recovered_transactions"] = list(recovered_transactions)
                     write_receipt(
                         self.paths,
                         receipt_id=receipt_id,
@@ -255,6 +282,7 @@ class BootstrapOrchestrator:
             lambda transaction: initialize_submodules(
                 self.paths, self.configs["llama-build.lock.json"], transaction=transaction, authorized=True, runner=self.runner
             ),
+            user_owned=True,
         )
 
     def build_environments(self, *, authorized: bool) -> MachineResult:
@@ -263,6 +291,7 @@ class BootstrapOrchestrator:
             lambda transaction: build_environments(
                 self.paths, self.configs["python-environments.lock.json"], transaction=transaction, authorized=True, runner=self.runner
             ),
+            user_owned=True,
         )
 
     def build_llama_server(self, *, authorized: bool) -> MachineResult:
@@ -271,6 +300,7 @@ class BootstrapOrchestrator:
             lambda transaction: build_llama_server(
                 self.paths, self.configs["llama-build.lock.json"], transaction=transaction, authorized=True, runner=self.runner
             ),
+            user_owned=True,
         )
 
     def initialize_runtime(self, *, authorized: bool) -> MachineResult:
@@ -279,6 +309,7 @@ class BootstrapOrchestrator:
             lambda transaction: initialize_runtime(
                 self.paths, self.configs["runtime-layout.json"], transaction=transaction, authorized=True, runner=self.runner
             ),
+            user_owned=True,
         )
 
     def initialize_credentials(self, *, authorized: bool, mode: str = "generate-new") -> MachineResult:
@@ -288,28 +319,122 @@ class BootstrapOrchestrator:
                 self.paths, self.configs["credential-initialization.json"], transaction=transaction,
                 authorized=True, mode=mode, runner=self.runner,
             ),
+            user_owned=True,
         )
 
-    def register_platform_service(self, *, authorized: bool) -> MachineResult:
+    def register_platform_service(self, *, authorized: bool, allow_failure_recovery: bool = False) -> MachineResult:
         return self._mutate(
             "register-platform-service", "SERVICE_REGISTERED", ("CREDENTIAL_READY",), authorized,
             lambda transaction: register_platform_service(
                 self.paths, self.configs["service-registration.json"], transaction=transaction,
                 authorized=True, runner=self.runner, home=self.home,
             ),
+            user_owned=True,
+            allow_failure_recovery=allow_failure_recovery,
         )
+
+    def activate_platform_service(self, *, authorized: bool, allow_failure_recovery: bool = False) -> MachineResult:
+        return self._mutate(
+            "activate-platform-service", "SERVICE_REGISTERED", ("SERVICE_REGISTERED",), authorized,
+            lambda transaction: activate_platform_service(
+                self.paths, self.configs["service-registration.json"], transaction=transaction,
+                authorized=True, runner=self.runner, home=self.home,
+            ),
+            user_owned=True,
+            allow_failure_recovery=allow_failure_recovery,
+        )
+
+    def _prepare_reconstruct_host(
+        self,
+        *,
+        allow_patch_difference: bool,
+        current_state: str | None = None,
+    ) -> None:
+        """Plan host changes before any mutation transaction or privilege switch."""
+        inspection = self._inspection()
+        plan = build_host_plan(
+            inspection,
+            self.configs["ubuntu-26.04-wsl2-host.json"],
+            self.configs["ubuntu-package.lock.json"],
+            self.configs["cuda-wsl.lock.json"],
+        )
+        if plan["blockers"]:
+            raise BootstrapError(
+                ErrorCode.HOST_UNSUPPORTED,
+                "host has non-installable blockers",
+                context={"blockers": plan["blockers"]},
+            )
+        manager_required = current_state in {"SERVICE_REGISTERED", "WAITING_FOR_MODEL", "READY"}
+        runner = getattr(self, "runner", None) or SubprocessRunner()
+        manager_ready = True
+        if manager_required:
+            manager_ready = user_manager_ready(self.installation_user, runner)
+        if plan["would_install"] or (manager_required and not manager_ready):
+            if os.geteuid() != 0:
+                exec_elevated_reconstruct(
+                    self.paths.root,
+                    self.installation_user,
+                    allow_patch_difference=allow_patch_difference,
+                )
+            if manager_required and not manager_ready:
+                ensure_user_manager(self.installation_user, runner)
 
     def reconstruct(self, *, authorized: bool, allow_patch_difference: bool = False) -> list[MachineResult]:
         if not authorized:
             raise BootstrapError(ErrorCode.AUTHORIZATION_REQUIRED, "reconstruct requires --authorize")
-        operations: list[Callable[[], MachineResult]] = [
-            lambda: self.apply_host(authorized=True, allow_patch_difference=allow_patch_difference),
-            lambda: self.initialize_submodules(authorized=True),
-            lambda: self.build_environments(authorized=True),
-            lambda: self.build_llama_server(authorized=True),
-            lambda: self.initialize_runtime(authorized=True),
-            lambda: self.initialize_credentials(authorized=True),
-            lambda: self.register_platform_service(authorized=True),
-            lambda: self.verify("waiting-for-model"),
+        state = read_state(self.paths)
+        state_order = {
+            "CLONED": 0,
+            "HOST_INSPECTED": 1,
+            "HOST_PLAN_READY": 2,
+            "HOST_READY": 3,
+            "SUBMODULES_READY": 4,
+            "PYTHON_ENVIRONMENTS_READY": 5,
+            "LLAMA_SERVER_BUILT": 6,
+            "RUNTIME_INITIALIZED": 7,
+            "CREDENTIAL_READY": 8,
+            "SERVICE_REGISTERED": 9,
+            "WAITING_FOR_MODEL": 10,
+            "READY": 11,
+        }
+        phases: list[tuple[str, str, str, Callable[[], MachineResult]]] = [
+            ("apply-host", "HOST_READY", "host-ready", lambda: self.apply_host(authorized=True, allow_patch_difference=allow_patch_difference)),
+            ("initialize-submodules", "SUBMODULES_READY", "source-only", lambda: self.initialize_submodules(authorized=True)),
+            ("build-environments", "PYTHON_ENVIRONMENTS_READY", "build-ready", lambda: self.build_environments(authorized=True)),
+            ("build-llama-server", "LLAMA_SERVER_BUILT", "build-ready", lambda: self.build_llama_server(authorized=True)),
+            ("initialize-runtime", "RUNTIME_INITIALIZED", "waiting-for-model", lambda: self.initialize_runtime(authorized=True)),
+            ("initialize-credentials", "CREDENTIAL_READY", "waiting-for-model", lambda: self.initialize_credentials(authorized=True)),
+            ("register-platform-service", "SERVICE_REGISTERED", "service-process-ready", lambda: self.register_platform_service(authorized=True, allow_failure_recovery=allow_patch_difference)),
+            ("activate-platform-service", "SERVICE_REGISTERED", "waiting-for-model", lambda: self.activate_platform_service(authorized=True, allow_failure_recovery=allow_patch_difference)),
         ]
-        return [operation() for operation in operations]
+        current_index = state_order.get(state.stable_state, -1)
+        if current_index < state_order["HOST_READY"] or (state.stable_state == "SERVICE_REGISTERED" and hasattr(self, "configs")):
+            self._prepare_reconstruct_host(allow_patch_difference=allow_patch_difference, current_state=state.stable_state)
+        results: list[MachineResult] = []
+        for operation, target, level, action in phases:
+            if operation == "activate-platform-service" and state.stable_state == "SERVICE_REGISTERED" and hasattr(self, "configs"):
+                results.append(action())
+                continue
+            if operation == "register-platform-service" and state.stable_state == "SERVICE_REGISTERED" and hasattr(self, "configs"):
+                results.append(action())
+                continue
+            if current_index >= state_order[target]:
+                verification = self.verify(level)
+                results.append(MachineResult(
+                    operation,
+                    "ok",
+                    target,
+                    changed=False,
+                    details={
+                        "reused": True,
+                        "reuse_reason": "completed phase verified from current stable state",
+                        "current_stable_state": state.stable_state,
+                        "verification_level": level,
+                        "verification": verification.details,
+                    },
+                ))
+            else:
+                results.append(action())
+                current_index = state_order[target]
+        results.append(self.verify("waiting-for-model"))
+        return results

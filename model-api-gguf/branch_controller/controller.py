@@ -89,6 +89,23 @@ def bounded_text(value: object, limit: int = 400) -> str:
     return text[:limit]
 
 
+def _child_environment(
+    binary_path: Path,
+    *,
+    launch_mode: str,
+    router_cache: Path,
+) -> dict[str, str]:
+    value = dict(os.environ)
+    library_path = str(binary_path.parent)
+    existing = value.get("LD_LIBRARY_PATH")
+    if existing:
+        library_path = os.pathsep.join((library_path, existing))
+    value["LD_LIBRARY_PATH"] = library_path
+    if launch_mode == "router":
+        value["LLAMA_CACHE"] = str(router_cache)
+    return value
+
+
 def derive_paths() -> dict[str, Path]:
     source_path = Path(__file__).resolve(strict=True)
     controller_dir = source_path.parent
@@ -1205,10 +1222,9 @@ def start_operation(namespace: argparse.Namespace, paths: dict[str, Path]) -> di
                 launch_details=launch_details,
             ),
         )
-        child_environment = None
-        if inputs["launch_mode"] == "router":
-            child_environment = dict(os.environ)
-            child_environment["LLAMA_CACHE"] = str(under_lock["router_cache"])
+        child_environment = _child_environment(
+            under_lock["binary_path"], launch_mode=inputs["launch_mode"], router_cache=under_lock["router_cache"]
+        )
         try:
             spawned = subprocess.Popen(
                 argv,

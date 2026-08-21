@@ -22,6 +22,8 @@ The repository contains portable first-party source, configuration, schemas, tes
 
 HEYCHAT / `system-x-chat` is a separate product. `UNCENSORED-ENV` and model-lab artifacts are also separate products. None is a System X dependency or part of this tree.
 
+`SYSTEM_X_PORTABLE_TREE_MANIFEST.json` is a source-controlled `FULL_TREE` contract. It records every regular candidate Git-tree member except its own explicitly declared self-exclusion, with Git mode, portable mode, byte count, and SHA-256. `bootstrap/system_x_bootstrap/portable_manifest.py` is the producer and validator; an ordinary clone reconstructs this contract without copying source, environments, builds, runtime state, credentials, models, or packet evidence.
+
 ## Supported host
 
 The accepted host profile is Ubuntu 26.04 LTS on WSL2, x86_64, with systemd PID 1 and CPython 3.14. Windows owns the NVIDIA display driver. Ubuntu installs CUDA Toolkit 13.3 only; Linux NVIDIA display-driver packages are prohibited. See [dependencies](docs/DEPENDENCIES.md) for exact identities.
@@ -31,24 +33,22 @@ The accepted host profile is Ubuntu 26.04 LTS on WSL2, x86_64, with systemd PID 
 ```bash
 git clone --branch rebuild/b8bd-system-x --single-branch https://github.com/vectorvisin07-ux/SYSTEM-X.git system-x
 cd system-x
-python3.14 -I -S -B bootstrap/run_bootstrap.py identify
-python3.14 -I -S -B bootstrap/run_bootstrap.py inspect-host
-python3.14 -I -S -B bootstrap/run_bootstrap.py plan
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py identify
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py inspect-host
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py plan
 ```
 
-`identify`, `inspect-host`, and `plan` are read-only and run as the target user. Review and freeze the emitted plan before any privileged host action. Do not treat this README as authorization to mutate a host.
+`identify`, `inspect-host`, and `plan` are read-only and run as the target user. Review and freeze the emitted plan before any authorized reconstruction. Do not treat this README as authorization to mutate a host.
 
-## Reconstruction sequence
+## Authorized reconstruction
 
-1. Prove the user manager, `/run/user/<uid>`, user DBus, and `systemctl --user` gate.
-2. Run the three read-only bootstrap commands above as the target user and freeze the plan.
-3. Apply only the frozen host plan as root. This installs the direct Ubuntu packages and CUDA Toolkit 13.3 without a Linux display driver.
-4. Rebuild the Inspector and API private Python environments from committed locks.
-5. Verify the vendored llama source and build only `llama-server` with the committed CUDA/Ninja profile.
-6. Initialize only empty current-schema runtime directories and databases.
-7. Generate a new local credential; never import a raw credential into Git.
-8. Register and control the user unit only through the accepted platform adapter.
-9. Admit a model only through a separate explicit Inspector workflow.
+After the read-only plan is reviewed, run this single product construction command exactly once from the clean clone as the target user:
+
+```bash
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py reconstruct --authorize
+```
+
+`reconstruct --authorize` performs the frozen host gate. When locked packages are missing, the product itself validates `/usr/bin/sudo` and performs one privilege handoff while retaining the validated installation owner; no packet-side wrapper may elevate or manufacture System X state. It then performs the environment and pinned `llama-server` build, empty current-schema runtime initialization, new local credential generation, user-service registration, and model-free verification. Do not replay the lower-level bootstrap operations individually when proving a clean-clone reconstruction. A successful reconstruction target must expose authenticated public `WAITING_FOR_MODEL`; model admission remains a separate explicit Inspector workflow.
 
 Detailed commands and gates are in [Installation](docs/INSTALLATION.md) and [Build and runtime](docs/BUILD_AND_RUNTIME.md).
 

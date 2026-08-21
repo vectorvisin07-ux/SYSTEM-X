@@ -103,7 +103,7 @@
     "source_call": "RegistryStore.initialize"
   },
   "source_contract_sha256": {
-    "model-api-gguf/api_service/src/system_x_gguf_api/registry_store.py": "d44cfc29b16fcf80ea40f0a6543d78b23f07672baeecde448d24afddfe2f0b45",
+    "model-api-gguf/api_service/src/system_x_gguf_api/registry_store.py": "37feea1c68916e6d6944c3f014446b602c8e009178ee03a5da9986ec8e2214d9",
     "model-api-gguf/api_service/src/system_x_gguf_api/registry_types.py": "2c5fab07724dda9759119ef217f32267c5b312cb192104625447d95ad9377840"
   },
   "completion_marker": "model-api-gguf/RUNTIME/status/bootstrap-runtime-layout.json"

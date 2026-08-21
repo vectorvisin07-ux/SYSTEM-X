@@ -75,10 +75,10 @@ LOG_SCHEMA = "system-x.service-supervisor-log-event.v1"
 API_CONTROLLER_SCHEMA = "system-x.gguf-api-service-controller.v1"
 BRANCH_CONTROLLER_SCHEMA = "system-x.gguf-branch-controller.v1"
 API_CONTROLLER_SHA256 = (
-    "f20958d5f032101f96400ddc1283d66885b6e663cb474797e460d94a31727b06"
+    "5491fc216ccb7635d6c61d4959303c1a40880546b9b0d54141922d1e451a0f22"
 )
 BRANCH_CONTROLLER_SHA256 = (
-    "6dd54f90980d146115b901efc018dad108a7c944ecf48151c7c14503910401f7"
+    "d4d37f96b4437e16ecb3999540dc5e3f1e2ea54bc5e96da09346dfae6df8c83a"
 )
 
 SUPERVISOR_STATES = frozenset(
@@ -1967,7 +1967,7 @@ class ForegroundSupervisor:
                 attempt,
                 desired_state=current.desired_state,
                 desired_generation=current.generation,
-                recovery_state="WAITING_FOR_ROUTER_RECOVERY",
+                recovery_state="RESTARTING_ROUTER",
                 observation=pre_observation,
             )
             deadline = time.monotonic() + min(

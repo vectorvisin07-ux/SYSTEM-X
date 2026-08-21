@@ -48,10 +48,6 @@ DEPENDENCY_FILES = {
         420,
         "c6293b88a7edf3354a83f1efb772c8a275fac4ee2880a1359256d88a85f95d5e",
     ),
-    "environment.lock.json": (
-        39752,
-        "e62367fdfd1ee24d8ac5a4080332958317d7e77eb431bfce6fdbe2e208963394",
-    ),
     "configuration.schema.json": (
         10105,
         "5519472b704db16b4bd4dd9469ec4312a4dd501b1ab10bbb8c502765704fb3ed",
@@ -97,8 +93,8 @@ DEPENDENCY_FILES = {
         "d3fa631d1a9c24e3e8045f77d33398c78e3a9bb4141fbac37fbdd47f8a6a11cd",
     ),
     "src/system_x_gguf_api/backend.py": (
-        48043,
-        "77c8fef0395c5acd0790e54f9e83d96efaa291ce89da4a289154b8828bee8ebf",
+        51383,
+        "c079342b236147502b876dff0a53248562213a5e27c8995711594a3d696689f2",
     ),
     "src/system_x_gguf_api/capability_inspector.py": (
         6822,
@@ -129,8 +125,8 @@ DEPENDENCY_FILES = {
         "462370b2089908c304e27f0e62bf1c5dd3d41e854455f4e794f17131b1089166",
     ),
     "src/system_x_gguf_api/controller_client.py": (
-        5702,
-        "62e201fece6395b24d36e4e3e971015674142ee5f71f6d7ce519ace8480ed60e",
+        5867,
+        "ca8c9e6d55613314d04af5354c92ed19d694349d82207ccb62f23b54cd83b45a",
     ),
     "src/system_x_gguf_api/compatibility_models.py": (
         2006,
@@ -165,8 +161,8 @@ DEPENDENCY_FILES = {
         "40b0d4ed2d4f8b54bf064884cec4ea4c727e297a1ad1a874bc9f930344769452",
     ),
     "src/system_x_gguf_api/model_registry.py": (
-        24490,
-        "80944b3c1058091fead1436d31140cff476ec8c255bfe405386f3ae5577b834b",
+        25183,
+        "5d3a8cb19f1a74f4dc012bd4a82a7754376e774b8e46be3ce634d387f9a33d2a",
     ),
     "src/system_x_gguf_api/openai_adapter.py": (
         24174,
@@ -209,8 +205,8 @@ DEPENDENCY_FILES = {
         "ed5c3c7a5511627488306c41c8a04779b93130ca4a3cc3fcce09836d17463daa",
     ),
     "src/system_x_gguf_api/registry_store.py": (
-        108117,
-        "fb4716e11c8aaacc11c2043f89893f9fe822d9a6eda18b288932fc841c6df747",
+        108127,
+        "37feea1c68916e6d6944c3f014446b602c8e009178ee03a5da9986ec8e2214d9",
     ),
     "src/system_x_gguf_api/registry_types.py": (
         4737,
@@ -225,8 +221,8 @@ DEPENDENCY_FILES = {
         "89da46ea2754a41f13539a71d6ac2caf6e3dce8679cc90af51a99a09f28b9d12",
     ),
     "src/system_x_gguf_api/router_client.py": (
-        37474,
-        "61b1c3382a713820d166b1c34b057d3b7b621b7d847e3cdab314bd4ed032575f",
+        37844,
+        "7dc0578d5d0b551ab3c6eafdef923444b329a44e5044da6866adbe38c2b8edaa",
     ),
     "src/system_x_gguf_api/schemas.py": (
         19215,
@@ -399,11 +395,19 @@ def validate_dependency(paths: dict[str, Path]) -> dict[str, Any]:
     python = paths["venv_python"]
     if not python.exists():
         raise ControllerError("DEPENDENCY_MISSING", "branch-local Python executable is missing")
-    metadata = python.lstat()
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-        raise ControllerError("DEPENDENCY_INVALID", "branch-local Python is not a physical regular file")
-    if not contained(python, root) or not os.access(python, os.X_OK):
-        raise ControllerError("DEPENDENCY_INVALID", "branch-local Python is uncontained or non-executable")
+    if python.is_symlink():
+        try:
+            target = python.resolve(strict=True)
+        except OSError as exc:
+            raise ControllerError("DEPENDENCY_INVALID", "branch-local Python symlink target is unavailable") from exc
+        if target != Path("/usr/bin/python3.14") or not os.access(target, os.X_OK):
+            raise ControllerError("DEPENDENCY_INVALID", "branch-local Python symlink target is not the pinned CPython 3.14 executable")
+    else:
+        metadata = python.lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ControllerError("DEPENDENCY_INVALID", "branch-local Python is not a regular file")
+        if not contained(python, root) or not os.access(python, os.X_OK):
+            raise ControllerError("DEPENDENCY_INVALID", "branch-local Python is uncontained or non-executable")
     source_root = paths["application_source_root"]
     if source_root.is_symlink() or not source_root.is_dir() or not contained(source_root, root):
         raise ControllerError("DEPENDENCY_INVALID", "application source root is invalid")
@@ -1274,13 +1278,18 @@ def process_identity(pid: int) -> dict[str, Any]:
 def wait_for_expected_identity(pid: int, plan: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     last: dict[str, Any] | None = None
+    planned_executable = Path(plan["executable"])
+    try:
+        expected_executable = str(planned_executable.resolve(strict=True)) if planned_executable.is_symlink() else str(planned_executable)
+    except OSError:
+        expected_executable = str(planned_executable)
     while time.monotonic() < deadline:
         try:
             last = process_identity(pid)
         except (OSError, ProcessLookupError):
             time.sleep(0.02)
             continue
-        if last["executable"] == plan["executable"] and last["argv"] == plan["argv"]:
+        if last["executable"] == expected_executable and last["argv"] == plan["argv"]:
             return last
         time.sleep(0.02)
     if last is None:

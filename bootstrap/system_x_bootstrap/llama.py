@@ -32,7 +32,7 @@ def _source_payload(path: Path, info: os.stat_result) -> bytes:
     raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "vendored llama.cpp contains an unsupported file type")
 
 
-def _source_files(root: Path) -> dict[str, tuple[Path, os.stat_result]]:
+def _source_files(root: Path, *, excluded: Path | None = None) -> dict[str, tuple[Path, os.stat_result]]:
     result: dict[str, tuple[Path, os.stat_result]] = {}
     stack = [root]
     while stack:
@@ -46,6 +46,8 @@ def _source_files(root: Path) -> dict[str, tuple[Path, os.stat_result]]:
             info = path.lstat()
             relative = path.relative_to(root).as_posix()
             if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
+                if excluded is not None and path == excluded:
+                    continue
                 stack.append(path)
             else:
                 result[relative] = (path, info)
@@ -88,7 +90,16 @@ def inspect_vendored_source(
         return _not_exact("vendored source directory is absent")
     if (checkout / ".git").exists() or (checkout / ".git").is_symlink():
         return _not_exact("unexpected nested .git")
-    if (checkout / "build").exists() or (checkout / "build").is_symlink():
+    try:
+        locked_build = resolve_contained(
+            paths.root, lock["build_directory"], allow_missing=True, reject_symlinks=True
+        )
+    except (BootstrapError, OSError):
+        return _not_exact("locked build directory is unsafe")
+    expected_build = checkout / "build"
+    if locked_build != expected_build:
+        return _not_exact("locked build directory is not the vendored build path")
+    if locked_build.exists() and (locked_build.is_symlink() or not locked_build.is_dir()):
         return _not_exact("unexpected build output in vendored source")
     if not identity_path.is_file() or identity_path.is_symlink():
         return _not_exact("source identity record is absent or unsafe")
@@ -153,7 +164,7 @@ def inspect_vendored_source(
     if total_bytes != identity.get("tracked_byte_count"):
         return _not_exact("vendored manifest total byte count is invalid", identity=identity)
 
-    actual = _source_files(checkout)
+    actual = _source_files(checkout, excluded=locked_build if locked_build.is_dir() else None)
     if set(actual) != set(expected):
         return _not_exact("vendored source has missing or extra files", identity=identity)
     for relative, record in expected.items():
@@ -233,6 +244,16 @@ def _cache_matches(build: Path, lock: Mapping[str, Any]) -> bool:
     return True
 
 
+def _llama_probe_environment(binary: Path) -> dict[str, str]:
+    """Resolve the build-local shared libraries for every llama probe."""
+
+    library_path = str(binary.parent)
+    existing = os.environ.get("LD_LIBRARY_PATH")
+    if existing:
+        library_path = os.pathsep.join((library_path, existing))
+    return {"LD_LIBRARY_PATH": library_path}
+
+
 def verify_llama_no_model(
     paths: RepositoryPaths,
     lock: Mapping[str, Any],
@@ -242,11 +263,12 @@ def verify_llama_no_model(
     binary = resolve_contained(paths.root, lock["binary"], allow_missing=False)
     if not binary.is_file() or binary.is_symlink() or not os.access(binary, os.X_OK):
         raise BootstrapError(ErrorCode.PRECONDITION_FAILED, "llama-server binary is absent or not executable")
-    version = require_success(command((str(binary), "--version"), timeout=60), purpose="llama-server version probe failed")
-    devices = require_success(command((str(binary), "--list-devices"), timeout=60), purpose="llama-server CUDA device probe failed")
+    probe_environment = _llama_probe_environment(binary)
+    version = require_success(command((str(binary), "--version"), env=probe_environment, timeout=60), purpose="llama-server version probe failed")
+    devices = require_success(command((str(binary), "--list-devices"), env=probe_environment, timeout=60), purpose="llama-server CUDA device probe failed")
     if "CUDA0" not in devices.stdout + devices.stderr:
         raise BootstrapError(ErrorCode.PRECONDITION_FAILED, "llama-server does not expose CUDA0")
-    libraries = require_success(command(("ldd", str(binary)), timeout=60), purpose="llama-server dynamic-library probe failed")
+    libraries = require_success(command(("ldd", str(binary)), env=probe_environment, timeout=60), purpose="llama-server dynamic-library probe failed")
     if "not found" in libraries.stdout:
         raise BootstrapError(ErrorCode.PRECONDITION_FAILED, "llama-server has unresolved dynamic libraries")
     return {

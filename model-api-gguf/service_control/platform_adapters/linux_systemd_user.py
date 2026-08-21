@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shlex
 import socket
 import stat
 import subprocess
@@ -215,6 +216,110 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _repository_owner() -> tuple[int, int]:
+    home = Path.home()
+    try:
+        metadata = home.lstat()
+    except OSError as exc:
+        _fail("SERVICE_OWNER_INVALID", f"repository home cannot be inspected: {exc}")
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid == 0:
+        _fail(
+            "SERVICE_OWNER_INVALID",
+            "repository home must be a non-root directory owner",
+        )
+    return metadata.st_uid, metadata.st_gid
+
+
+def _adopt_user_owned_directory(path: Path, label: str) -> None:
+    _reject_symlink_components(path, label)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} unavailable: {exc}")
+    if not stat.S_ISDIR(metadata.st_mode):
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} must be a directory")
+    owner_uid, owner_gid = _repository_owner()
+    if metadata.st_uid != owner_uid or metadata.st_gid != owner_gid:
+        if os.geteuid() != 0:
+            _fail("FOREIGN_SERVICE_DEFINITION", f"{label} is not owned by the repository user")
+        try:
+            if any(path.iterdir()):
+                _fail(
+                    "FOREIGN_SERVICE_DEFINITION",
+                    f"{label} owner differs while it contains entries",
+                )
+            os.chown(path, owner_uid, owner_gid, follow_symlinks=False)
+        except OSError as exc:
+            _fail("FOREIGN_SERVICE_DEFINITION", f"{label} ownership handoff failed: {exc}")
+    try:
+        os.chmod(path, 0o700)
+        _fsync_directory(path)
+    except OSError as exc:
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} mode or sync failed: {exc}")
+
+
+def _adopt_user_owned_file(path: Path, label: str) -> None:
+    _reject_symlink_components(path, label)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} unavailable: {exc}")
+    if not stat.S_ISREG(metadata.st_mode):
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} must be a regular file")
+    owner_uid, owner_gid = _repository_owner()
+    if metadata.st_uid != owner_uid or metadata.st_gid != owner_gid:
+        if os.geteuid() != 0:
+            _fail("FOREIGN_SERVICE_DEFINITION", f"{label} is not owned by the repository user")
+        try:
+            os.chown(path, owner_uid, owner_gid, follow_symlinks=False)
+        except OSError as exc:
+            _fail("FOREIGN_SERVICE_DEFINITION", f"{label} ownership handoff failed: {exc}")
+    try:
+        os.chmod(path, 0o600)
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} mode or sync failed: {exc}")
+
+
+def _adopt_user_owned_tree(path: Path, label: str) -> None:
+    _reject_symlink_components(path, label)
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} unavailable: {exc}")
+    if not stat.S_ISDIR(metadata.st_mode):
+        _fail("ADAPTER_MANIFEST_INVALID", f"{label} must be a directory")
+    owner_uid, owner_gid = _repository_owner()
+    for current, directories, files in os.walk(path, topdown=True, followlinks=False):
+        for name in (*directories, *files):
+            entry = Path(current) / name
+            try:
+                entry_metadata = entry.lstat()
+            except OSError as exc:
+                _fail("ADAPTER_MANIFEST_INVALID", f"{label} entry cannot be inspected: {exc}")
+            if stat.S_ISLNK(entry_metadata.st_mode) or not (
+                stat.S_ISDIR(entry_metadata.st_mode)
+                or stat.S_ISREG(entry_metadata.st_mode)
+            ):
+                _fail("ADAPTER_MANIFEST_INVALID", f"{label} contains an unsafe entry")
+            if entry_metadata.st_uid != owner_uid or entry_metadata.st_gid != owner_gid:
+                if os.geteuid() != 0:
+                    _fail("FOREIGN_SERVICE_DEFINITION", f"{label} is not owned by the repository user")
+                try:
+                    os.chown(entry, owner_uid, owner_gid, follow_symlinks=False)
+                except OSError as exc:
+                    _fail("FOREIGN_SERVICE_DEFINITION", f"{label} ownership handoff failed: {exc}")
+        try:
+            os.chown(current, owner_uid, owner_gid, follow_symlinks=False)
+            _fsync_directory(Path(current))
+        except OSError as exc:
+            _fail("FOREIGN_SERVICE_DEFINITION", f"{label} directory ownership handoff failed: {exc}")
+
+
 def _reject_symlink_components(path: Path, label: str) -> None:
     absolute = _absolute(path)
     for component in list(reversed(absolute.parents)) + [absolute]:
@@ -248,6 +353,20 @@ def _ensure_private_directory(path: Path, label: str) -> None:
     except OSError as exc:
         _fail("ADAPTER_MANIFEST_INVALID", f"{label} mode failed: {exc}")
 
+
+def _directory_is_writable_or_creatable(path: Path, label: str) -> bool:
+    """Return whether a private directory path can be created safely."""
+    _reject_symlink_components(path, label)
+    existing = _absolute(path)
+    while not existing.exists():
+        parent = existing.parent
+        if parent == existing:
+            return False
+        existing = parent
+    return (
+        existing.is_dir()
+        and os.access(existing, os.W_OK | os.X_OK)
+    )
 
 def _read_regular(path: Path, label: str) -> bytes:
     _reject_symlink_components(path, label)
@@ -340,6 +459,7 @@ def _atomic_write(
                 f"{path.name} write failed: {exc}",
             )
         _fsync_directory(path.parent)
+        _adopt_user_owned_file(path, path.name)
         return
     temporary_descriptor: int | None = None
     temporary_path: str | None = None
@@ -358,6 +478,7 @@ def _atomic_write(
         os.replace(temporary_path, path)
         temporary_path = None
         _fsync_directory(path.parent)
+        _adopt_user_owned_file(path, path.name)
     except OSError as exc:
         _fail(
             "ADAPTER_MANIFEST_INVALID",
@@ -596,8 +717,8 @@ class SystemdUserManager:
                 == "systemd"
             ),
             "systemd_user_manager": True,
-            "user_unit_registration": os.access(
-                Path.home() / ".config", os.W_OK
+            "user_unit_registration": _directory_is_writable_or_creatable(
+                Path.home() / ".config", "user unit registration directory"
             ),
             "manager_enable_disable": True,
             "manager_start_stop_status": True,
@@ -829,6 +950,77 @@ def render_unit(
     return value
 
 
+def _existing_product_unit_identity(unit_path: Path) -> dict[str, str]:
+    """Identify an existing System X unit before replacing its root binding."""
+
+    if os.path.islink(unit_path):
+        _fail("SERVICE_NAME_COLLISION", "existing service definition is a symlink")
+    try:
+        metadata = unit_path.lstat()
+    except OSError as exc:
+        _fail("SERVICE_NAME_COLLISION", f"existing service definition cannot be inspected: {exc}")
+    owner_uid, owner_gid = _repository_owner()
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != owner_uid
+        or metadata.st_gid != owner_gid
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+    ):
+        _fail("SERVICE_NAME_COLLISION", "existing service definition is not private and user-owned")
+    data = _read_regular(unit_path, "existing service definition")
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        _fail("SERVICE_NAME_COLLISION", f"existing service definition is not UTF-8: {exc}")
+    if any(token in text for token in ("EnvironmentFile=", "ExecStart=/bin/sh", "ExecStart=/usr/bin/env")):
+        _fail("SERVICE_NAME_COLLISION", "existing service definition is not a native System X unit")
+    fields: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key in {"Description", "WorkingDirectory", "ExecStart"}:
+            if key in fields:
+                _fail("SERVICE_NAME_COLLISION", "existing service definition has duplicate identity fields")
+            fields[key] = value
+    if fields.get("Description") != "System X automatic activation supervisor":
+        _fail("SERVICE_NAME_COLLISION", "existing service definition is not owned by System X")
+    working_directory = fields.get("WorkingDirectory")
+    exec_start = fields.get("ExecStart")
+    if not working_directory or not exec_start:
+        _fail("SERVICE_NAME_COLLISION", "existing service definition lacks the System X identity")
+    try:
+        arguments = shlex.split(exec_start, posix=True)
+    except ValueError as exc:
+        _fail("SERVICE_NAME_COLLISION", f"existing service definition has invalid argv: {exc}")
+    if len(arguments) != 17 or arguments[0] != str(PYTHON) or arguments[2] != "run":
+        _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected supervisor argv")
+    model_root = Path(working_directory)
+    if model_root.name != "model-api-gguf" or not model_root.is_absolute():
+        _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected working directory")
+    branch_root = model_root.parent
+    expected_paths = {
+        1: model_root / "service_control/supervisor.py",
+        4: model_root / "RUNTIME/service_control/operating-profile.json",
+        6: model_root / "RUNTIME/service_control/desired-state.json",
+        8: model_root / "RUNTIME/service_control",
+        10: model_root / "api_service_controller/controller.py",
+        12: model_root / "branch_controller/controller.py",
+    }
+    for index, expected_path in expected_paths.items():
+        if arguments[index] != str(expected_path):
+            _fail("SERVICE_NAME_COLLISION", "existing service definition is not a coherent System X registration")
+    if arguments[13] != "--api-controller-sha256" or arguments[15] != "--branch-controller-sha256":
+        _fail("SERVICE_NAME_COLLISION", "existing service definition lacks locked controller identities")
+    if arguments[14] != API_CONTROLLER_SHA256 or arguments[16] != BRANCH_CONTROLLER_SHA256:
+        _fail("SERVICE_NAME_COLLISION", "existing service definition has unexpected controller identities")
+    return {
+        "branch_root": str(branch_root),
+        "unit_sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
 class LinuxSystemdUserServiceAdapter:
     adapter_identity = ADAPTER_IDENTITY
     adapter_version = ADAPTER_VERSION
@@ -852,6 +1044,14 @@ class LinuxSystemdUserServiceAdapter:
         self.unit_path = _absolute(self.manager.unit_path)
 
     def _prepare_runtime(self) -> None:
+        _ensure_private_directory(
+            self.unit_path.parent,
+            "systemd user unit directory",
+        )
+        _adopt_user_owned_directory(
+            self.unit_path.parent,
+            "systemd user unit directory",
+        )
         for path, label in (
             (self.paths.root, "systemd adapter root"),
             (self.paths.transactions, "systemd adapter transactions"),
@@ -1090,8 +1290,11 @@ class LinuxSystemdUserServiceAdapter:
             self.unit_path, "native service definition"
         )
         if (
-            hashlib.sha256(unit_data).hexdigest()
-            != value["native_service"]["service_definition_sha256"]
+            (
+                hashlib.sha256(unit_data).hexdigest()
+                != value["native_service"]["service_definition_sha256"]
+                and not allow_stale_configuration_for_inactive_removal
+            )
             or (
                 not allow_stale_configuration_for_inactive_removal
                 and unit_data != unit
@@ -1610,10 +1813,10 @@ class LinuxSystemdUserServiceAdapter:
             supervisor_runtime_root=supervisor_runtime_root,
             supervisor_entrypoint=supervisor_entrypoint,
         )
-        if desired.desired_state != "STOPPED":
+        if desired.desired_state not in {"STOPPED", "RUNNING"}:
             _fail(
                 "DESIRED_STATE_PROFILE_MISMATCH",
-                "registration reconciliation requires desired state STOPPED",
+                "registration reconciliation requires a known desired state",
             )
         old_reference = old_manifest["configuration_reference"]
         if old_reference != config["configuration_reference"]:
@@ -1631,9 +1834,11 @@ class LinuxSystemdUserServiceAdapter:
                 "registered adapter ownership does not match the selected service",
             )
         metadata = self.unit_path.lstat()
+        owner_uid, owner_gid = _repository_owner()
         if (
             not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != os.getuid()
+            or metadata.st_uid != owner_uid
+            or metadata.st_gid != owner_gid
             or stat.S_IMODE(metadata.st_mode) != 0o600
         ):
             _fail(
@@ -1641,17 +1846,23 @@ class LinuxSystemdUserServiceAdapter:
                 "registered native service definition is not private and user-owned",
             )
         before = self.manager.status()
-        if (
-            not before.get("registered")
-            or before.get("active")
-            or before.get("active_state")
-            in {"activating", "deactivating", "reloading", "auto-restart"}
-        ):
+        manager_stop_result = None
+        if not before.get("registered"):
             _fail(
                 "MANAGER_STATE_MISMATCH",
-                "registered service must be inactive before reconciliation",
+                "registered service manager state is not registered",
                 data={"manager_status": before},
             )
+        if before.get("active") or before.get("active_state") in {"activating", "deactivating", "reloading", "auto-restart"}:
+            manager_stop_result = self.manager.stop()
+            before = self.manager.status()
+        if before.get("active") or before.get("active_state") in {"activating", "deactivating", "reloading", "auto-restart"}:
+            _fail("MANAGER_STATE_MISMATCH", "registered service remained active during reconciliation", data={"manager_status": before})
+        if desired.desired_state == "RUNNING":
+            try:
+                desired = set_desired_state(profile, "STOPPED", config["configuration_reference"]["state_path"], expected_generation=desired.generation)
+            except ServiceControlError as exc:
+                _fail("DESIRED_STATE_PROFILE_MISMATCH", exc.message)
         self._prepare_runtime()
         _atomic_write(self.unit_path, unit)
         verify = self.manager.verify_unit()
@@ -1716,12 +1927,107 @@ class LinuxSystemdUserServiceAdapter:
                 "unit_verify": verify,
                 "daemon_reload": reload_result,
                 "process_started": False,
+                "manager_stop_result": manager_stop_result,
                 "reconciled_existing_registration": True,
             },
         )
         transaction_id = self._record_transaction(
             "register", before=before, after=manager, result=result
         )
+        result["data"]["adapter_transaction_id"] = transaction_id
+        return result
+
+
+    def _reconcile_unmanifested_existing(
+        self,
+        *,
+        profile_path: Path | str,
+        state_path: Path | str,
+        supervisor_runtime_root: Path | str,
+        supervisor_entrypoint: Path | str,
+        config: Mapping[str, Any],
+        profile: OperatingProfile,
+        desired: DesiredState,
+        unit: bytes,
+        before: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        existing = _existing_product_unit_identity(self.unit_path)
+        old_unit = _read_regular(self.unit_path, "existing service definition")
+        initial_before = dict(before)
+        manager_stop_result = None
+        if before.get("registered") and (
+            before.get("active")
+            or before.get("active_state")
+            in {"activating", "deactivating", "reloading", "auto-restart"}
+        ):
+            manager_stop_result = self.manager.stop()
+            before = self.manager.status()
+        if before.get("active") or before.get("active_state") in {"activating", "deactivating", "reloading", "auto-restart"}:
+            _fail("MANAGER_STATE_MISMATCH", "owned existing service remained active during reconciliation", data={"manager_status": before})
+        self._prepare_runtime()
+        try:
+            _atomic_write(self.unit_path, unit)
+            verify = self.manager.verify_unit()
+            reload_result = self.manager.daemon_reload()
+            after = self.manager.status()
+            if (
+                not after.get("registered")
+                or after.get("active")
+                or after.get("fragment_path") != str(self.unit_path)
+                or bool(after.get("enabled")) != bool(before.get("enabled"))
+            ):
+                _fail("MANAGER_STATE_MISMATCH", "owned service reconciliation did not produce an inactive clone-bound unit", data={"manager_before": before, "manager_after": after})
+            timestamp = utc_now()
+            manifest = {
+                "schema_version": MANIFEST_SCHEMA,
+                "adapter_identity": ADAPTER_IDENTITY,
+                "adapter_version": ADAPTER_VERSION,
+                "supported_platform_family": PLATFORM_FAMILY,
+                "required_host_capabilities": list(REQUIRED_HOST_CAPABILITIES),
+                "activation_method": ACTIVATION_METHOD,
+                "automatic_activation_supported": True,
+                "supervisor_entrypoint": config["supervisor_entrypoint"],
+                "configuration_reference": config["configuration_reference"],
+                "configuration_identity": config["configuration_identity"],
+                "registered": True,
+                "enabled": bool(after.get("enabled")),
+                "active": False,
+                "manifest_generation": 1,
+                "registered_utc": timestamp,
+                "updated_utc": timestamp,
+                "last_activation_result": None,
+                "last_failure_reason": None,
+                "native_service": config["native_service"],
+            }
+            _atomic_json(self.paths.manifest, manifest, exclusive=True, conflict_reason="ADAPTER_ALREADY_REGISTERED")
+        except BaseException:
+            try:
+                _atomic_write(self.unit_path, old_unit)
+                self.manager.daemon_reload()
+            except BaseException:
+                pass
+            raise
+        identity, supervisor_status, manager = self._correlate(manifest)
+        status = self._status_value(manifest, profile, desired, identity, supervisor_status, manager)
+        result = self._result(
+            "register",
+            manifest,
+            profile,
+            desired,
+            manager,
+            message="existing System X user service reconciled without activation",
+            data={
+                "status": status,
+                "unit_verify": verify,
+                "daemon_reload": reload_result,
+                "process_started": False,
+                "manager_stop_result": manager_stop_result,
+                "existing_unit_root": existing["branch_root"],
+                "existing_unit_sha256": existing["unit_sha256"],
+                "reconciled_existing_registration": True,
+            },
+        )
+        transaction_id = self._record_transaction("register", before=initial_before, after=manager, result=result)
         result["data"]["adapter_transaction_id"] = transaction_id
         return result
 
@@ -1753,11 +2059,21 @@ class LinuxSystemdUserServiceAdapter:
             )
         before = self.manager.status()
         if before.get("registered") or os.path.lexists(self.unit_path):
-            _fail(
-                "SERVICE_NAME_COLLISION",
-                "native service name or definition already exists",
-                data={"manager_status": before},
+            return self._reconcile_unmanifested_existing(
+                profile_path=profile_path,
+                state_path=state_path,
+                supervisor_runtime_root=supervisor_runtime_root,
+                supervisor_entrypoint=supervisor_entrypoint,
+                config=config,
+                profile=profile,
+                desired=desired,
+                unit=unit,
+                before=before,
             )
+        _adopt_user_owned_tree(
+            _absolute(supervisor_runtime_root).parent,
+            "System X generated runtime",
+        )
         self._prepare_runtime()
         _atomic_write(
             self.unit_path,

@@ -2,7 +2,7 @@
 
 ## Scope and safety boundary
 
-Installation reconstructs portable source into local generated state. It does not authorize model download/admission, service handoff, or copying an old credential. Keep the source clone, runtime state, models, private environments, and external products separate.
+Installation reconstructs portable source into local generated state. It does not authorize model download/admission or copying an old credential. The authorized reconstruction registers the local user service; model handoff remains a separate Inspector operation. Keep the source clone, runtime state, models, private environments, and external products separate.
 
 ## Prerequisites
 
@@ -22,21 +22,31 @@ cd system-x
 
 The `rebuild/b8bd-system-x` branch is based on exact b8bd39f and vendors llama.cpp as ordinary files at b10092 / 3ce7da2c / cfbb48d. Do not use `--recursive`; no submodule initialization is required. Installation, build, runtime initialization, service activation, and model admission are explicit generated-state operations.
 
+The portable tree manifest is a `FULL_TREE` source contract. It covers every regular candidate Git-tree member except its explicit self-exclusion and records exact Git mode, portable mode, bytes, and SHA-256. The tracked producer/validator is `bootstrap/system_x_bootstrap/portable_manifest.py`; do not copy a source tree, environment, build, runtime, credential, model, service unit, or packet evidence into a clone.
+
 ## Read-only discovery and frozen plan
 
 Run as the target user:
 
 ```bash
-python3.14 -I -S -B bootstrap/run_bootstrap.py identify
-python3.14 -I -S -B bootstrap/run_bootstrap.py inspect-host
-python3.14 -I -S -B bootstrap/run_bootstrap.py plan
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py identify
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py inspect-host
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py plan
 ```
 
-Preserve the plan output and verify its source identity before privileged work. `apply-host` is the only host-package stage and must be run as root only for that exact frozen plan. Never broaden the package list interactively.
+Preserve the plan output and verify its source identity before authorized reconstruction. Never broaden the package list interactively.
 
-## Host stage
+## Authorized reconstruction
 
-The direct package set is:
+After the read-only plan is reviewed, run this product command exactly once from the clean clone as the target user:
+
+```bash
+/usr/bin/python3.14 -I -S -B bootstrap/run_bootstrap.py reconstruct --authorize
+```
+
+The product performs its own read-only host plan. If locked host packages are missing, the product validates the platform-owned elevation route and preserves the validated installation user; on WSL it may re-enter the exact `Ubuntu-26.04` distribution through `/init` when noninteractive sudo is unavailable, then performs one product-owned privilege handoff before starting its single host mutation transaction. The packet or operator wrapper must not run `sudo`, `apt`, `systemctl`, or any replacement command. The one reconstruction command then verifies the vendored source, builds the two private environments and only `llama-server`, initializes empty current-schema runtime state, generates a new local credential, registers the accepted user service adapter, and verifies model-free authenticated `WAITING_FOR_MODEL`. Do not invoke the lower-level operations individually for this proof. On an already host-ready Ubuntu 26.04 target, no elevation is performed.
+
+The host package contract remains bounded to:
 
 ```text
 build-essential ca-certificates cmake curl dbus-user-session git ninja-build
@@ -45,17 +55,7 @@ pkg-config python3.14 python3.14-venv systemd cuda-toolkit-13-3
 
 The CUDA package is toolkit-only. Reject `cuda`, `cuda-13-3`, `cuda-drivers*`, `nvidia-driver-*`, and other packages that pull a Linux display-driver stack.
 
-## Generated stages
-
-After host acceptance, use the committed bootstrap operations in this order:
-
-1. `build-environments` — creates the two private CPython 3.14 environments from locks.
-2. `build-llama-server` — verifies vendored source identity and builds only the pinned CUDA target.
-3. `initialize-runtime` — creates empty current-schema runtime and database state.
-4. `initialize-credentials` — generates a new local API credential without printing it.
-5. `register-platform-service` — writes/registers the user unit only after the user-manager gate passes.
-
-Use `status` and `verify` between stages. The high-level `reconstruct` operation is appropriate only when its plan and all gates are understood and accepted.
+After reconstruction, `status` and `verify --level waiting-for-model` are read-only checks. Model admission is a separate explicit Inspector operation.
 
 ## Service and model boundary
 
