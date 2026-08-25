@@ -4,12 +4,13 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from system_x_inspector.capabilities import (
     build_binding,
@@ -46,6 +47,8 @@ from system_x_inspector.qualification import (
     qualify_transaction,
     recover_with_accepted_platform_manager,
     run_capability_profile,
+    _bound_installed_tuple_verification,
+    _system_x_source_evidence,
     stage_qualification_candidate,
     wait_for_candidate_removal,
 )
@@ -1476,3 +1479,237 @@ class QualificationProfileRunnerTest(unittest.TestCase):
         )
         self.assertTrue(parsed["content_present"])
         self.assertEqual(parsed["event_count"], 4)
+
+class InstalledTupleQualificationRepairTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = Path(
+            tempfile.mkdtemp(
+                prefix="inspector-qualification-repair-",
+                dir="/tmp",
+            )
+        )
+        self.root = self.temporary / "INSPECTOR"
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.config_root = self.temporary / "config"
+        self.paths = InspectorPaths.discover(
+            self.root,
+            explicit_user_config_root=self.config_root,
+        )
+        for directory in (
+            self.paths.logs,
+            self.paths.locks,
+            self.paths.status,
+            self.paths.transactions,
+        ):
+            directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temporary)
+
+    def test_portable_tree_manifest_authenticates_materialized_source(self) -> None:
+        portable_root = self.temporary / "portable-source"
+        inspector_source = portable_root / "INSPECTOR" / "system_x_inspector"
+        schema_root = portable_root / "INSPECTOR" / "schemas"
+        inspector_source.mkdir(parents=True, mode=0o700)
+        schema_root.mkdir(parents=True, mode=0o700)
+        source_files = {
+            inspector_source / "portable.py": b"portable-source\n",
+            schema_root / "portable.json": b"{\"schema\":true}\n",
+        }
+        entries = []
+        for path, content in sorted(
+            source_files.items(), key=lambda item: str(item[0])
+        ):
+            path.write_bytes(content)
+            relative = path.relative_to(portable_root).as_posix()
+            entries.append(
+                {
+                    "bytes": len(content),
+                    "classification": "TRACKED_CANDIDATE_INPUT",
+                    "git_blob": hashlib.sha1(
+                        b"blob "
+                        + str(len(content)).encode("ascii")
+                        + b"\x00"
+                        + content
+                    ).hexdigest(),
+                    "git_mode": "100644",
+                    "path": relative,
+                    "portable_mode": f"{stat.S_IMODE(path.stat().st_mode):#06o}",
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+            )
+        exclusion = {
+            "path": "SYSTEM_X_PORTABLE_TREE_MANIFEST.json",
+            "reason": "fixture self exclusion",
+        }
+        manifest = {
+            "coverage": {
+                "candidate_git_tree": "COMPLETE",
+                "constructor_graph": "COMPLETE_CANDIDATE_GIT_TREE_CLOSURE",
+                "generated_state": "EXCLUDED",
+            },
+            "entries": entries,
+            "entry_count": len(entries),
+            "excluded": [exclusion],
+            "manifest_path": exclusion["path"],
+            "ordering": "lexicographic-path",
+            "schema_version": "system-x.portable-tree-manifest.v4",
+            "self_exclusion": exclusion,
+            "semantics": "FULL_TREE",
+            "source_root": ".",
+            "tracked_regular_file_count": len(entries) + 1,
+        }
+        (portable_root / "SYSTEM_X_PORTABLE_TREE_MANIFEST.json").write_text(
+            json.dumps(manifest, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (portable_root / "SYSTEM_X_REPOSITORY_MANIFEST.json").write_text(
+            json.dumps(
+                {"repository": {"source_base": "a" * 40}},
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        portable_paths = replace(
+            self.paths,
+            source_root=inspector_source,
+            schema_root=schema_root,
+        )
+        evidence = _system_x_source_evidence(portable_paths)
+        self.assertEqual(
+            evidence["system_x_source_identity_mode"],
+            "PORTABLE_TREE_MANIFEST",
+        )
+        self.assertEqual(evidence["system_x_source_commit"], "a" * 40)
+        self.assertRegex(evidence["system_x_source_tree"], r"^[0-9a-f]{40}$")
+        self.assertIn("portable_tree_manifest_identity", evidence)
+
+    def test_qualification_verification_taxonomy_is_preserved(self) -> None:
+        branch_paths = SimpleNamespace(
+            branch_root=self.temporary / "model-api-gguf"
+        )
+        capability = {
+            "capability_record_identity": "sha256:" + "a" * 64,
+        }
+        binding = {
+            "binding_identity": "sha256:" + "b" * 64,
+        }
+        mismatch = {
+            "verified": False,
+            "mismatches": [
+                {
+                    "field": "component:fixture:sha256",
+                    "expected": sha(b"expected"),
+                    "observed": sha(b"observed"),
+                }
+            ],
+            "verification_context": {
+                "capability_record_identity": capability[
+                    "capability_record_identity"
+                ],
+                "binding_identity": binding["binding_identity"],
+                "branch_root": str(branch_paths.branch_root),
+                "user_config_root": str(self.paths.user_config_root),
+            },
+        }
+        verifier = Mock(return_value=mismatch)
+        with patch(
+            "system_x_inspector.qualification.verify_installed_tuple",
+            verifier,
+        ):
+            with self.assertRaises(InspectorError) as caught:
+                _bound_installed_tuple_verification(
+                    self.paths,
+                    branch_paths,
+                    capability,
+                    binding,
+                )
+        self.assertEqual(
+            caught.exception.reason_code,
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+        )
+        self.assertEqual(
+            caught.exception.data["verification_outcome"],
+            "returned_mismatches",
+        )
+        self.assertEqual(
+            caught.exception.data["mismatches"][0]["field"],
+            "component:fixture:sha256",
+        )
+
+        with patch(
+            "system_x_inspector.qualification.verify_installed_tuple",
+            side_effect=InspectorError(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "fixture verifier rejection",
+            ),
+        ):
+            with self.assertRaises(InspectorError) as caught:
+                _bound_installed_tuple_verification(
+                    self.paths,
+                    branch_paths,
+                    capability,
+                    binding,
+                )
+        self.assertEqual(
+            caught.exception.data["verification_outcome"],
+            "raised_inspector_error",
+        )
+
+    def test_failed_qualification_transaction_persists_safe_diagnostic(self) -> None:
+        transaction_id = "tx-qualification-diagnostic"
+        safe_context = {
+            "verification_outcome": "returned_mismatches",
+            "verification_context": {
+                "capability_record_identity": "sha256:" + "a" * 64,
+                "binding_identity": "sha256:" + "b" * 64,
+                "component_locators": [
+                    {
+                        "name": "fixture",
+                        "root": "branch",
+                        "path": "fixture.bin",
+                    }
+                ],
+            },
+            "mismatches": [
+                {
+                    "field": "component:fixture:sha256",
+                    "expected": sha(b"expected"),
+                    "observed": sha(b"observed"),
+                }
+            ],
+            "secret": "must-not-persist",
+        }
+
+        def reject_authorization(*_args, **_kwargs):
+            raise InspectorError(
+                "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                "fixture qualification rejection",
+                data=safe_context,
+            )
+
+        with self.assertRaises(InspectorError):
+            qualify_transaction(
+                self.paths,
+                "inspection-20260822T000000000000Z-" + "a" * 16,
+                sha(b"candidate"),
+                "CORE_CHAT",
+                transaction_id_factory=lambda: transaction_id,
+                authorization_factory=reject_authorization,
+            )
+        transaction = json.loads(
+            (
+                self.paths.transactions / f"{transaction_id}.json"
+            ).read_text(encoding="utf-8")
+        )
+        diagnostic = transaction["failure_diagnostic"]
+        self.assertEqual(
+            diagnostic["verification_outcome"],
+            "returned_mismatches",
+        )
+        self.assertNotIn("secret", json.dumps(diagnostic))
+        self.assertEqual(
+            diagnostic["data"]["mismatches"][0]["field"],
+            "component:fixture:sha256",
+        )

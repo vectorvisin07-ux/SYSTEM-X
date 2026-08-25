@@ -37,6 +37,7 @@
         "handoff",
         "publish-service",
         "deploy-gguf",
+        "reconcile-intake",
         "show-connection",
         "unknown"
       ]

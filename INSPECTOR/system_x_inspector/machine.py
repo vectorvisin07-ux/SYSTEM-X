@@ -37,6 +37,8 @@ from .qualification import (
 from .promotion import promote_transaction
 from .retirement import retire_transaction
 from .connection_receipt import render_connection, show_connection
+from .automatic_intake import reconcile_automatic_intake
+from .automatic_basis import persist_automatic_terminal_basis
 from .deployment import (
     CurrentSourceDeploymentAdapter,
     deploy_transaction,
@@ -171,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         required=True,
     )
+    subparsers.add_parser("reconcile-intake")
     subparsers.add_parser("show-connection")
     return parser
 
@@ -572,6 +575,29 @@ def execute(arguments: argparse.Namespace) -> tuple[int, dict[str, object]]:
                     paths.transactions / f"{transaction_id}.json"
                 ),
                 "result": str(result_path),
+            },
+        )
+    if arguments.operation == "reconcile-intake":
+        automatic = reconcile_automatic_intake(
+            paths, adapter=CurrentSourceDeploymentAdapter()
+        )
+        active = automatic["active_transaction_reference"]
+        transaction_id = (
+            active["transaction_id"]
+            if isinstance(active, dict)
+            else None
+        )
+        basis_reference = persist_automatic_terminal_basis(paths, automatic)
+        return 0, machine_result(
+            operation=arguments.operation,
+            ok=True,
+            reason_code=automatic["reason_code"],
+            message="Automatic intake reconciliation completed",
+            inspector_root=paths.inspector_root,
+            transaction_id=transaction_id,
+            data={
+                "automatic_result": automatic,
+                "terminal_basis_reference": basis_reference,
             },
         )
     if arguments.operation == "show-connection":

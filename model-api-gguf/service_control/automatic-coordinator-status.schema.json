@@ -1,0 +1,229 @@
+{
+  "$defs": {
+    "basisReference": {
+      "additionalProperties": false,
+      "properties": {
+        "basis_class": {
+          "enum": [
+            "PROCESSED",
+            "REJECTED"
+          ]
+        },
+        "basis_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "record_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "record_path": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "basis_class",
+        "basis_identity",
+        "record_identity",
+        "record_path"
+      ],
+      "type": "object"
+    },
+    "processIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "argv_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "boot_identity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cgroup_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "executable": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "executable_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "pgid": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pid": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "process_start_identity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sid": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid",
+        "process_start_identity",
+        "boot_identity",
+        "executable",
+        "executable_sha256",
+        "argv_sha256",
+        "pgid",
+        "sid",
+        "cgroup_identity"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "system-x.service-automatic-intake-coordinator-status.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "active_child_identity": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/processIdentity"
+        }
+      ]
+    },
+    "active_inspector_transaction_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "configuration_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "consecutive_method_failure_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "coordinator_state": {
+      "enum": [
+        "DISABLED",
+        "IDLE",
+        "DUE",
+        "CHILD_STARTING",
+        "CHILD_RUNNING",
+        "REATTACHING",
+        "BACKOFF",
+        "STOPPING"
+      ]
+    },
+    "dispatch_basis_reference": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/basisReference"
+        }
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "last_completion_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_inspector_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_invocation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_start_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_due_monotonic": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "processed_basis_reference": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/basisReference"
+        }
+      ]
+    },
+    "rejected_basis_reference": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/basisReference"
+        }
+      ]
+    },
+    "schema_version": {
+      "const": "system-x.service-automatic-intake-coordinator-status.v1"
+    },
+    "supervisor_generation": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "updated_utc": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "enabled",
+    "supervisor_generation",
+    "coordinator_state",
+    "configuration_identity",
+    "last_invocation_id",
+    "active_child_identity",
+    "last_inspector_action",
+    "last_reason_code",
+    "active_inspector_transaction_reference",
+    "dispatch_basis_reference",
+    "processed_basis_reference",
+    "rejected_basis_reference",
+    "consecutive_method_failure_count",
+    "last_start_utc",
+    "last_completion_utc",
+    "next_due_monotonic",
+    "updated_utc"
+  ],
+  "type": "object"
+}

@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Sequence
 
 from .errors import BootstrapError
 from .orchestrator import BootstrapOrchestrator
+from .portable_materializer import materialize_portable_tree
 from .result import MachineResult
 from .verify import VERIFICATION_LEVELS
 
@@ -20,6 +22,10 @@ def parser() -> argparse.ArgumentParser:
         subparsers.add_parser(name)
     verify = subparsers.add_parser("verify")
     verify.add_argument("--level", choices=VERIFICATION_LEVELS, required=True)
+    materialize = subparsers.add_parser("materialize")
+    materialize.add_argument("--source-root", type=Path, required=True)
+    materialize.add_argument("--destination", type=Path, required=True)
+    materialize.add_argument("--candidate-map", type=Path, required=True)
     for name in (
         "apply-host", "initialize-submodules", "build-environments", "build-llama-server",
         "initialize-runtime", "initialize-credentials", "register-platform-service", "reconstruct",
@@ -34,8 +40,11 @@ def parser() -> argparse.ArgumentParser:
     return value
 
 
-def execute(arguments: argparse.Namespace, orchestrator: BootstrapOrchestrator) -> MachineResult | list[MachineResult]:
+def execute(arguments: argparse.Namespace, orchestrator: BootstrapOrchestrator | None) -> MachineResult | list[MachineResult]:
     operation = arguments.operation
+    if operation == "materialize":
+        details = materialize_portable_tree(arguments.source_root, arguments.destination, arguments.candidate_map)
+        return MachineResult("materialize", "ok", "PORTABLE_TREE_MATERIALIZED", changed=True, details=details)
     if operation == "identify": return orchestrator.identify()
     if operation == "inspect-host": return orchestrator.inspect_host()
     if operation == "plan": return orchestrator.plan()
@@ -55,7 +64,8 @@ def execute(arguments: argparse.Namespace, orchestrator: BootstrapOrchestrator) 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser().parse_args(argv)
     try:
-        result = execute(arguments, BootstrapOrchestrator(installation_user=getattr(arguments, "install_user", None)))
+        orchestrator = None if arguments.operation == "materialize" else BootstrapOrchestrator(installation_user=getattr(arguments, "install_user", None))
+        result = execute(arguments, orchestrator)
     except BootstrapError as error:
         result = MachineResult.from_error(arguments.operation, "FAIL_CLOSED", error)
     if isinstance(result, list):

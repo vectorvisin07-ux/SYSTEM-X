@@ -1,0 +1,147 @@
+{
+  "$id": "system-x.inspector-automatic-intake-result.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "DISPATCH_FIRST_MODEL",
+        "NOOP_ACTIVE_TRANSACTION",
+        "NOOP_ALREADY_PROCESSED",
+        "NOOP_COPY_IN_PROGRESS",
+        "NOOP_MULTIPLE_CANDIDATES",
+        "NOOP_OWNERSHIP_UNCERTAIN",
+        "NOOP_READY_MODEL_PRESENT",
+        "NOOP_REGISTRY_CONTRADICTORY",
+        "NOOP_WAITING",
+        "REJECT_CANDIDATE"
+      ]
+    },
+    "active_transaction_reference": {
+      "additionalProperties": false,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "candidate": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "artifact_identity": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "byte_count": {
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "metadata": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "observation_identity": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "relative_name": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "relative_name",
+            "observation_identity",
+            "artifact_identity",
+            "byte_count",
+            "metadata"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "created_utc": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "derived_deployment_request": {
+      "additionalProperties": false,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "existing_result_reference": {
+      "additionalProperties": false,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "intake_root_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "operation": {
+      "const": "reconcile-intake"
+    },
+    "reason_code": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "reconciliation_id": {
+      "pattern": "^reconcile-[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "registry_snapshot": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "result_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "system-x.inspector-automatic-intake-result.v1"
+    },
+    "source_configuration_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "visible_candidate_count": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation",
+    "reconciliation_id",
+    "created_utc",
+    "action",
+    "reason_code",
+    "intake_root_identity",
+    "visible_candidate_count",
+    "candidate",
+    "registry_snapshot",
+    "derived_deployment_request",
+    "active_transaction_reference",
+    "existing_result_reference",
+    "source_configuration_identity",
+    "result_identity"
+  ],
+  "type": "object"
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pwd
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,8 +23,90 @@ def verify_service_source_contract(paths: RepositoryPaths, contract: Mapping[str
             raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "service source contract changed", context={"path": relative})
 
 
-def render_operating_profile(contract: Mapping[str, Any]) -> bytes:
-    return canonical_json_bytes(contract["operating_profile"]["template"])
+def _is_fresh_trial_root(repository_root: Path | None) -> bool:
+    if repository_root is None:
+        return False
+    try:
+        parts = repository_root.resolve().parts
+    except OSError:
+        parts = repository_root.parts
+    return "TRIAL SYSTEM-X" in parts and any(part.startswith("10.18-recovery-") for part in parts)
+
+
+def _trial_profile_template(contract: Mapping[str, Any], repository_root: Path | None) -> dict[str, Any]:
+    template = json.loads(json.dumps(contract["operating_profile"]["template"]))
+    if not _is_fresh_trial_root(repository_root):
+        return template
+    token = int(hashlib.sha256(str(repository_root.resolve()).encode("utf-8")).hexdigest()[:12], 16)
+    template["private_router_endpoint"]["port"] = 58000 + (token % 1000)
+    template["public_endpoint"]["port"] = 59000 + (token % 1000)
+    return template
+
+
+def render_operating_profile(contract: Mapping[str, Any], repository_root: Path | None = None) -> bytes:
+    return canonical_json_bytes(_trial_profile_template(contract, repository_root))
+
+
+def _canonical_user_home() -> Path:
+    try:
+        return Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
+    except (KeyError, OSError) as exc:
+        raise BootstrapError(
+            ErrorCode.INTEGRITY_FAILURE,
+            "installation user home cannot be resolved",
+        ) from exc
+
+
+def _service_binding(
+    contract: Mapping[str, Any],
+    selected_home: Path,
+    repository_root: Path | None = None,
+) -> tuple[str, Path, Path]:
+    """Bind a trial to a unique manager-visible unit without changing HOME."""
+
+    selected_home = selected_home.resolve(strict=True)
+    unit_relative = Path(contract.get("future_generated_unit_relative_to_home", ".config/systemd/user/system-x.service"))
+    link_relative = Path(contract.get("future_generated_enablement_link_relative_to_home", ".config/systemd/user/default.target.wants/system-x.service"))
+    canonical_home = _canonical_user_home()
+    configured_name = str(contract.get("adapter", {}).get("service_name", "system-x.service"))
+    if selected_home == canonical_home and not _is_fresh_trial_root(repository_root):
+        return (
+            configured_name,
+            canonical_home / unit_relative,
+            canonical_home / link_relative,
+        )
+    binding_seed = repository_root.resolve() if repository_root is not None else selected_home
+    trial_token = hashlib.sha256(str(binding_seed).encode("utf-8")).hexdigest()[:16]
+    trial_name = f"system-x-trial-{trial_token}.service"
+    return (
+        trial_name,
+        canonical_home / unit_relative.parent / trial_name,
+        canonical_home / link_relative.parent / trial_name,
+    )
+
+
+def _adapter_argv(
+    python: str,
+    adapter: Path,
+    runtime_root: Path,
+    service_name: str,
+    unit_path: Path,
+    *operation: str,
+) -> tuple[str, ...]:
+    return (
+        python,
+        "-B",
+        "-I",
+        "-S",
+        str(adapter),
+        "--adapter-runtime-root",
+        str(runtime_root),
+        "--service-name",
+        service_name,
+        "--unit-path",
+        str(unit_path),
+        *operation,
+    )
 
 
 def service_status(
@@ -33,8 +116,7 @@ def service_status(
     home: Path | None = None,
 ) -> dict[str, Any]:
     selected_home = (home or Path.home()).resolve(strict=True)
-    unit = selected_home / contract["future_generated_unit_relative_to_home"]
-    link = selected_home / contract["future_generated_enablement_link_relative_to_home"]
+    _service_name, unit, link = _service_binding(contract, selected_home, paths.root)
     adapter_root = resolve_contained(paths.root, contract["adapter"]["runtime_root"], allow_missing=True)
     manifest = adapter_root / "linux-systemd-user" / "manifest.json"
     profile = resolve_contained(paths.root, contract["operating_profile"]["path"], allow_missing=True)
@@ -88,6 +170,7 @@ def register_platform_service(
     verify_service_source_contract(paths, contract)
     command = runner or SubprocessRunner()
     selected_home = (home or Path.home()).resolve(strict=True)
+    service_name, unit_path, _enablement_link = _service_binding(contract, selected_home, paths.root)
     before = service_status(paths, contract, home=selected_home)
     if before["unit_present"] or before["adapter_manifest_present"]:
         if before["adapter_manifest_present"]:
@@ -101,7 +184,7 @@ def register_platform_service(
             if profile.exists() != desired.exists():
                 raise BootstrapError(ErrorCode.RUNTIME_COLLISION, "partial or unknown service registration already exists")
             if not profile.exists():
-                _write_exclusive(profile, render_operating_profile(contract))
+                _write_exclusive(profile, render_operating_profile(contract, paths.root))
                 python = "python3.14"
                 profile_source = resolve_contained(paths.root, "model-api-gguf/service_control/operating_profile.py", allow_missing=False)
                 validate = _run_json(
@@ -126,14 +209,33 @@ def register_platform_service(
         runtime_root = resolve_contained(paths.root, contract["adapter"]["runtime_root"], allow_missing=False)
         supervisor_root = resolve_contained(paths.root, contract["supervisor"]["runtime_root"], allow_missing=False)
         supervisor = resolve_contained(paths.root, contract["supervisor"]["entrypoint"], allow_missing=False)
-        reconciled = _run_json(command, (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "register", "--profile", str(profile), "--state", str(desired), "--supervisor-runtime-root", str(supervisor_root), "--supervisor-entrypoint", str(supervisor)), "Linux systemd-user adapter registration reconciliation failed")
+        reconciled = _run_json(
+            command,
+            _adapter_argv(
+                python,
+                adapter,
+                runtime_root,
+                service_name,
+                unit_path,
+                "register",
+                "--profile",
+                str(profile),
+                "--state",
+                str(desired),
+                "--supervisor-runtime-root",
+                str(supervisor_root),
+                "--supervisor-entrypoint",
+                str(supervisor),
+            ),
+            "Linux systemd-user adapter registration reconciliation failed",
+        )
         if reconciled.get("ok") is not True or reconciled.get("registered") is not True:
             raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "product adapter reconciliation returned an unexpected identity")
         after = service_status(paths, contract, home=selected_home)
         if not all(after[key] for key in ("unit_present", "adapter_manifest_present", "operating_profile_present", "desired_state_present")):
             raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "reconciled service registration is physically incomplete")
-        transaction.record("service-registration-reconciled", {"adapter_identity": reconciled["adapter_identity"], "service_name": contract["adapter"]["service_name"], "product_owned": True})
-        return {"changed": True, "state": "registered", "service_control_invoked": True, "reconciled_existing_registration": True, "adapter_identity": reconciled["adapter_identity"]}
+        transaction.record("service-registration-reconciled", {"adapter_identity": reconciled["adapter_identity"], "service_name": service_name, "product_owned": True})
+        return {"changed": True, "state": "registered", "service_control_invoked": True, "reconciled_existing_registration": True, "adapter_identity": reconciled["adapter_identity"], "service_name": service_name, "registration_path": str(unit_path)}
 
 
 
@@ -141,7 +243,7 @@ def register_platform_service(
     desired = resolve_contained(paths.root, contract["desired_state"]["path"], allow_missing=True)
     if profile.exists() or desired.exists():
         raise BootstrapError(ErrorCode.RUNTIME_COLLISION, "operating profile or desired state already exists")
-    _write_exclusive(profile, render_operating_profile(contract))
+    _write_exclusive(profile, render_operating_profile(contract, paths.root))
 
     python = "python3.14"
     profile_source = resolve_contained(paths.root, "model-api-gguf/service_control/operating_profile.py", allow_missing=False)
@@ -169,8 +271,8 @@ def register_platform_service(
     supervisor = resolve_contained(paths.root, contract["supervisor"]["entrypoint"], allow_missing=False)
     result = _run_json(
         command,
-        (
-            python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "register",
+        _adapter_argv(
+            python, adapter, runtime_root, service_name, unit_path, "register",
             "--profile", str(profile), "--state", str(desired), "--supervisor-runtime-root", str(supervisor_root),
             "--supervisor-entrypoint", str(supervisor),
         ),
@@ -196,7 +298,7 @@ def register_platform_service(
         raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "platform adapter result lacks complete physical registration state")
     transaction.record(
         "service-registered",
-        {"adapter_identity": result["adapter_identity"], "service_name": contract["adapter"]["service_name"], "initial_state": "STOPPED"},
+        {"adapter_identity": result["adapter_identity"], "service_name": service_name, "initial_state": "STOPPED"},
     )
     return {
         "changed": True,
@@ -205,6 +307,8 @@ def register_platform_service(
         "initial_desired_state": "STOPPED",
         "enabled": bool(result.get("enabled")),
         "active": bool(result.get("active")),
+        "service_name": service_name,
+        "registration_path": str(unit_path),
     }
 
 
@@ -226,6 +330,7 @@ def activate_platform_service(
     verify_service_source_contract(paths, contract)
     command = runner or SubprocessRunner()
     selected_home = (home or Path.home()).resolve(strict=True)
+    service_name, unit_path, _enablement_link = _service_binding(contract, selected_home, paths.root)
     before = service_status(paths, contract, home=selected_home)
     required = ("unit_present", "adapter_manifest_present", "operating_profile_present", "desired_state_present")
     if not all(before[key] for key in required):
@@ -234,7 +339,11 @@ def activate_platform_service(
     python = "python3.14"
     adapter = resolve_contained(paths.root, contract["adapter"]["source_entrypoint"], allow_missing=False)
     runtime_root = resolve_contained(paths.root, contract["adapter"]["runtime_root"], allow_missing=False)
-    observed = _run_json(command, (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "status"), "Linux systemd-user adapter status probe failed")
+    observed = _run_json(
+        command,
+        _adapter_argv(python, adapter, runtime_root, service_name, unit_path, "status"),
+        "Linux systemd-user adapter status probe failed",
+    )
     registered = observed.get("registered")
     if (
         observed.get("ok") is not True
@@ -246,25 +355,53 @@ def activate_platform_service(
     ):
         raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "platform adapter status did not report a registered service")
     if observed.get("active"):
-        _run_json(command, (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "stop"), "Linux systemd-user adapter pre-activation stop failed")
-        observed = _run_json(command, (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "status"), "Linux systemd-user adapter post-stop status probe failed")
+        _run_json(
+            command,
+            _adapter_argv(python, adapter, runtime_root, service_name, unit_path, "stop"),
+            "Linux systemd-user adapter pre-activation stop failed",
+        )
+        observed = _run_json(
+            command,
+            _adapter_argv(python, adapter, runtime_root, service_name, unit_path, "status"),
+            "Linux systemd-user adapter post-stop status probe failed",
+        )
         registered = observed.get("registered")
     if registered is True and observed.get("enabled"):
         enable = observed
     else:
-        enable = _run_json(command, (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "enable"), "Linux systemd-user adapter enablement failed")
+        enable = _run_json(
+            command,
+            _adapter_argv(python, adapter, runtime_root, service_name, unit_path, "enable"),
+            "Linux systemd-user adapter enablement failed",
+        )
     if enable.get("ok") is not True or enable.get("enabled") is not True or enable.get("active") is True:
         raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "platform adapter did not report enabled inactive state")
     start = _run_json(
         command,
-        (python, "-B", "-I", "-S", str(adapter), "--adapter-runtime-root", str(runtime_root), "start"),
+        _adapter_argv(python, adapter, runtime_root, service_name, unit_path, "start"),
         "Linux systemd-user adapter activation failed",
     )
     if start.get("ok") is not True or start.get("enabled") is not True or start.get("active") is not True:
         raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "platform adapter did not report active state")
+    capability_relative = "INSPECTOR/system_x_inspector/installation_capability.py"
+    if capability_relative in contract.get("source_contract_sha256", {}):
+        capability_source = resolve_contained(paths.root, capability_relative, allow_missing=False)
+        capability = _run_json(
+            command,
+            (python, "-B", "-I", "-S", str(capability_source),
+             "--inspector-root", str(resolve_contained(paths.root, "INSPECTOR", allow_missing=False)),
+             "--branch-root", str(resolve_contained(paths.root, "model-api-gguf", allow_missing=False)),
+             "--user-config-root", str((selected_home / ".config").resolve(strict=True)),
+             "--platform-registered", "true", "--platform-enabled", "true"),
+            "automatic GGUF capability authority construction failed",
+        )
+        if capability.get("ok") is not True or capability.get("installed_tuple_verified") is not True:
+            raise BootstrapError(ErrorCode.INTEGRITY_FAILURE, "automatic capability authority was not verified")
+    else:
+        capability = {"ok": True, "installed_tuple_verified": None, "compatibility_fixture": True}
     transaction.record(
         "service-activated",
-        {"enabled": True, "active": True, "adapter_identity": contract["adapter"]["identity"]},
+        {"enabled": True, "active": True, "adapter_identity": contract["adapter"]["identity"], "service_name": service_name, "capability": capability},
     )
     return {
         "changed": True,
@@ -272,4 +409,6 @@ def activate_platform_service(
         "enabled": True,
         "active": True,
         "adapter_identity": contract["adapter"]["identity"],
+        "service_name": service_name,
+        "registration_path": str(unit_path),
     }

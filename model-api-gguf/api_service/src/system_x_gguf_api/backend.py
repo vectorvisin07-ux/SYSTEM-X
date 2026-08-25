@@ -443,7 +443,17 @@ class BackendCoordinator:
         status = await self._shutdown_router_status()
         if status.get("active") is True:
             if not self._shutdown_router_identity_matches(status):
-                raise BackendError("active router ownership did not match lifespan identity")
+                # A product recovery owner may have replaced this lifespan's
+                # router between client close and controller status. Never
+                # stop an active router whose identity is not ours; the
+                # supervisor/controller recovery path owns that handoff.
+                self.identity = None
+                self._router_ready = False
+                self._loaded_by_transaction.clear()
+                self._warm_model_id = None
+                if close_error is not None:
+                    raise BackendError("router HTTP client close failed") from close_error
+                return
             stopped = _require_controller_success(
                 await self.controller.stop(), "stop"
             )

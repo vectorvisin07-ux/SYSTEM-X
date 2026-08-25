@@ -9,6 +9,8 @@ import shutil
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 from system_x_inspector.connection_receipt import (
     build_receipt,
@@ -16,7 +18,9 @@ from system_x_inspector.connection_receipt import (
     publish_current_receipt,
     show_connection,
 )
+import system_x_inspector.deployment as deployment_module
 from system_x_inspector.deployment import (
+    CurrentSourceDeploymentAdapter,
     DeploymentInterruption,
     deploy_transaction,
     validate_deploy_input,
@@ -64,9 +68,11 @@ class FixtureAdapter:
         )
         self.retired: set[str] = set()
         self.generation = 10
+        self.capability_binding_identity = BINDING_IDENTITY
         self.fail_at: str | None = None
         self.rollback_uncertain = False
         self.tamper_child: str | None = None
+        self.publication_promotes_default = False
         self._candidate_artifact = "sha256:" + hashlib.sha256(
             self.case.candidate.read_bytes()
         ).hexdigest()
@@ -140,7 +146,7 @@ class FixtureAdapter:
             "default_target": self.default,
             "warm_model_id": self.warm,
             "operating_profile_identity": PROFILE_IDENTITY,
-            "capability_binding_identity": BINDING_IDENTITY,
+            "capability_binding_identity": self.capability_binding_identity,
             "non_secret_key_id": KEY_ID,
             "artifact_identity": artifact,
             "artifact_version_id": version,
@@ -225,6 +231,10 @@ class FixtureAdapter:
             self.mutations["publication"] += 1
             self.ready.add(CANDIDATE)
             self.generation += 1
+            if self.publication_promotes_default:
+                self.default = CANDIDATE
+                self.warm = CANDIDATE
+                self.generation += 1
         return {
             "publication_id": "publication-fixture",
             "identity": sha("publication"),
@@ -238,6 +248,9 @@ class FixtureAdapter:
                     self.candidate_manifest
                 ),
             },
+            "default_target": (
+                CANDIDATE if self.publication_promotes_default else None
+            ),
         }
 
     def promote(
@@ -643,6 +656,17 @@ class DeploymentTest(unittest.TestCase):
         self.assertEqual(ready["result_class"], "CONNECTION_READY")
         self.assertIsNotNone(record["child_results"]["promotion"])
 
+    def test_install_first_skips_redundant_first_model_promotion(self) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.publication_promotes_default = True
+        record = self.assert_complete(fixture)
+        self.assertEqual(
+            record["promotion_result"],
+            "PROMOTION_NOT_REQUIRED_FIRST_MODEL_PUBLICATION",
+        )
+        self.assertEqual(fixture.adapter.calls["promotion"], 0)
+        self.assertEqual(fixture.adapter.default, CANDIDATE)
+
     def test_add_keeps_default_and_current_receipt(self) -> None:
         fixture = self.fixture(mode="add")
         previous = load_current_receipt(fixture.paths)
@@ -819,6 +843,77 @@ class DeploymentTest(unittest.TestCase):
             "PROMOTION_NOT_REQUIRED_ALREADY_DEFAULT",
         )
 
+    def test_failed_clean_retry_reexecutes_children_after_input_identity_changes(
+        self,
+    ) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.fail_at = "handoff"
+        _tx, failed, _path, _identity = fixture.deploy()
+        self.assertEqual(failed["result_class"], "DEPLOYMENT_FAILED_CLEAN")
+        before = {
+            name: fixture.adapter.calls[name]
+            for name in ("inspect", "decide", "qualify")
+        }
+        fixture.adapter.fail_at = None
+        fixture.adapter.capability_binding_identity = "sha256:" + "c" * 64
+        fixture.transaction_id = (
+            "tx-20260731T000000000003Z-abcdef123459"
+        )
+        fixture.deployment_id = (
+            "deployment-20260731T000000000003Z-"
+            "0123456789abcfed"
+        )
+        _tx, completed, _path, _identity = fixture.deploy()
+        self.assertEqual(completed["result_class"], "DEPLOYMENT_COMPLETE")
+        self.assertEqual(
+            {
+                name: fixture.adapter.calls[name]
+                for name in ("inspect", "decide", "qualify")
+            },
+            {name: before[name] + 1 for name in before},
+        )
+        self.assertEqual(completed["warnings"], [])
+
+    def test_failed_clean_retry_reexecutes_children_after_deployment_epoch_changes(
+        self,
+    ) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.fail_at = "handoff"
+        with patch.object(
+            deployment_module,
+            "DEPLOYMENT_INPUT_IMPLEMENTATION_EPOCH",
+            "deployment-input-identity-epoch-before",
+        ):
+            _tx, failed, _path, _identity = fixture.deploy()
+        self.assertEqual(failed["result_class"], "DEPLOYMENT_FAILED_CLEAN")
+        before = {
+            name: fixture.adapter.calls[name]
+            for name in ("inspect", "decide", "qualify")
+        }
+        fixture.adapter.fail_at = None
+        fixture.transaction_id = (
+            "tx-20260731T000000000004Z-abcdef123460"
+        )
+        fixture.deployment_id = (
+            "deployment-20260731T000000000004Z-"
+            "0123456789abcfef"
+        )
+        with patch.object(
+            deployment_module,
+            "DEPLOYMENT_INPUT_IMPLEMENTATION_EPOCH",
+            "deployment-input-identity-epoch-after",
+        ):
+            _tx, completed, _path, _identity = fixture.deploy()
+        self.assertEqual(completed["result_class"], "DEPLOYMENT_COMPLETE")
+        self.assertEqual(
+            {
+                name: fixture.adapter.calls[name]
+                for name in ("inspect", "decide", "qualify")
+            },
+            {name: before[name] + 1 for name in before},
+        )
+        self.assertEqual(completed["warnings"], [])
+
     def test_uncertain_rollback_fails_closed(self) -> None:
         fixture = self.fixture(mode="replace-default")
         fixture.adapter.fail_at = "observe"
@@ -987,6 +1082,97 @@ class DeploymentTest(unittest.TestCase):
             dict(fixture.adapter.mutations), before_mutations
         )
 
+
+    def test_converged_install_first_retry_requires_exact_managed_location(self) -> None:
+        fixture = self.fixture(mode="install-first")
+        fixture.adapter.ready.add(CANDIDATE)
+        fixture.adapter.default = CANDIDATE
+        fixture.adapter.warm = CANDIDATE
+        state = fixture.adapter.capture_prestate(fixture.paths)
+        source = {"artifact_identity": fixture.adapter.candidate_artifact}
+        self.assertTrue(
+            deployment_module._converged_install_first_retry(source, state)
+        )
+        for field, value in (
+            ("managed_location_identity", None),
+            ("artifact_identity", "sha256:" + "0" * 64),
+            ("artifact_version_id", "bundle-" + "0" * 64),
+        ):
+            with self.subTest(field=field):
+                changed = dict(state)
+                changed[field] = value
+                self.assertFalse(
+                    deployment_module._converged_install_first_retry(
+                        source, changed
+                    )
+                )
+
+    def test_prestate_forwards_existing_receipt_proof_without_generation_or_write(self) -> None:
+        fixture = self.fixture(mode="add")
+        before = fixture.paths.current_connection_status.read_bytes()
+        current = load_current_receipt(fixture.paths)
+        observation = fixture.adapter.observe_connection(fixture.paths)
+        incumbent = SimpleNamespace(
+            present=True,
+            default_alias="default",
+            public_model_id=observation["resolved_immutable_model_id"],
+            artifact_version_id=observation["artifact_version_id"],
+            capability_manifest_identity=observation[
+                "capability_manifest_identity"
+            ],
+            managed_location_identity=INCUMBENT_LOCATION,
+            warm_before={
+                "health_state": "ready",
+                "resolved_public_model_id": observation[
+                    "resolved_immutable_model_id"
+                ],
+                "artifact_version_id": observation["artifact_version_id"],
+            },
+            registry_generation=fixture.adapter.generation,
+            credential_key_id=KEY_ID,
+            profile_identity=PROFILE_IDENTITY,
+            service_readiness="READY",
+            recovery_state="IDLE",
+            api_service_transaction_id="api-transaction",
+            router_transaction_id="router-transaction",
+            model_child_identity={"identity": "model-child"},
+            historical_registry_locations=(),
+        )
+        with (
+            patch(
+                "system_x_inspector.paths.BranchHandoffPaths.discover",
+                return_value=object(),
+            ),
+            patch(
+                "system_x_inspector.qualification.capture_incumbent_snapshot",
+                return_value=incumbent,
+            ),
+            patch(
+                "system_x_inspector.capabilities.load_binding",
+                return_value={"binding_identity": BINDING_IDENTITY},
+            ),
+            patch(
+                "system_x_inspector.connection_receipt.observe_current_connection",
+                return_value=observation,
+            ) as observe,
+            patch.object(
+                deployment_module, "publish_current_receipt"
+            ) as publish,
+        ):
+            prestate = CurrentSourceDeploymentAdapter().capture_prestate(
+                fixture.paths
+            )
+        self.assertEqual(prestate["model_service_state"], "READY")
+        observe.assert_called_once()
+        self.assertEqual(
+            observe.call_args.kwargs["proof_request_id"],
+            current["proof"]["proof_request_id"],
+        )
+        self.assertEqual(
+            fixture.paths.current_connection_status.read_bytes(),
+            before,
+        )
+        publish.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

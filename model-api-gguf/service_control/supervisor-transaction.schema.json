@@ -43,21 +43,60 @@
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
-    "profile_path": {"type": "string", "minLength": 1},
-    "state_path": {"type": "string", "minLength": 1},
-    "initial_desired_state": {"enum": ["RUNNING", "STOPPED"]},
+    "profile_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "initial_desired_state": {
+      "enum": [
+        "RUNNING",
+        "STOPPED"
+      ]
+    },
     "initial_desired_state_generation": {
       "type": "integer",
       "minimum": 1
     },
-    "supervisor_identity": {"type": "object"},
-    "start_utc": {"type": "string"},
-    "stop_utc": {"type": ["string", "null"]},
-    "api_controller": {"type": "object"},
-    "branch_controller": {"type": "object"},
-    "started_api_transaction_id": {"type": ["string", "null"]},
-    "observed_router_transaction_id": {"type": ["string", "null"]},
-    "observed_model_child": {"type": ["object", "null"]},
+    "supervisor_identity": {
+      "type": "object"
+    },
+    "start_utc": {
+      "type": "string"
+    },
+    "stop_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "api_controller": {
+      "type": "object"
+    },
+    "branch_controller": {
+      "type": "object"
+    },
+    "started_api_transaction_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observed_router_transaction_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observed_model_child": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "initial_service_readiness_state": {
       "enum": [
         "SUPERVISOR_STARTING",
@@ -86,17 +125,54 @@
         "FAIL_CLOSED"
       ]
     },
-    "warm_model_identity": {"type": ["object", "null"]},
-    "final_reason": {"type": ["string", "null"]},
-    "final_state": {
-      "enum": ["STOPPED", "FAULTED", null]
+    "warm_model_identity": {
+      "type": [
+        "object",
+        "null"
+      ]
     },
-    "controller_stop_result": {"type": ["object", "null"]},
-    "cleanup_result": {"type": ["object", "null"]},
-    "startup_reconciliation": {"type": ["object", "null"]},
+    "final_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "final_state": {
+      "enum": [
+        "STOPPED",
+        "FAULTED",
+        null
+      ]
+    },
+    "controller_stop_result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "cleanup_result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "startup_reconciliation": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "recovery_transaction_ids": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {
+        "type": "string"
+      }
+    },
+    "automatic_coordinator": {
+      "type": [
+        "object",
+        "null"
+      ]
     }
   }
 }

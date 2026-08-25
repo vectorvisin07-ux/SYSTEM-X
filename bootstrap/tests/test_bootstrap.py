@@ -224,6 +224,45 @@ class BootstrapMatrix(unittest.TestCase):
         self.assertTrue(all(item.details.get("reused") for item in results[:-1]))
         self.assertEqual(orchestrator.verify.call_count, 9)
 
+    def test_reconstruct_executes_activation_after_registration_in_same_flow(self) -> None:
+        orchestrator = object.__new__(BootstrapOrchestrator)
+        orchestrator.paths = object()
+        orchestrator.configs = {}
+        state = StateDocument("CLONED", "CLONED", 0, (), None, None)
+        orchestrator._prepare_reconstruct_host = mock.Mock()
+        operation_names = (
+            "apply_host", "initialize_submodules", "build_environments",
+            "build_llama_server", "initialize_runtime", "initialize_credentials",
+            "register_platform_service", "activate_platform_service",
+        )
+        targets = {
+            "apply_host": "HOST_READY",
+            "initialize_submodules": "SUBMODULES_READY",
+            "build_environments": "PYTHON_ENVIRONMENTS_READY",
+            "build_llama_server": "LLAMA_SERVER_BUILT",
+            "initialize_runtime": "RUNTIME_INITIALIZED",
+            "initialize_credentials": "CREDENTIAL_READY",
+            "register_platform_service": "SERVICE_REGISTERED",
+            "activate_platform_service": "SERVICE_REGISTERED",
+        }
+        for name in operation_names:
+            operation = name.replace("_", "-")
+            setattr(orchestrator, name, mock.Mock(return_value=MachineResult(operation, "ok", targets[name], changed=True)))
+        levels = {
+            "host-ready": "HOST_READY", "source-only": "CLONED",
+            "build-ready": "LLAMA_SERVER_BUILT",
+            "service-process-ready": "SERVICE_REGISTERED",
+            "waiting-for-model": "WAITING_FOR_MODEL",
+        }
+        orchestrator.verify = mock.Mock(side_effect=lambda level: MachineResult("verify", "ok", levels[level], details={"level": level}))
+        with mock.patch("system_x_bootstrap.orchestrator.read_state", return_value=state):
+            results = orchestrator.reconstruct(authorized=True)
+        self.assertEqual(orchestrator.register_platform_service.call_count, 1)
+        self.assertEqual(orchestrator.activate_platform_service.call_count, 1)
+        activation = next(item for item in results if item.operation == "activate-platform-service")
+        self.assertTrue(activation.changed)
+        self.assertNotIn("reused", activation.details)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.paths = RepositoryPaths.discover(BOOTSTRAP_ROOT)
@@ -671,8 +710,8 @@ class BootstrapMatrix(unittest.TestCase):
 
     def test_25_runtime_layout_round_trip(self) -> None:
         entries = expand_runtime_layout(self.paths, self.configs["runtime-layout.json"])
-        self.assertEqual(len(entries), 60)
-        self.assertEqual(len({item["path"] for item in entries}), 60)
+        self.assertEqual(len(entries), 66)
+        self.assertEqual(len({item["path"] for item in entries}), 66)
 
     def test_25a_runtime_source_contract_matches_current_source(self) -> None:
         contract = self.configs["runtime-layout.json"]
@@ -848,7 +887,7 @@ class BootstrapMatrix(unittest.TestCase):
                     desired.write_text('{"fixture":true}\n', encoding="utf-8")
                     value = {"ok": True, "desired_state": "STOPPED"}
                 elif "register" in arguments:
-                    unit = home / contract["future_generated_unit_relative_to_home"]
+                    unit = Path(arguments[arguments.index("--unit-path") + 1])
                     unit.parent.mkdir(parents=True, exist_ok=True)
                     unit.write_text("[Unit]\nDescription=fixture\n", encoding="utf-8")
                     manifest = root / contract["adapter"]["runtime_root"] / "linux-systemd-user/manifest.json"
@@ -1357,6 +1396,12 @@ class BootstrapMatrix(unittest.TestCase):
             self.assertEqual(os.environ["USER"], current.name)
             self.assertEqual(os.environ["LOGNAME"], current.name)
             self.assertEqual(os.environ["HOME"], str(current.home))
+        with tempfile.TemporaryDirectory() as temporary:
+            trial_home = Path(temporary) / "space-bearing trial home"
+            trial_home.mkdir()
+            with installation_user_context(current, home=trial_home):
+                self.assertEqual(os.environ["HOME"], str(trial_home))
+                self.assertEqual(os.environ["XDG_RUNTIME_DIR"], str(current.xdg_runtime_dir))
 
     def test_P15_user_manager_environment_derives_from_validated_uid(self) -> None:
         user = self._privilege_user_fixture()

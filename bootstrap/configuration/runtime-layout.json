@@ -1,7 +1,7 @@
 {
   "identity": "system-x.bootstrap.runtime-layout.v1",
   "version": 1,
-  "entry_count": 60,
+  "entry_count": 66,
   "creation_operation": "initialize-runtime",
   "expected_type": "directory",
   "groups": [
@@ -11,14 +11,29 @@
       "mode": "0700",
       "secret": false,
       "paths": [
-        "INSPECTOR/MODEL-TEST", "INSPECTOR/RUNTIME", "INSPECTOR/RUNTIME/logs",
-        "INSPECTOR/RUNTIME/locks", "INSPECTOR/RUNTIME/status", "INSPECTOR/RUNTIME/transactions",
-        "INSPECTOR/RUNTIME/results", "INSPECTOR/RUNTIME/results/inspection",
-        "INSPECTOR/RUNTIME/results/decision", "INSPECTOR/RUNTIME/results/handoff",
-        "INSPECTOR/RUNTIME/results/publication", "INSPECTOR/RUNTIME/results/qualification",
-        "INSPECTOR/RUNTIME/results/promotion", "INSPECTOR/RUNTIME/results/retirement",
-        "INSPECTOR/RUNTIME/results/deployment", "INSPECTOR/RUNTIME/staging", "INSPECTOR/RUNTIME/tmp",
-        "INSPECTOR/capabilities", "INSPECTOR/capabilities/records", "INSPECTOR/capabilities/bindings"
+        "INSPECTOR/MODEL-TEST",
+        "INSPECTOR/RUNTIME",
+        "INSPECTOR/RUNTIME/logs",
+        "INSPECTOR/RUNTIME/locks",
+        "INSPECTOR/RUNTIME/status",
+        "INSPECTOR/RUNTIME/transactions",
+        "INSPECTOR/RUNTIME/results",
+        "INSPECTOR/RUNTIME/results/inspection",
+        "INSPECTOR/RUNTIME/results/decision",
+        "INSPECTOR/RUNTIME/results/handoff",
+        "INSPECTOR/RUNTIME/results/publication",
+        "INSPECTOR/RUNTIME/results/qualification",
+        "INSPECTOR/RUNTIME/results/promotion",
+        "INSPECTOR/RUNTIME/results/retirement",
+        "INSPECTOR/RUNTIME/results/deployment",
+        "INSPECTOR/RUNTIME/staging",
+        "INSPECTOR/RUNTIME/tmp",
+        "INSPECTOR/capabilities",
+        "INSPECTOR/capabilities/records",
+        "INSPECTOR/capabilities/bindings",
+        "INSPECTOR/RUNTIME/results/automatic",
+        "INSPECTOR/RUNTIME/results/automatic/processed",
+        "INSPECTOR/RUNTIME/results/automatic/rejected"
       ]
     },
     {
@@ -26,7 +41,11 @@
       "cleanup_owner": "model-api-gguf:model-catalogue",
       "mode": "0755",
       "secret": false,
-      "paths": ["model-api-gguf/MODEL", "model-api-gguf/MODEL/SUPERMODEL", "model-api-gguf/MODEL/R2S3"]
+      "paths": [
+        "model-api-gguf/MODEL",
+        "model-api-gguf/MODEL/SUPERMODEL",
+        "model-api-gguf/MODEL/R2S3"
+      ]
     },
     {
       "owner_component": "model-api-gguf:runtime",
@@ -34,12 +53,21 @@
       "mode": "0755",
       "secret": false,
       "paths": [
-        "model-api-gguf/RUNTIME", "model-api-gguf/RUNTIME/cache", "model-api-gguf/RUNTIME/tmp",
-        "model-api-gguf/RUNTIME/logs", "model-api-gguf/RUNTIME/status", "model-api-gguf/RUNTIME/pids",
-        "model-api-gguf/RUNTIME/locks", "model-api-gguf/RUNTIME/transactions", "model-api-gguf/RUNTIME/api",
-        "model-api-gguf/RUNTIME/api/backend", "model-api-gguf/RUNTIME/api/backend/cache",
-        "model-api-gguf/RUNTIME/api/logs", "model-api-gguf/RUNTIME/api/status",
-        "model-api-gguf/RUNTIME/api/pids", "model-api-gguf/RUNTIME/api/locks",
+        "model-api-gguf/RUNTIME",
+        "model-api-gguf/RUNTIME/cache",
+        "model-api-gguf/RUNTIME/tmp",
+        "model-api-gguf/RUNTIME/logs",
+        "model-api-gguf/RUNTIME/status",
+        "model-api-gguf/RUNTIME/pids",
+        "model-api-gguf/RUNTIME/locks",
+        "model-api-gguf/RUNTIME/transactions",
+        "model-api-gguf/RUNTIME/api",
+        "model-api-gguf/RUNTIME/api/backend",
+        "model-api-gguf/RUNTIME/api/backend/cache",
+        "model-api-gguf/RUNTIME/api/logs",
+        "model-api-gguf/RUNTIME/api/status",
+        "model-api-gguf/RUNTIME/api/pids",
+        "model-api-gguf/RUNTIME/api/locks",
         "model-api-gguf/RUNTIME/api/transactions"
       ]
     },
@@ -49,7 +77,8 @@
       "mode": "0700",
       "secret": false,
       "paths": [
-        "model-api-gguf/RUNTIME/api/database", "model-api-gguf/RUNTIME/api/replacement-staging",
+        "model-api-gguf/RUNTIME/api/database",
+        "model-api-gguf/RUNTIME/api/replacement-staging",
         "model-api-gguf/RUNTIME/api/retirement-staging"
       ]
     },
@@ -58,7 +87,10 @@
       "cleanup_owner": "model-api-gguf:credential-store",
       "mode": "0700",
       "secret": true,
-      "paths": ["model-api-gguf/RUNTIME/api/auth", "model-api-gguf/RUNTIME/api/auth/handoff"]
+      "paths": [
+        "model-api-gguf/RUNTIME/api/auth",
+        "model-api-gguf/RUNTIME/api/auth/handoff"
+      ]
     },
     {
       "owner_component": "model-api-gguf:service-control",
@@ -66,9 +98,12 @@
       "mode": "0700",
       "secret": false,
       "paths": [
-        "model-api-gguf/RUNTIME/service_control", "model-api-gguf/RUNTIME/service_control/logs",
-        "model-api-gguf/RUNTIME/service_control/pids", "model-api-gguf/RUNTIME/service_control/locks",
-        "model-api-gguf/RUNTIME/service_control/status", "model-api-gguf/RUNTIME/service_control/transactions",
+        "model-api-gguf/RUNTIME/service_control",
+        "model-api-gguf/RUNTIME/service_control/logs",
+        "model-api-gguf/RUNTIME/service_control/pids",
+        "model-api-gguf/RUNTIME/service_control/locks",
+        "model-api-gguf/RUNTIME/service_control/status",
+        "model-api-gguf/RUNTIME/service_control/transactions",
         "model-api-gguf/RUNTIME/service_control/recovery",
         "model-api-gguf/RUNTIME/service_control/recovery/status",
         "model-api-gguf/RUNTIME/service_control/recovery/transactions",
@@ -76,7 +111,10 @@
         "model-api-gguf/RUNTIME/service_control/recovery/fail-closed",
         "model-api-gguf/RUNTIME/service_control/platform_adapters",
         "model-api-gguf/RUNTIME/service_control/platform_adapters/linux-systemd-user",
-        "model-api-gguf/RUNTIME/service_control/platform_adapters/linux-systemd-user/transactions"
+        "model-api-gguf/RUNTIME/service_control/platform_adapters/linux-systemd-user/transactions",
+        "model-api-gguf/RUNTIME/service_control/coordinator",
+        "model-api-gguf/RUNTIME/service_control/coordinator/invocations",
+        "model-api-gguf/RUNTIME/service_control/coordinator/logs"
       ]
     },
     {
@@ -84,14 +122,18 @@
       "cleanup_owner": "model-api-native",
       "mode": "0755",
       "secret": false,
-      "paths": ["model-api-native/MODEL"]
+      "paths": [
+        "model-api-native/MODEL"
+      ]
     },
     {
       "owner_component": "model-api-native",
       "cleanup_owner": "model-api-native",
       "mode": "0700",
       "secret": false,
-      "paths": ["model-api-native/RUNTIME"]
+      "paths": [
+        "model-api-native/RUNTIME"
+      ]
     }
   ],
   "registry": {

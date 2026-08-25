@@ -1,0 +1,123 @@
+{
+  "$id": "system-x.inspector-automatic-intake-basis.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "basis_class": {
+      "enum": [
+        "PROCESSED",
+        "REJECTED"
+      ]
+    },
+    "basis_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "completed_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_result_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "derived_policy_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "dispatch_basis": {
+      "additionalProperties": false,
+      "properties": {
+        "derived_deployment_request": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "registry_snapshot": {
+          "type": "object"
+        },
+        "source_configuration_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "derived_deployment_request",
+        "registry_snapshot",
+        "source_configuration_identity"
+      ],
+      "type": "object"
+    },
+    "inspector_result_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observation_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "const": "system-x.inspector-automatic-intake-basis.v1"
+    },
+    "source_contract_identity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "starting_registry_snapshot_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "terminal_classification": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "basis_class",
+    "basis_identity",
+    "artifact_identity",
+    "observation_identity",
+    "dispatch_basis",
+    "derived_policy_identity",
+    "starting_registry_snapshot_identity",
+    "inspector_result_identity",
+    "deployment_result_reference",
+    "terminal_classification",
+    "reason_code",
+    "created_utc",
+    "completed_utc",
+    "source_contract_identity"
+  ],
+  "type": "object"
+}

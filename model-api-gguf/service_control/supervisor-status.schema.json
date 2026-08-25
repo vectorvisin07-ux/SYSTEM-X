@@ -35,14 +35,23 @@
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "desired_state": {
-      "enum": ["RUNNING", "STOPPED"]
+      "enum": [
+        "RUNNING",
+        "STOPPED"
+      ]
     },
     "desired_state_generation": {
       "type": "integer",
       "minimum": 1
     },
     "supervisor_state": {
-      "enum": ["STARTING", "RUNNING", "STOPPING", "STOPPED", "FAULTED"]
+      "enum": [
+        "STARTING",
+        "RUNNING",
+        "STOPPING",
+        "STOPPED",
+        "FAULTED"
+      ]
     },
     "service_readiness_state": {
       "enum": [
@@ -68,9 +77,18 @@
         "FAIL_CLOSED"
       ]
     },
-    "service_operational": {"type": "boolean"},
-    "inference_ready": {"type": "boolean"},
-    "reason_code": {"type": ["string", "null"]},
+    "service_operational": {
+      "type": "boolean"
+    },
+    "inference_ready": {
+      "type": "boolean"
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "supervisor_identity": {
       "$ref": "#/$defs/processIdentity"
     },
@@ -81,48 +99,88 @@
     },
     "observed_api_service": {
       "anyOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/runtimeIdentity"}
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/runtimeIdentity"
+        }
       ]
     },
     "observed_private_router": {
       "anyOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/runtimeIdentity"}
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/runtimeIdentity"
+        }
       ]
     },
     "observed_model_child": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["present", "identity"],
+      "required": [
+        "present",
+        "identity"
+      ],
       "properties": {
-        "present": {"type": "boolean"},
+        "present": {
+          "type": "boolean"
+        },
         "identity": {
           "anyOf": [
-            {"type": "null"},
-            {"type": "object"}
+            {
+              "type": "null"
+            },
+            {
+              "type": "object"
+            }
           ]
         }
       }
     },
     "warm_model_identity": {
       "anyOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/warmIdentity"}
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/warmIdentity"
+        }
       ]
     },
     "recovery_status": {
-      "type": ["object", "null"]
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "last_observed_utc": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
     },
     "stop_reason": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "fault_reason": {
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "automatic_coordinator": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "automatic-coordinator-status.schema.json"
+        }
+      ]
     }
   },
   "$defs": {
@@ -138,11 +196,26 @@
         "argv_sha256"
       ],
       "properties": {
-        "pid": {"type": "integer", "minimum": 1},
-        "process_start_identity": {"type": "string", "minLength": 1},
-        "pgid": {"type": "integer", "minimum": 1},
-        "sid": {"type": "integer", "minimum": 1},
-        "executable": {"type": "string", "minLength": 1},
+        "pid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "process_start_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pgid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "executable": {
+          "type": "string",
+          "minLength": 1
+        },
         "argv_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
@@ -165,24 +238,69 @@
         "listener_owned"
       ],
       "properties": {
-        "lifecycle_state": {"type": ["string", "null"]},
-        "active": {"type": "boolean"},
-        "consistent": {"type": "boolean"},
-        "transaction_id": {"type": ["string", "null"]},
-        "pid": {"type": ["integer", "null"]},
-        "process_start_identity": {"type": ["string", "null"]},
-        "pgid": {"type": ["integer", "null"]},
-        "sid": {"type": ["integer", "null"]},
+        "lifecycle_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "consistent": {
+          "type": "boolean"
+        },
+        "transaction_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "process_start_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pgid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "sid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "endpoint": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["host", "port"],
+          "required": [
+            "host",
+            "port"
+          ],
           "properties": {
-            "host": {"type": "string"},
-            "port": {"type": "integer", "minimum": 1, "maximum": 65535}
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
           }
         },
-        "listener_owned": {"type": "boolean"}
+        "listener_owned": {
+          "type": "boolean"
+        }
       }
     },
     "warmIdentity": {
@@ -205,23 +323,64 @@
         "health_state"
       ],
       "properties": {
-        "requested_alias": {"type": "string", "minLength": 1},
-        "resolved_public_model_id": {"type": "string", "minLength": 1},
-        "artifact_version_id": {"type": "string", "minLength": 1},
-        "registry_generation": {"type": "integer", "minimum": 0},
+        "requested_alias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolved_public_model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_version_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registry_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
         "capability_manifest_identity": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
-        "router_transaction_id": {"type": "string", "minLength": 1},
-        "model_child_pid": {"type": "integer", "minimum": 1},
-        "model_child_start_identity": {"type": "string", "minLength": 1},
-        "model_child_parent": {"type": "integer", "minimum": 1},
-        "model_child_process_group": {"type": "integer", "minimum": 1},
-        "model_child_session": {"type": "integer", "minimum": 1},
-        "warm_since_utc": {"type": "string", "minLength": 1},
-        "last_verified_utc": {"type": "string", "minLength": 1},
-        "health_state": {"enum": ["ready", "stopped"]}
+        "router_transaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_child_pid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model_child_start_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_child_parent": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model_child_process_group": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model_child_session": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warm_since_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last_verified_utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "health_state": {
+          "enum": [
+            "ready",
+            "stopped"
+          ]
+        }
       }
     }
   }

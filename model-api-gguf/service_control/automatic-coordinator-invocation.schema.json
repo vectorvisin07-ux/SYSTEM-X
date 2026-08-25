@@ -1,0 +1,351 @@
+{
+  "$defs": {
+    "captureReference": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "byte_count",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "launchIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "argv_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "environment_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "interpreter": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string"
+        },
+        "model_policy_argument_count": {
+          "const": 0
+        },
+        "module": {
+          "const": "system_x_inspector"
+        },
+        "operation": {
+          "const": "reconcile-intake"
+        },
+        "private_endpoint_present": {
+          "const": false
+        },
+        "raw_credential_present": {
+          "const": false
+        },
+        "start_new_session": {
+          "const": true
+        },
+        "stderr_reference": {
+          "type": "object"
+        },
+        "stdout_reference": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "invocation_id",
+        "operation",
+        "interpreter",
+        "module",
+        "cwd",
+        "argv",
+        "argv_identity",
+        "environment_identity",
+        "model_policy_argument_count",
+        "raw_credential_present",
+        "private_endpoint_present",
+        "stdout_reference",
+        "stderr_reference",
+        "start_new_session"
+      ],
+      "type": "object"
+    },
+    "processIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "argv_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "boot_identity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cgroup_identity": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "executable": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "executable_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "pgid": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pid": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "process_start_identity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sid": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid",
+        "process_start_identity",
+        "boot_identity",
+        "executable",
+        "executable_sha256",
+        "argv_sha256",
+        "pgid",
+        "sid",
+        "cgroup_identity"
+      ],
+      "type": "object"
+    },
+    "transition": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "timestamp_utc"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "system-x.service-automatic-intake-coordinator-invocation.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capture_overflow": {
+      "type": "boolean"
+    },
+    "completion_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_utc": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "cwd": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "deployment_result_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "dispatch_accepted": {
+      "type": "boolean"
+    },
+    "environment_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "exit_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "inspector_transaction_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "interpreter": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "invocation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "launch_intent": {
+      "$ref": "#/$defs/launchIntent"
+    },
+    "machine_result_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "module": {
+      "const": "system_x_inspector"
+    },
+    "operation": {
+      "const": "reconcile-intake"
+    },
+    "prior_inspector_transaction_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "prior_processed_basis_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "prior_rejected_basis_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "process_identity": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/processIdentity"
+        }
+      ]
+    },
+    "record_identity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "system-x.service-automatic-intake-coordinator-invocation.v1"
+    },
+    "state_transitions": {
+      "items": {
+        "$ref": "#/$defs/transition"
+      },
+      "type": "array"
+    },
+    "stderr_reference": {
+      "$ref": "#/$defs/captureReference"
+    },
+    "stdout_reference": {
+      "$ref": "#/$defs/captureReference"
+    },
+    "supervisor_generation": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "terminal_basis_reference": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "terminal_classification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timeout": {
+      "type": "boolean"
+    },
+    "updated_utc": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "invocation_id",
+    "supervisor_generation",
+    "created_utc",
+    "operation",
+    "interpreter",
+    "module",
+    "cwd",
+    "environment_identity",
+    "prior_inspector_transaction_reference",
+    "prior_processed_basis_reference",
+    "prior_rejected_basis_reference",
+    "launch_intent",
+    "process_identity",
+    "state_transitions",
+    "stdout_reference",
+    "stderr_reference",
+    "exit_code",
+    "timeout",
+    "capture_overflow",
+    "machine_result_identity",
+    "inspector_transaction_reference",
+    "deployment_result_reference",
+    "terminal_basis_reference",
+    "terminal_classification",
+    "dispatch_accepted",
+    "completion_utc",
+    "updated_utc",
+    "record_identity"
+  ],
+  "type": "object"
+}

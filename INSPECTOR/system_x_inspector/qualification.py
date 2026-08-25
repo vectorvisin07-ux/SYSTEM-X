@@ -15,7 +15,7 @@ import stat
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol
 from urllib.parse import quote
@@ -359,6 +359,275 @@ def _identity(value: object) -> str:
     return "sha256:" + hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
+def _portable_tree_identity(
+    system_x_root: Path,
+    manifest: dict[str, Any],
+    manifest_path: Path,
+) -> str:
+    records: list[tuple[str, str, str]] = []
+    for entry in manifest["entries"]:
+        records.append(
+            (str(entry["path"]), str(entry["git_mode"]), str(entry["git_blob"]))
+        )
+    details = manifest_path.lstat()
+    manifest_mode = (
+        "100755" if stat.S_IMODE(details.st_mode) & 0o111 else "100644"
+    )
+    manifest_blob = hashlib.sha1(
+        b"blob "
+        + str(details.st_size).encode("ascii")
+        + b"\x00"
+        + manifest_path.read_bytes(),
+    ).hexdigest()
+    records.append((str(manifest["manifest_path"]), manifest_mode, manifest_blob))
+    tree: dict[str, Any] = {}
+    for path, mode, object_id in records:
+        current = tree
+        parts = path.split("/")
+        for part in parts[:-1]:
+            child = current.setdefault(part, {})
+            if not isinstance(child, dict):
+                raise _qualification_error(
+                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                    "portable source manifest contains a file/directory collision",
+                )
+            current = child
+        if parts[-1] in current:
+            raise _qualification_error(
+                "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                "portable source manifest contains a duplicate path",
+            )
+        current[parts[-1]] = (mode, object_id)
+
+    def build(node: dict[str, Any]) -> str:
+        members: list[tuple[str, str, str, str]] = []
+        for name, value in node.items():
+            if isinstance(value, dict):
+                object_id = build(value)
+                mode = "40000"
+                sort_name = name + "/"
+            else:
+                mode, object_id = value
+                sort_name = name
+            members.append((sort_name, name, mode, object_id))
+        members.sort(key=lambda item: item[0].encode("utf-8"))
+        body = b"".join(
+            mode.encode("ascii")
+            + b" "
+            + name.encode("utf-8")
+            + b"\x00"
+            + bytes.fromhex(object_id)
+            for _sort_name, name, mode, object_id in members
+        )
+        return hashlib.sha1(
+            b"tree " + str(len(body)).encode("ascii") + b"\x00" + body,
+        ).hexdigest()
+
+    return build(tree)
+
+
+def _inspector_source_manifest(
+    paths: InspectorPaths,
+    system_x_root: Path,
+    *,
+    expected: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    source_manifest: list[dict[str, Any]] = []
+    source_roots = (
+        paths.source_root,
+        paths.source_root.parent / "schemas",
+    )
+    for source_root in source_roots:
+        for path in sorted(source_root.rglob("*")):
+            if path.suffix not in {".py", ".json"}:
+                continue
+            try:
+                details = path.lstat()
+                relative = path.relative_to(system_x_root).as_posix()
+            except (FileNotFoundError, ValueError) as error:
+                raise _qualification_error(
+                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                    "Inspector source graph changed during authentication",
+                ) from error
+            if (
+                stat.S_ISLNK(details.st_mode)
+                or not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+            ):
+                raise _qualification_error(
+                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                    "Inspector source graph contains an unsafe entry",
+                )
+            content = path.read_bytes()
+            digest = "sha256:" + hashlib.sha256(content).hexdigest()
+            if expected is not None:
+                entry = expected.get(relative)
+                portable_mode = f"{stat.S_IMODE(details.st_mode):#06o}"
+                expected_sha256 = entry.get("sha256") if entry else None
+                sha256_matches = expected_sha256 in {
+                    digest,
+                    digest.removeprefix("sha256:"),
+                }
+                if (
+                    entry is None
+                    or entry.get("bytes") != len(content)
+                    or not sha256_matches
+                    or entry.get("portable_mode") != portable_mode
+                ):
+                    raise _qualification_error(
+                        "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                        "Inspector source graph differs from the portable source manifest",
+                        data={
+                            "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                            "source_manifest_path": str(
+                                system_x_root
+                                / "SYSTEM_X_PORTABLE_TREE_MANIFEST.json"
+                            ),
+                            "source_path": relative,
+                            "expected_byte_count": (
+                                entry.get("bytes") if entry else None
+                            ),
+                            "observed_byte_count": len(content),
+                            "expected_sha256": expected_sha256,
+                            "observed_sha256": digest,
+                        },
+                    )
+            source_manifest.append(
+                {
+                    "path": relative,
+                    "byte_count": len(content),
+                    "sha256": digest,
+                }
+            )
+    if not source_manifest:
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "Inspector source graph is empty",
+        )
+    return source_manifest
+
+
+def _portable_system_x_source_evidence(
+    paths: InspectorPaths,
+    system_x_root: Path,
+) -> dict[str, str]:
+    manifest_path = system_x_root / "SYSTEM_X_PORTABLE_TREE_MANIFEST.json"
+    repository_path = system_x_root / "SYSTEM_X_REPOSITORY_MANIFEST.json"
+    try:
+        manifest_details = manifest_path.lstat()
+        repository_details = repository_path.lstat()
+        if (
+            stat.S_ISLNK(manifest_details.st_mode)
+            or not stat.S_ISREG(manifest_details.st_mode)
+            or manifest_details.st_nlink != 1
+            or manifest_details.st_size > MAX_CONTROL_JSON_BYTES
+            or stat.S_ISLNK(repository_details.st_mode)
+            or not stat.S_ISREG(repository_details.st_mode)
+            or repository_details.st_nlink != 1
+            or repository_details.st_size > MAX_CONTROL_JSON_BYTES
+        ):
+            raise OSError("portable source identity record is unsafe")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        repository = json.loads(repository_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "portable System X source identity is unavailable",
+            data={
+                "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                "source_manifest_path": str(manifest_path),
+            },
+        ) from error
+    entries = manifest.get("entries")
+    exclusion = manifest.get("self_exclusion")
+    if (
+        manifest.get("schema_version") != "system-x.portable-tree-manifest.v4"
+        or manifest.get("semantics") != "FULL_TREE"
+        or manifest.get("source_root") != "."
+        or manifest.get("ordering") != "lexicographic-path"
+        or manifest.get("manifest_path") != "SYSTEM_X_PORTABLE_TREE_MANIFEST.json"
+        or not isinstance(exclusion, dict)
+        or exclusion.get("path") != manifest.get("manifest_path")
+        or manifest.get("excluded") != [exclusion]
+        or not isinstance(entries, list)
+        or manifest.get("entry_count") != len(entries)
+        or manifest.get("tracked_regular_file_count") != len(entries) + 1
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "portable System X source identity is malformed",
+            data={
+                "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                "source_manifest_path": str(manifest_path),
+            },
+        )
+    paths_seen: list[str] = []
+    expected: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("path"), str)
+            or Path(entry["path"]).is_absolute()
+            or ".." in Path(entry["path"]).parts
+            or entry["path"] != Path(entry["path"]).as_posix()
+            or not re.fullmatch(r"(?:100644|100755)", str(entry.get("git_mode", "")))
+            or not re.fullmatch(r"[0-9a-f]{40}", str(entry.get("git_blob", "")))
+            or not isinstance(entry.get("bytes"), int)
+            or not isinstance(entry.get("sha256"), str)
+            or not isinstance(entry.get("portable_mode"), str)
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+                "portable System X source identity contains an invalid entry",
+                data={
+                    "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                    "source_manifest_path": str(manifest_path),
+                },
+            )
+        paths_seen.append(entry["path"])
+        expected[entry["path"]] = entry
+    if (
+        paths_seen != sorted(paths_seen)
+        or len(paths_seen) != len(set(paths_seen))
+        or manifest["manifest_path"] in expected
+    ):
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "portable System X source identity has invalid path coverage",
+            data={
+                "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                "source_manifest_path": str(manifest_path),
+            },
+        )
+    repository_section = repository.get("repository")
+    source_base = (
+        repository_section.get("source_base")
+        if isinstance(repository_section, dict)
+        else None
+    )
+    if not isinstance(source_base, str) or GIT_OBJECT_PATTERN.fullmatch(source_base) is None:
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "portable repository manifest has no authenticated source base",
+            data={
+                "source_identity_mode": "PORTABLE_TREE_MANIFEST",
+                "source_manifest_path": str(repository_path),
+            },
+        )
+    source_manifest = _inspector_source_manifest(
+        paths, system_x_root, expected=expected
+    )
+    return {
+        "system_x_source_commit": source_base,
+        "system_x_source_tree": _portable_tree_identity(
+            system_x_root, manifest, manifest_path
+        ),
+        "inspector_source_identity": _identity(source_manifest),
+        "system_x_source_identity_mode": "PORTABLE_TREE_MANIFEST",
+        "portable_tree_manifest_identity": _identity(manifest),
+    }
+
+
 def _system_x_source_evidence(paths: InspectorPaths) -> dict[str, str]:
     system_x_root = paths.source_root.parent.parent
     completed = subprocess.run(
@@ -377,57 +646,20 @@ def _system_x_source_evidence(paths: InspectorPaths) -> dict[str, str]:
     )
     lines = completed.stdout.decode("ascii", errors="replace").splitlines()
     if (
-        completed.returncode != 0
-        or len(lines) != 2
-        or any(GIT_OBJECT_PATTERN.fullmatch(item) is None for item in lines)
+        completed.returncode == 0
+        and len(lines) == 2
+        and all(GIT_OBJECT_PATTERN.fullmatch(item) for item in lines)
     ):
-        raise _qualification_error(
-            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-            "System X source commit and tree cannot be authenticated",
+        source_manifest = _inspector_source_manifest(
+            paths, system_x_root
         )
-    source_manifest = []
-    source_roots = (
-        paths.source_root,
-        paths.source_root.parent / "schemas",
-    )
-    for source_root in source_roots:
-        for path in sorted(source_root.rglob("*")):
-            if path.suffix not in {".py", ".json"}:
-                continue
-            try:
-                details = path.lstat()
-            except FileNotFoundError as error:
-                raise _qualification_error(
-                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-                    "Inspector source graph changed during authentication",
-                ) from error
-            if (
-                stat.S_ISLNK(details.st_mode)
-                or not stat.S_ISREG(details.st_mode)
-                or details.st_nlink != 1
-            ):
-                raise _qualification_error(
-                    "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-                    "Inspector source graph contains an unsafe entry",
-                )
-            content = path.read_bytes()
-            source_manifest.append(
-                {
-                    "path": str(path.relative_to(system_x_root)),
-                    "byte_count": len(content),
-                    "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
-                }
-            )
-    if not source_manifest:
-        raise _qualification_error(
-            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-            "Inspector source graph is empty",
-        )
-    return {
-        "system_x_source_commit": lines[0],
-        "system_x_source_tree": lines[1],
-        "inspector_source_identity": _identity(source_manifest),
-    }
+        return {
+            "system_x_source_commit": lines[0],
+            "system_x_source_tree": lines[1],
+            "inspector_source_identity": _identity(source_manifest),
+            "system_x_source_identity_mode": "GIT_METADATA",
+        }
+    return _portable_system_x_source_evidence(paths, system_x_root)
 
 
 def _operating_profile_identity(
@@ -3236,6 +3468,95 @@ def find_idempotent_qualification(
     return matches[0] if matches else None
 
 
+SAFE_DIAGNOSTIC_KEYS = frozenset(
+    {
+        "verification_outcome",
+        "verification_context",
+        "verification_error",
+        "exception_class",
+        "exception_reason_code",
+        "message",
+        "transaction_id",
+        "source_identity_mode",
+        "source_manifest_path",
+        "source_path",
+        "expected_byte_count",
+        "observed_byte_count",
+        "expected_sha256",
+        "observed_sha256",
+        "mismatches",
+        "capability_record_id",
+        "capability_record_identity",
+        "binding_identity",
+        "binding_generation",
+        "branch_root",
+        "branch_root_identity",
+        "user_config_root",
+        "user_config_root_identity",
+        "source_commit",
+        "component_locators",
+        "manifest_locators",
+        "pre_read_identities",
+        "post_read_identities",
+        "portable_tree_manifest_identity",
+        "system_x_source_commit",
+        "system_x_source_tree",
+        "exists",
+        "device",
+        "inode",
+        "mode",
+        "link_count",
+        "size",
+        "type",
+        "name",
+        "root",
+        "path",
+        "files",
+        "field",
+        "expected",
+        "observed",
+    }
+)
+
+
+def _safe_diagnostic_value(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): _safe_diagnostic_value(child)
+            for key, child in value.items()
+            if str(key) in SAFE_DIAGNOSTIC_KEYS
+        }
+    if isinstance(value, list):
+        return [_safe_diagnostic_value(child) for child in value]
+    if isinstance(value, tuple):
+        return [_safe_diagnostic_value(child) for child in value]
+    if isinstance(value, str):
+        return value[:512]
+    if isinstance(value, (bool, int)) or value is None:
+        return value
+    return None
+
+
+def _safe_failure_diagnostic(error: BaseException) -> dict[str, Any]:
+    data = getattr(error, "data", {})
+    return {
+        "schema_version": "system-x.qualification-failure-diagnostic.v1",
+        "verification_outcome": (
+            data.get("verification_outcome")
+            if isinstance(data, dict)
+            else None
+        ),
+        "exception_class": (
+            f"{type(error).__module__}.{type(error).__name__}"
+        ),
+        "reason_code": (
+            error.reason_code if isinstance(error, InspectorError) else None
+        ),
+        "message": str(error)[:512] if isinstance(error, InspectorError) else None,
+        "data": _safe_diagnostic_value(data if isinstance(data, dict) else {}),
+    }
+
+
 def _qualification_error(
     reason: str, message: str, *, data: dict[str, Any] | None = None
 ) -> InspectorError:
@@ -3266,6 +3587,115 @@ def _safe_json(path: Path, reason: str) -> dict[str, Any]:
 def _decision_id() -> str:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return f"decision-{stamp}-{secrets.token_hex(8)}"
+
+
+def _resume_eligible_qualification_transaction(
+    paths: InspectorPaths,
+    *,
+    inspection_id: str,
+    candidate_artifact_identity: str,
+    required_capability_profile: str,
+) -> str | None:
+    """Resume one interrupted pre-mutation qualification transaction.
+
+    The supervisor may be torn down after the durable VALIDATING_QUALIFICATION
+    checkpoint but before qualification owns any candidate state.  Only that
+    exact, pre-mutation shape is safe to resume.  Later qualification states
+    remain fail-closed and must use their dedicated recovery path.
+    """
+
+    matches: list[tuple[Path, dict[str, Any]]] = []
+    for path in sorted(paths.transactions.glob("tx-*.json")):
+        try:
+            details = path.lstat()
+        except FileNotFoundError:
+            continue
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or details.st_nlink != 1
+        ):
+            continue
+        try:
+            record = read_json_record(path)
+        except (OSError, InspectorError):
+            continue
+        if (
+            record.get("operation") != "qualify-gguf"
+            or record.get("transaction_id") != path.stem
+            or record.get("state") != "VALIDATING_QUALIFICATION"
+            or record.get("finish_utc") is not None
+            or record.get("inspection_id") != inspection_id
+            or record.get("artifact_identity") != candidate_artifact_identity
+            or record.get("candidate_artifact_identity")
+            != candidate_artifact_identity
+            or record.get("requested_profile")
+            != required_capability_profile
+            or record.get("qualification_id") is not None
+            or record.get("qualification_result_path") is not None
+            or record.get("qualification_record_candidate") is not None
+            or record.get("incumbent_snapshot") is not None
+        ):
+            continue
+        matches.append((path, record))
+
+    if len(matches) > 1:
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "multiple unfinished qualification transactions match the input",
+        )
+    if not matches:
+        return None
+
+    _transaction_path, record = matches[0]
+    transaction_id = str(record["transaction_id"])
+    observed = inspect_active_lock(paths.locks / "active.json")
+    if observed["state"] == "active":
+        lock_record = observed.get("record")
+        if (
+            isinstance(lock_record, dict)
+            and lock_record.get("transaction_id") == transaction_id
+            and lock_record.get("operation") == "qualify-gguf"
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_ACTIVE_TRANSACTION",
+                "the matching qualification transaction is still active",
+                data={"transaction_id": transaction_id},
+            )
+        raise _qualification_error(
+            "QUALIFICATION_ACTIVE_TRANSACTION",
+            "another Inspector transaction blocks qualification",
+        )
+    if observed["state"] == "uncertain":
+        raise _qualification_error(
+            "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+            "qualification lock ownership is uncertain during resume",
+        )
+    if observed["state"] == "stale":
+        lock_record = observed.get("record")
+        if not (
+            isinstance(lock_record, dict)
+            and lock_record.get("transaction_id") == transaction_id
+            and lock_record.get("operation") == "qualify-gguf"
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+                "stale qualification lock does not match resumable evidence",
+            )
+        details = (paths.locks / "active.json").lstat()
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or details.st_nlink != 1
+        ):
+            raise _qualification_error(
+                "QUALIFICATION_OWNERSHIP_UNCERTAIN",
+                "stale qualification lock has an unsafe physical type",
+            )
+        (paths.locks / "active.json").unlink()
+        fsync_directory(paths.locks)
+
+    return transaction_id
 
 
 def _active_transaction_gate(
@@ -3403,6 +3833,71 @@ def _map_handoff_error(error: InspectorError) -> InspectorError:
     reason = mapping.get(error.reason_code, "QUALIFICATION_SOURCE_INVALID")
     return _qualification_error(reason, "qualification admission validation failed")
 
+
+
+def _bound_installed_tuple_verification(
+    paths: InspectorPaths,
+    branch_paths: BranchHandoffPaths,
+    capability: dict[str, Any],
+    binding: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        verification = verify_installed_tuple(
+            paths,
+            capability,
+            branch_root=branch_paths.branch_root,
+            user_config_root=paths.user_config_root,
+            binding=binding,
+        )
+    except InspectorError as error:
+        data = getattr(error, "data", {})
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "installed tuple verification raised an InspectorError",
+            data={
+                "verification_outcome": data.get(
+                    "verification_outcome", "raised_inspector_error"
+                ),
+                "verification_context": data.get(
+                    "verification_context"
+                ),
+                "verification_error": {
+                    "exception_class": (
+                        f"{type(error).__module__}.{type(error).__name__}"
+                    ),
+                    "exception_reason_code": error.reason_code,
+                    "message": str(error)[:512],
+                },
+                "mismatches": data.get("mismatches", []),
+            },
+        ) from error
+    except Exception as error:
+        raise _qualification_error(
+            "QUALIFICATION_INTERNAL_ERROR",
+            "installed tuple verification raised an unexpected exception",
+            data={
+                "verification_outcome": "unexpected_exception",
+                "verification_error": {
+                    "exception_class": (
+                        f"{type(error).__module__}.{type(error).__name__}"
+                    ),
+                    "message": str(error)[:512],
+                },
+            },
+        ) from error
+    if verification.get("verified") is not True:
+        raise _qualification_error(
+            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
+            "installed tuple verification returned mismatches",
+            data={
+                "verification_outcome": "returned_mismatches",
+                "verification_context": verification.get(
+                    "verification_context"
+                ),
+                "mismatches": verification.get("mismatches", []),
+            },
+        )
+    return verification
 
 def installed_tuple_evidence(
     paths: InspectorPaths,
@@ -3574,6 +4069,16 @@ def authenticate_qualification(
                 "direct-supported evidence changed during authentication",
             )
         branch_paths = BranchHandoffPaths.discover(paths)
+        verification = _bound_installed_tuple_verification(
+            paths,
+            branch_paths,
+            decision_authorization.capability_record,
+            decision_authorization.binding,
+        )
+        decision_authorization = replace(
+            decision_authorization,
+            installed_tuple_verification=verification,
+        )
         try:
             source = revalidate_handoff_source(
                 paths,
@@ -3636,19 +4141,13 @@ def authenticate_qualification(
             "QUALIFICATION_CAPABILITY_BINDING_INVALID",
             "decision does not bind the current GGUF capability",
         )
-    try:
-        verification = verify_installed_tuple(paths, capability)
-    except InspectorError as error:
-        raise _qualification_error(
-            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-            "installed tuple cannot be verified",
-        ) from error
-    if verification.get("verified") is not True:
-        raise _qualification_error(
-            "QUALIFICATION_INSTALLED_TUPLE_MISMATCH",
-            "installed tuple differs from accepted capability",
-        )
     branch_paths = BranchHandoffPaths.discover(paths)
+    verification = _bound_installed_tuple_verification(
+        paths,
+        branch_paths,
+        capability,
+        binding,
+    )
     decision_authorization = DecisionAuthorization(
         decision=decision,
         inspection=inspection,
@@ -6071,7 +6570,17 @@ def qualify_transaction(
             "QUALIFICATION_INPUT_INVALID",
             "qualification input is invalid",
         )
-    transaction_id = transaction_id_factory()
+    resumed_transaction_id = _resume_eligible_qualification_transaction(
+        paths,
+        inspection_id=inspection_id,
+        candidate_artifact_identity=candidate_artifact_identity,
+        required_capability_profile=required_capability_profile,
+    )
+    transaction_id = (
+        resumed_transaction_id
+        if resumed_transaction_id is not None
+        else transaction_id_factory()
+    )
     lock = TransactionLock(
         paths,
         transaction_id=transaction_id,
@@ -6091,7 +6600,15 @@ def qualify_transaction(
             data={"transaction_id": transaction_id},
         ) from error
 
-    start_utc = utc_now()
+    start_utc = (
+        read_json_record(
+            paths.transactions / f"{transaction_id}.json"
+        ).get("start_utc")
+        if resumed_transaction_id is not None
+        else utc_now()
+    )
+    if not isinstance(start_utc, str) or not start_utc:
+        start_utc = utc_now()
     owner_identity = {
         key: owner.get(key)
         for key in (
@@ -6124,6 +6641,8 @@ def qualify_transaction(
         "qualification_result_path": None,
         "qualification_record_candidate": None,
         "result_class": None,
+        "failure_diagnostic": None,
+        "resumed_from_interrupted_transaction_id": resumed_transaction_id,
     }
     authorization: QualificationAuthorization | None = None
     incumbent: IncumbentSnapshot | None = None
@@ -6685,6 +7204,11 @@ def qualify_transaction(
             record["result_identity"],
         )
     except InspectorError as error:
+        error.data = {
+            **error.data,
+            "transaction_id": transaction_id,
+        }
+        failure_diagnostic = _safe_failure_diagnostic(error)
         reason = (
             error.reason_code
             if error.reason_code in QUALIFICATION_REASON_CODES
@@ -6715,6 +7239,7 @@ def qualify_transaction(
                 "QUALIFICATION_FAIL_CLOSED" if unsafe else reason
             ),
             "status_record_identity": status_identity,
+            "failure_diagnostic": failure_diagnostic,
         }
         _write_transaction(
             paths, failed_transaction, transition_observer
@@ -6734,6 +7259,7 @@ def qualify_transaction(
         }
         raise
     except Exception as error:
+        failure_diagnostic = _safe_failure_diagnostic(error)
         unsafe = branch_mutation_started and not (
             result_published
             and cleanup_proved
@@ -6760,6 +7286,7 @@ def qualify_transaction(
             "state": "FAIL_CLOSED" if unsafe else "FAILED",
             "reason_code": reason,
             "status_record_identity": status_identity,
+            "failure_diagnostic": failure_diagnostic,
         }
         _write_transaction(
             paths, failed_transaction, transition_observer
@@ -6776,7 +7303,10 @@ def qualify_transaction(
         raise _qualification_error(
             reason,
             "unexpected qualification runtime failure",
-            data={"transaction_id": transaction_id},
+            data={
+                "transaction_id": transaction_id,
+                "failure_diagnostic": failure_diagnostic,
+            },
         ) from error
     finally:
         lock.release()

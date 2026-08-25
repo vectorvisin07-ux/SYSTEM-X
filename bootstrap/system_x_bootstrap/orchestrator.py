@@ -160,7 +160,7 @@ class BootstrapOrchestrator:
         return MachineResult("status", "ok", state.state, details=details)
 
     def verify(self, level: str) -> MachineResult:
-        with installation_user_context(self.installation_user):
+        with installation_user_context(self.installation_user, home=self.home):
             details = verify_level(self.paths, self.configs, level, runner=self.runner, home=self.home)
         state = {
             "source-only": "CLONED",
@@ -187,7 +187,29 @@ class BootstrapOrchestrator:
         previous = read_state(self.paths)
         recovered_transactions: list[str] = []
         if previous.state in ("FAILED_CLEAN", "FAIL_CLOSED"):
-            if not allow_failure_recovery or previous.state != "FAILED_CLEAN":
+            pending_before_recovery = incomplete_transactions(
+                self.paths.transaction_directory
+            )
+            service_recovery_operations = (
+                "register-platform-service",
+                "activate-platform-service",
+            )
+            exact_owned_service_recovery = (
+                previous.state == "FAIL_CLOSED"
+                and operation in service_recovery_operations
+                and bool(pending_before_recovery)
+                and all(
+                    any(
+                        path.name.startswith(f"{candidate}-")
+                        for candidate in service_recovery_operations
+                    )
+                    for path in pending_before_recovery
+                )
+            )
+            if not allow_failure_recovery or (
+                previous.state != "FAILED_CLEAN"
+                and not exact_owned_service_recovery
+            ):
                 raise BootstrapError(ErrorCode.TRANSACTION_RECOVERY_REQUIRED, "bootstrap failure state requires explicit recovery")
             recovered_transactions = recover_failed_clean_transactions(
                 self.paths.transaction_directory, authorized=authorized
@@ -229,7 +251,7 @@ class BootstrapOrchestrator:
             with transaction:
                 try:
                     if user_owned:
-                        with installation_user_context(self.installation_user):
+                        with installation_user_context(self.installation_user, home=self.home):
                             details = dict(provider(transaction))
                     else:
                         details = dict(provider(transaction))
@@ -412,7 +434,10 @@ class BootstrapOrchestrator:
             self._prepare_reconstruct_host(allow_patch_difference=allow_patch_difference, current_state=state.stable_state)
         results: list[MachineResult] = []
         for operation, target, level, action in phases:
-            if operation == "activate-platform-service" and state.stable_state == "SERVICE_REGISTERED" and hasattr(self, "configs"):
+            # Registration and activation share SERVICE_REGISTERED as their durable
+            # state label, so activation must be forced whenever the phase cursor
+            # reaches that label in a real orchestrator.
+            if operation == "activate-platform-service" and current_index == state_order["SERVICE_REGISTERED"] and hasattr(self, "configs"):
                 results.append(action())
                 continue
             if operation == "register-platform-service" and state.stable_state == "SERVICE_REGISTERED" and hasattr(self, "configs"):

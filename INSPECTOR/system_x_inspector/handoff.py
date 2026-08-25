@@ -2494,6 +2494,125 @@ def _recoverable_handoff(
     return candidates[0] if candidates else None
 
 
+def _resume_eligible_handoff_transaction(
+    paths: InspectorPaths,
+    *,
+    decision_id: str,
+    source_candidate: str,
+    managed_name: str,
+) -> dict[str, Any] | None:
+    """Resume one exact pre-authentication handoff after owner loss."""
+
+    matches: list[tuple[Path, dict[str, Any]]] = []
+    for path in sorted(paths.transactions.glob("tx-*.json")):
+        try:
+            details = path.lstat()
+        except FileNotFoundError:
+            continue
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or stat.S_IMODE(details.st_mode) != 0o600
+            or details.st_nlink != 1
+        ):
+            continue
+        try:
+            transaction = read_json_record(path)
+        except (OSError, InspectorError):
+            continue
+        if (
+            transaction.get("schema_version")
+            != SCHEMA_IDENTITIES["transaction"]
+            or transaction.get("transaction_id") != path.stem
+            or transaction.get("operation") != "handoff"
+            or transaction.get("state") != "VALIDATING_HANDOFF"
+            or transaction.get("finish_utc") is not None
+            or transaction.get("input_target_name") != source_candidate
+            or transaction.get("source_candidate") != source_candidate
+            or transaction.get("managed_name") != managed_name
+            or transaction.get("terminal_class") != "GGUF"
+            or transaction.get("intake_snapshot_identity") is not None
+            or transaction.get("artifact_identity") is not None
+            or transaction.get("inspection_result_identity") is not None
+            or transaction.get("inspection_result_path") is not None
+            or transaction.get("inspection_id") is not None
+            or transaction.get("capability_record_identity") is not None
+            or transaction.get("decision_id") is not None
+            or transaction.get("decision_result_identity") is not None
+            or transaction.get("decision_result_path") is not None
+            or not isinstance(transaction.get("handoff_id"), str)
+            or HANDOFF_ID_PATTERN.fullmatch(transaction["handoff_id"]) is None
+            or transaction.get("handoff_result_identity") is not None
+            or transaction.get("handoff_result_path") is not None
+            or transaction.get("staging_relative_path") is not None
+            or transaction.get("managed_relative_path") is not None
+            or transaction.get("transfer_method") is not None
+            or transaction.get("commit_phase") is not None
+            or transaction.get("handoff_record_candidate") is not None
+        ):
+            continue
+        matches.append((path, transaction))
+
+    if len(matches) > 1:
+        raise _error(
+            "TRANSACTION_OWNERSHIP_UNCERTAIN",
+            "multiple unfinished handoff transactions match the input",
+        )
+    if not matches:
+        return None
+
+    _transaction_path, transaction = matches[0]
+    transaction_id = str(transaction["transaction_id"])
+    observed = inspect_active_lock(paths.locks / "active.json")
+    if observed["state"] == "active":
+        lock_record = observed.get("record")
+        if (
+            isinstance(lock_record, dict)
+            and lock_record.get("transaction_id") == transaction_id
+            and lock_record.get("operation") == "handoff"
+        ):
+            raise _error(
+                "TRANSACTION_LOCK_ACTIVE",
+                "the matching handoff transaction is still active",
+            )
+        raise _error(
+            "TRANSACTION_OWNERSHIP_UNCERTAIN",
+            "another Inspector transaction blocks handoff resume",
+        )
+    if observed["state"] == "uncertain":
+        raise _error(
+            "TRANSACTION_OWNERSHIP_UNCERTAIN",
+            "handoff lock ownership is uncertain during resume",
+        )
+    if observed["state"] == "stale":
+        lock_record = observed.get("record")
+        if not (
+            isinstance(lock_record, dict)
+            and lock_record.get("transaction_id") == transaction_id
+            and lock_record.get("operation") == "handoff"
+        ):
+            raise _error(
+                "TRANSACTION_OWNERSHIP_UNCERTAIN",
+                "stale handoff lock does not match resumable evidence",
+            )
+        lock_path = paths.locks / "active.json"
+        details = lock_path.lstat()
+        if (
+            stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+            or stat.S_IMODE(details.st_mode) != 0o600
+            or details.st_nlink != 1
+        ):
+            raise _error(
+                "TRANSACTION_OWNERSHIP_UNCERTAIN",
+                "stale handoff lock has an unsafe physical type",
+            )
+        lock_path.unlink()
+        fsync_directory(lock_path.parent)
+
+    return transaction
+
+
 def _recoverable_unrecorded_publication(
     paths: InspectorPaths,
     branch_paths: BranchHandoffPaths,
@@ -2817,6 +2936,12 @@ def handoff_transaction(
                 qualification_id,
             )
         )
+    partial = _resume_eligible_handoff_transaction(
+        paths,
+        decision_id=decision_id,
+        source_candidate=source_candidate,
+        managed_name=managed_name,
+    )
     lock_state = inspect_active_lock(paths.locks / "active.json")
     if lock_state["state"] == "absent":
         completed = _completed_handoff(
@@ -2843,18 +2968,22 @@ def handoff_transaction(
             source_candidate=source_candidate,
             managed_name=managed_name,
         )
-        if recoverable is None
+        if recoverable is None and partial is None
         else None
     )
     transaction_id = (
-        recoverable[0]["transaction_id"]
+        partial["transaction_id"]
+        if partial is not None
+        else recoverable[0]["transaction_id"]
         if recoverable is not None
         else unrecorded["transaction_id"]
         if unrecorded is not None
         else transaction_id_factory()
     )
     handoff_id = (
-        recoverable[0]["handoff_id"]
+        partial["handoff_id"]
+        if partial is not None
+        else recoverable[0]["handoff_id"]
         if recoverable is not None
         else unrecorded["handoff_id"]
         if unrecorded is not None
@@ -3013,15 +3142,24 @@ def handoff_transaction(
             )
             return transaction_id, candidate, result_path, result_identity
 
-        start_utc = utc_now()
-        transaction = _handoff_transaction_value(
-            transaction_id=transaction_id,
-            handoff_id=handoff_id,
-            start_utc=start_utc,
-            owner_identity=_owner_surface(owner),
-            source_candidate=source_candidate,
-            managed_name=managed_name,
-        )
+        if partial is not None:
+            transaction = {
+                **partial,
+                "finish_utc": None,
+                "owner_identity": _owner_surface(owner),
+                "state": "VALIDATING_HANDOFF",
+                "reason_code": "OK",
+            }
+        else:
+            start_utc = utc_now()
+            transaction = _handoff_transaction_value(
+                transaction_id=transaction_id,
+                handoff_id=handoff_id,
+                start_utc=start_utc,
+                owner_identity=_owner_surface(owner),
+                source_candidate=source_candidate,
+                managed_name=managed_name,
+            )
         transaction = _active_handoff_state(
             paths,
             transaction,

@@ -41,6 +41,8 @@ SCHEMA_IDENTITIES = {
         "system-x.inspector-api-connection-receipt.v1"
     ),
     "machine_result": "system-x.inspector-machine-result.v1",
+    "automatic_intake_result": "system-x.inspector-automatic-intake-result.v1",
+    "automatic_intake_basis": "system-x.inspector-automatic-intake-basis.v1",
     "status": "system-x.inspector-status.v1",
     "transaction": "system-x.inspector-transaction.v1",
 }
@@ -62,6 +64,7 @@ OPERATIONS = (
     "handoff",
     "publish-service",
     "deploy-gguf",
+    "reconcile-intake",
     "show-connection",
 )
 

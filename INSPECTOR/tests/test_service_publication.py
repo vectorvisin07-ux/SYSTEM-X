@@ -31,6 +31,7 @@ from system_x_inspector.service_publication import (
     issue_proof_request,
     observe_public_surface,
     observe_registry,
+    prepare_publication_with_convergence_wait,
     publication_result_identity,
     publish_publication_record,
     read_local_credential,
@@ -296,6 +297,50 @@ class PublicationFoundationTest(unittest.TestCase):
         self.assertEqual(identity, record["result_identity"])
         with self.assertRaisesRegex(InspectorError, "already exists"):
             publish_publication_record(self.paths, record)
+
+    def test_publication_waits_for_transient_registry_convergence(self) -> None:
+        prepared_value = object()
+        transient = InspectorError(
+            "REGISTRY_SCHEMA_UNSUPPORTED",
+            "registry generation is still converging",
+        )
+        with (
+            mock.patch(
+                "system_x_inspector.service_publication.prepare_publication",
+                side_effect=[transient, prepared_value],
+            ) as prepare,
+            mock.patch("system_x_inspector.service_publication.time.sleep")
+            as sleep,
+        ):
+            result = prepare_publication_with_convergence_wait(
+                self.paths,
+                "handoff-fixture",
+            )
+        self.assertIs(result, prepared_value)
+        self.assertEqual(prepare.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_publication_waits_for_service_readiness_convergence(self) -> None:
+        prepared_value = object()
+        transient = InspectorError(
+            "SERVICE_NOT_READY",
+            "service is still warming the handed-off model",
+        )
+        with (
+            mock.patch(
+                "system_x_inspector.service_publication.prepare_publication",
+                side_effect=[transient, prepared_value],
+            ) as prepare,
+            mock.patch("system_x_inspector.service_publication.time.sleep")
+            as sleep,
+        ):
+            result = prepare_publication_with_convergence_wait(
+                self.paths,
+                "handoff-service-readiness-fixture",
+            )
+        self.assertIs(result, prepared_value)
+        self.assertEqual(prepare.call_count, 2)
+        sleep.assert_called_once()
 
     def test_paths_contained_and_machine_parser_input_closed(self) -> None:
         self.assertTrue(

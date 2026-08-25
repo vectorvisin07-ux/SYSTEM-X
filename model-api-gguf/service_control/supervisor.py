@@ -45,6 +45,7 @@ if __package__:
         RecoveryPolicy,
         RecoveryStore,
     )
+    from .automatic_coordinator import AutomaticIntakeCoordinator
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from service_control.operating_profile import (  # type: ignore
@@ -63,6 +64,9 @@ else:
         RecoveryPolicy,
         RecoveryStore,
     )
+    from service_control.automatic_coordinator import (  # type: ignore
+        AutomaticIntakeCoordinator,
+    )
 
 
 STATUS_SCHEMA = "system-x.service-supervisor-status.v1"
@@ -75,7 +79,7 @@ LOG_SCHEMA = "system-x.service-supervisor-log-event.v1"
 API_CONTROLLER_SCHEMA = "system-x.gguf-api-service-controller.v1"
 BRANCH_CONTROLLER_SCHEMA = "system-x.gguf-branch-controller.v1"
 API_CONTROLLER_SHA256 = (
-    "5491fc216ccb7635d6c61d4959303c1a40880546b9b0d54141922d1e451a0f22"
+    "7bf8e9101891c13e3aa46aed4b562c71bd8ebd0e236dd4f6ec13c7e1b6ad9646"
 )
 BRANCH_CONTROLLER_SHA256 = (
     "d4d37f96b4437e16ecb3999540dc5e3f1e2ea54bc5e96da09346dfae6df8c83a"
@@ -509,6 +513,22 @@ class SupervisorPaths:
         return self.runtime_root / "recovery"
 
     @property
+    def coordinator_root(self) -> Path:
+        return self.runtime_root / "coordinator"
+
+    @property
+    def coordinator_status(self) -> Path:
+        return self.coordinator_root / "status.json"
+
+    @property
+    def coordinator_invocations(self) -> Path:
+        return self.coordinator_root / "invocations"
+
+    @property
+    def coordinator_logs(self) -> Path:
+        return self.coordinator_root / "logs"
+
+    @property
     def active_pid(self) -> Path:
         return self.pids / "supervisor.json"
 
@@ -535,6 +555,10 @@ class SupervisorPaths:
             "transactions": str(self.transactions),
             "logs": str(self.logs),
             "recovery": str(self.recovery),
+            "coordinator": str(self.coordinator_root),
+            "coordinator_status": str(self.coordinator_status),
+            "coordinator_invocations": str(self.coordinator_invocations),
+            "coordinator_logs": str(self.coordinator_logs),
         }
 
 
@@ -1135,6 +1159,7 @@ class ForegroundSupervisor:
         health_observer: (
             Callable[[OperatingProfile], dict[str, Any]] | None
         ) = None,
+        automatic_coordinator: AutomaticIntakeCoordinator | None = None,
     ):
         if (
             type(monitor_interval_seconds) not in (int, float)
@@ -1155,6 +1180,7 @@ class ForegroundSupervisor:
         self.startup_model_policy = startup_model_policy
         self.install_signal_handlers = install_signal_handlers
         self.health_observer = health_observer or _public_health
+        self.automatic_coordinator = automatic_coordinator
         self.shutdown_requested = threading.Event()
         self.transaction_id: str | None = None
         self.supervisor_identity: dict[str, Any] | None = None
@@ -1462,6 +1488,11 @@ class ForegroundSupervisor:
             "last_observed_utc": _utc_now(),
             "stop_reason": stop_reason,
             "fault_reason": fault_reason,
+            "automatic_coordinator": (
+                self.automatic_coordinator.snapshot()
+                if self.automatic_coordinator is not None
+                else None
+            ),
         }
 
     def _write_status(self, value: Mapping[str, Any]) -> None:
@@ -1505,6 +1536,11 @@ class ForegroundSupervisor:
             "cleanup_result": None,
             "startup_reconciliation": self.startup_reconciliation,
             "recovery_transaction_ids": [],
+            "automatic_coordinator": (
+                self.automatic_coordinator.snapshot()
+                if self.automatic_coordinator is not None
+                else None
+            ),
         }
 
     def plan(self) -> dict[str, Any]:
@@ -1656,7 +1692,42 @@ class ForegroundSupervisor:
     def _controller_owned_stop(
         self, profile: OperatingProfile
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        stop_result = self.adapter.invoke("api", "stop")
+        try:
+            stop_result = self.adapter.invoke("api", "stop")
+        except SupervisorError as exc:
+            controller_result = exc.details.get("controller_result")
+            already_inactive = (
+                self.shutdown_requested.is_set()
+                and exc.reason_code == "controller_operation_failed"
+                and isinstance(controller_result, dict)
+                and controller_result.get("operation") == "stop"
+                and controller_result.get("reason_code") == "SERVICE_NOT_ACTIVE"
+            )
+            if not already_inactive:
+                raise
+            stop_result = dict(controller_result)
+            stop_result.update(
+                {
+                    "ok": True,
+                    "message": "API controller was already inactive during external graceful shutdown",
+                    "external_graceful_shutdown_reconciled": True,
+                    "runtime": {
+                        "active": False,
+                        "consistent": True,
+                        "lifecycle_state": "RECONCILED",
+                        "transaction_id": None,
+                        "pid": None,
+                        "pgid": None,
+                        "sid": None,
+                        "process_start_identity": None,
+                    },
+                    "listener": {
+                        "recorded": None,
+                        "absent": True,
+                        "unrelated_process_signaled": False,
+                    },
+                }
+            )
         api_after = _observed_api(
             self.adapter.invoke("api", "status"), profile
         )
@@ -1859,6 +1930,52 @@ class ForegroundSupervisor:
                 return "OWNERSHIP_UNCERTAIN"
         return "API_PROCESS_LOST"
 
+    def _complete_recovery_for_control_signal(
+        self,
+        *,
+        recovery: RecoveryStore,
+        attempt: RecoveryAttempt,
+        current: DesiredState,
+        observation: Mapping[str, Any],
+    ) -> bool:
+        """Finish recovery only for an authenticated stop or external shutdown.
+
+        A manager signal is not a product desired-state write.  Preserve that
+        distinction in the recovery transaction so a cgroup teardown cannot
+        manufacture CANCELLED_BY_STOPPED while the authenticated state is
+        still RUNNING.
+        """
+
+        if current.desired_state == "STOPPED":
+            recovery.complete(
+                attempt,
+                desired_state=current.desired_state,
+                desired_generation=current.generation,
+                outcome="CANCELLED_BY_STOPPED",
+                observation=observation,
+            )
+            return True
+        if not self.shutdown_requested.is_set():
+            return False
+        external_observation = dict(observation)
+        external_observation.update(
+            {
+                "control_signal": "external_graceful_shutdown",
+                "authenticated_desired_state": current.desired_state,
+                "authenticated_desired_generation": current.generation,
+                "writer_identity": dict(self.supervisor_identity or {}),
+            }
+        )
+        recovery.complete(
+            attempt,
+            desired_state=current.desired_state,
+            desired_generation=current.generation,
+            outcome="FAILED",
+            observation=external_observation,
+            error_category="EXTERNAL_GRACEFUL_SHUTDOWN",
+        )
+        return True
+
     def _wait_for_reusable_stack_endpoints(
         self,
         *,
@@ -1876,17 +1993,12 @@ class ForegroundSupervisor:
             current = load_desired_state(
                 self.state_path, profile.identity
             )
-            if (
-                current.desired_state == "STOPPED"
-                or self.shutdown_requested.is_set()
+            if self._complete_recovery_for_control_signal(
+                recovery=recovery,
+                attempt=attempt,
+                current=current,
+                observation=observation,
             ):
-                recovery.complete(
-                    attempt,
-                    desired_state=current.desired_state,
-                    desired_generation=current.generation,
-                    outcome="CANCELLED_BY_STOPPED",
-                    observation=observation,
-                )
                 return None
             public_reusable = _endpoint_bindable(
                 profile.public_endpoint.host,
@@ -1945,7 +2057,7 @@ class ForegroundSupervisor:
             selected_action="API_OWNED_ROUTER_RESTART",
         )
         if attempt is None:
-            if desired.desired_state == "STOPPED":
+            if desired.desired_state == "STOPPED" or self.shutdown_requested.is_set():
                 return None
             _fail(
                 "FAIL_CLOSED_LATCHED",
@@ -1954,14 +2066,12 @@ class ForegroundSupervisor:
             )
         try:
             current = load_desired_state(self.state_path, profile.identity)
-            if current.desired_state == "STOPPED":
-                recovery.complete(
-                    attempt,
-                    desired_state=current.desired_state,
-                    desired_generation=current.generation,
-                    outcome="CANCELLED_BY_STOPPED",
-                    observation=pre_observation,
-                )
+            if self._complete_recovery_for_control_signal(
+                recovery=recovery,
+                attempt=attempt,
+                current=current,
+                observation=pre_observation,
+            ):
                 return None
             recovery.transition(
                 attempt,
@@ -1978,17 +2088,12 @@ class ForegroundSupervisor:
                 current = load_desired_state(
                     self.state_path, profile.identity
                 )
-                if (
-                    current.desired_state == "STOPPED"
-                    or self.shutdown_requested.is_set()
+                if self._complete_recovery_for_control_signal(
+                    recovery=recovery,
+                    attempt=attempt,
+                    current=current,
+                    observation=pre_observation,
                 ):
-                    recovery.complete(
-                        attempt,
-                        desired_state=current.desired_state,
-                        desired_generation=current.generation,
-                        outcome="CANCELLED_BY_STOPPED",
-                        observation=pre_observation,
-                    )
                     return None
                 try:
                     (
@@ -2072,7 +2177,7 @@ class ForegroundSupervisor:
                 observation=pre_observation,
                 error_category=getattr(exc, "reason_code", type(exc).__name__),
             )
-            if current.desired_state == "STOPPED":
+            if current.desired_state == "STOPPED" or self.shutdown_requested.is_set():
                 return None
             raise
 
@@ -2104,7 +2209,7 @@ class ForegroundSupervisor:
             selected_action="CONTROLLER_OWNED_API_STACK_RESTART",
         )
         if attempt is None:
-            if desired.desired_state == "STOPPED":
+            if desired.desired_state == "STOPPED" or self.shutdown_requested.is_set():
                 return None
             _fail(
                 "FAIL_CLOSED_LATCHED",
@@ -2113,14 +2218,12 @@ class ForegroundSupervisor:
             )
         try:
             current = load_desired_state(self.state_path, profile.identity)
-            if current.desired_state == "STOPPED":
-                recovery.complete(
-                    attempt,
-                    desired_state=current.desired_state,
-                    desired_generation=current.generation,
-                    outcome="CANCELLED_BY_STOPPED",
-                    observation=pre_observation,
-                )
+            if self._complete_recovery_for_control_signal(
+                recovery=recovery,
+                attempt=attempt,
+                current=current,
+                observation=pre_observation,
+            ):
                 return None
             recovery.transition(
                 attempt,
@@ -2180,29 +2283,22 @@ class ForegroundSupervisor:
                 current = load_desired_state(
                     self.state_path, profile.identity
                 )
-                if (
-                    current.desired_state == "STOPPED"
-                    or self.shutdown_requested.is_set()
+                if self._complete_recovery_for_control_signal(
+                    recovery=recovery,
+                    attempt=attempt,
+                    current=current,
+                    observation=pre_observation,
                 ):
-                    recovery.complete(
-                        attempt,
-                        desired_state=current.desired_state,
-                        desired_generation=current.generation,
-                        outcome="CANCELLED_BY_STOPPED",
-                        observation=pre_observation,
-                    )
                     return None
                 waiter.wait(min(0.05, deadline - time.monotonic()))
 
             current = load_desired_state(self.state_path, profile.identity)
-            if current.desired_state == "STOPPED":
-                recovery.complete(
-                    attempt,
-                    desired_state=current.desired_state,
-                    desired_generation=current.generation,
-                    outcome="CANCELLED_BY_STOPPED",
-                    observation=pre_observation,
-                )
+            if self._complete_recovery_for_control_signal(
+                recovery=recovery,
+                attempt=attempt,
+                current=current,
+                observation=pre_observation,
+            ):
                 return None
             current = self._wait_for_reusable_stack_endpoints(
                 profile=profile,
@@ -2245,14 +2341,12 @@ class ForegroundSupervisor:
                 current = load_desired_state(
                     self.state_path, profile.identity
                 )
-                if current.desired_state == "STOPPED":
-                    recovery.complete(
-                        attempt,
-                        desired_state=current.desired_state,
-                        desired_generation=current.generation,
-                        outcome="CANCELLED_BY_STOPPED",
-                        observation=pre_observation,
-                    )
+                if self._complete_recovery_for_control_signal(
+                    recovery=recovery,
+                    attempt=attempt,
+                    current=current,
+                    observation=pre_observation,
+                ):
                     return None
                 try:
                     (
@@ -2329,7 +2423,7 @@ class ForegroundSupervisor:
                 observation=pre_observation,
                 error_category=getattr(exc, "reason_code", type(exc).__name__),
             )
-            if current.desired_state == "STOPPED":
+            if current.desired_state == "STOPPED" or self.shutdown_requested.is_set():
                 return None
             raise
 
@@ -2339,6 +2433,8 @@ class ForegroundSupervisor:
         dependencies = self.adapter.validate()
         self.transaction_id = self._new_transaction_id()
         self.supervisor_identity = process_snapshot(os.getpid())
+        if self.automatic_coordinator is not None:
+            self.automatic_coordinator.set_supervisor_generation(self.transaction_id)
         self._acquire_active_records(profile)
         recovery = RecoveryStore(
             self.paths.recovery,
@@ -2504,6 +2600,10 @@ class ForegroundSupervisor:
                     desired_generation=desired.generation,
                     observation=baseline_observation,
                 )
+                if self.automatic_coordinator is not None:
+                    self.automatic_coordinator.recover(
+                        time.monotonic(), desired.desired_state, self.transaction_id
+                    )
                 self._write_transaction(transaction)
                 running_status = self._status_value(
                     profile=profile,
@@ -2547,6 +2647,10 @@ class ForegroundSupervisor:
                     if desired.desired_state == "STOPPED":
                         final_reason = "desired_state_stopped"
                         break
+                    if self.automatic_coordinator is not None:
+                        self.automatic_coordinator.tick(
+                            time.monotonic(), desired.desired_state, self.transaction_id
+                        )
                     try:
                         (
                             api_now,
@@ -2616,7 +2720,15 @@ class ForegroundSupervisor:
                             desired = load_desired_state(
                                 self.state_path, profile.identity
                             )
-                            final_reason = "desired_state_stopped"
+                            if desired.desired_state == "STOPPED":
+                                final_reason = "desired_state_stopped"
+                            elif self.shutdown_requested.is_set():
+                                final_reason = "external_graceful_shutdown"
+                            else:
+                                _fail(
+                                    "recovery_returned_without_terminal_state",
+                                    "recovery returned without an authenticated terminal state",
+                                )
                             break
                         (
                             api_now,
@@ -2707,6 +2819,11 @@ class ForegroundSupervisor:
                                 current_readiness
                             ),
                             "warm_model_identity": current_warm,
+                            "automatic_coordinator": (
+                                self.automatic_coordinator.snapshot()
+                                if self.automatic_coordinator is not None
+                                else None
+                            ),
                         }
                     )
                     self._write_transaction(transaction)
@@ -2727,6 +2844,8 @@ class ForegroundSupervisor:
                         self.monitor_interval_seconds
                     )
 
+                if self.automatic_coordinator is not None:
+                    self.automatic_coordinator.request_stop(time.monotonic())
                 stopping_status = self._status_value(
                     profile=profile,
                     desired=desired,
@@ -2773,6 +2892,8 @@ class ForegroundSupervisor:
                 self._write_transaction(transaction)
                 self._log("supervisor_stopped", reason=final_reason)
         except (SupervisorError, ServiceControlError, RecoveryError) as exc:
+            if self.automatic_coordinator is not None:
+                self.automatic_coordinator.request_stop(time.monotonic())
             reason = (
                 exc.reason_code
                 if isinstance(
@@ -2811,6 +2932,8 @@ class ForegroundSupervisor:
             self._log("supervisor_faulted", reason=reason)
             raise
         finally:
+            if self.automatic_coordinator is not None:
+                self.automatic_coordinator.request_stop(time.monotonic())
             self._restore_signals()
             cleanup_result = self._cleanup_active_records()
             transaction["cleanup_result"] = cleanup_result
@@ -3263,6 +3386,9 @@ def _adapter_from_arguments(arguments: argparse.Namespace) -> ControllerAdapter:
 def execute(arguments: argparse.Namespace) -> dict[str, Any]:
     operation = arguments.operation
     if operation in ("plan", "run"):
+        coordinator = None
+        if operation == "run" and Path(arguments.runtime_root).resolve() == DEFAULT_RUNTIME_ROOT.resolve():
+            coordinator = AutomaticIntakeCoordinator.for_system_x(arguments.runtime_root)
         supervisor = ForegroundSupervisor(
             arguments.profile_path,
             arguments.state_path,
@@ -3274,6 +3400,7 @@ def execute(arguments: argparse.Namespace) -> dict[str, Any]:
             startup_model_policy=getattr(
                 arguments, "startup_model_policy", None
             ),
+            automatic_coordinator=coordinator,
         )
         return supervisor.plan() if operation == "plan" else supervisor.run()
     if operation == "status":

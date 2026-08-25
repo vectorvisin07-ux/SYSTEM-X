@@ -135,8 +135,13 @@ PLATFORM_REGISTRATION_FIELDS = frozenset(
 EVIDENCE_FIELDS = frozenset({"basename", "sha256"})
 
 
-def _fail(reason: str, message: str) -> InspectorError:
-    return InspectorError(reason, message)
+def _fail(
+    reason: str,
+    message: str,
+    *,
+    data: dict[str, Any] | None = None,
+) -> InspectorError:
+    return InspectorError(reason, message, data=data)
 
 
 def _identity(value: object) -> str:
@@ -991,12 +996,113 @@ def _observed_component(
     }
 
 
+
+def _physical_identity(path: Path) -> dict[str, Any]:
+    try:
+        details = path.lstat()
+    except FileNotFoundError:
+        return {"exists": False}
+    return {
+        "exists": True,
+        "device": details.st_dev,
+        "inode": details.st_ino,
+        "mode": f"{stat.S_IMODE(details.st_mode):04o}",
+        "link_count": details.st_nlink,
+        "size": details.st_size,
+        "type": stat.filemode(details.st_mode)[0],
+    }
+
+
+def _verification_locator_paths(
+    installed: dict[str, Any],
+    *,
+    branch_root: Path,
+    user_config_root: Path,
+) -> list[tuple[str, str, Path]]:
+    result: list[tuple[str, str, Path]] = []
+    items = list(installed["components"])
+    for manifest in installed["manifests"]:
+        items.extend(manifest["files"])
+    for item in items:
+        base = branch_root if item["root"] == "branch" else user_config_root
+        result.append(
+            (
+                str(item["root"]),
+                str(item["path"]),
+                base.joinpath(*str(item["path"]).split("/")),
+            )
+        )
+    return result
+
+
+def _verification_context(
+    value: dict[str, Any],
+    binding: dict[str, Any] | None,
+    *,
+    branch_root: Path,
+    user_config_root: Path,
+) -> dict[str, Any]:
+    installed = value["installed_tuple"]
+    return {
+        "capability_record_id": value["capability_record_id"],
+        "capability_record_identity": value["capability_record_identity"],
+        "binding_identity": (
+            binding["binding_identity"] if binding is not None else None
+        ),
+        "binding_generation": (
+            binding["binding_generation"] if binding is not None else None
+        ),
+        "branch_root": str(branch_root),
+        "branch_root_identity": _physical_identity(branch_root),
+        "user_config_root": str(user_config_root),
+        "user_config_root_identity": _physical_identity(user_config_root),
+        "source_commit": installed["source_commit"],
+        "component_locators": [
+            {
+                "name": item["name"],
+                "root": item["root"],
+                "path": item["path"],
+            }
+            for item in installed["components"]
+        ],
+        "manifest_locators": [
+            {
+                "name": manifest["name"],
+                "files": [
+                    {
+                        "name": item["name"],
+                        "root": item["root"],
+                        "path": item["path"],
+                    }
+                    for item in manifest["files"]
+                ],
+            }
+            for manifest in installed["manifests"]
+        ],
+    }
+
+
+def _verification_error_data(
+    error: InspectorError,
+    context: dict[str, Any],
+    *,
+    outcome: str,
+) -> dict[str, Any]:
+    return {
+        **getattr(error, "data", {}),
+        "verification_context": context,
+        "verification_outcome": outcome,
+        "exception_class": f"{type(error).__module__}.{type(error).__name__}",
+        "exception_reason_code": error.reason_code,
+    }
+
 def verify_installed_tuple(
     paths: InspectorPaths,
     record: dict[str, Any],
     *,
     branch_root: Path | None = None,
     user_config_root: Path | None = None,
+    binding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     value = validate_capability_record(record)
     if value["availability"] != "AVAILABLE":
@@ -1004,85 +1110,241 @@ def verify_installed_tuple(
     installed = value["installed_tuple"]
     assert isinstance(installed, dict)
     actual_branch_root = (
-        branch_root
+        Path(branch_root)
         if branch_root is not None
         else paths.inspector_root.parent / value["branch_identity"]
     )
     actual_user_config_root = (
-        user_config_root
+        Path(user_config_root)
         if user_config_root is not None
-        else Path.home() / ".config"
+        else paths.user_config_root
     )
-    mismatches: list[dict[str, Any]] = []
-    commit = _git_commit(actual_branch_root)
-    if commit != installed["source_commit"]:
-        mismatches.append(
-            {
-                "field": "source_commit",
-                "expected": installed["source_commit"],
-                "observed": commit,
-            }
-        )
-    observed_by_locator: dict[tuple[str, str], dict[str, Any]] = {}
-    for component in installed["components"]:
-        observed = _observed_component(
-            component,
+    bound = validate_binding(binding) if binding is not None else None
+    context = _verification_context(
+        value,
+        bound,
+        branch_root=actual_branch_root,
+        user_config_root=actual_user_config_root,
+    )
+    if bound is not None:
+        if (
+            bound["branch_identity"] != value["branch_identity"]
+            or bound["capability_record_identity"]
+            != value["capability_record_identity"]
+        ):
+            raise _fail(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "capability binding is not bound to the supplied record",
+                data={
+                    "verification_context": context,
+                    "verification_outcome": "binding_context_invalid",
+                },
+            )
+        binding_file = binding_path(paths, bound["branch_identity"])
+        binding_before = _physical_identity(binding_file)
+        if not binding_before.get("exists"):
+            raise _fail(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "capability binding disappeared before verification",
+                data={
+                    "verification_context": context,
+                    "verification_outcome": "binding_context_invalid",
+                },
+            )
+        if load_binding(paths, bound["branch_identity"]) != bound:
+            raise _fail(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "capability binding changed before verification",
+                data={
+                    "verification_context": context,
+                    "verification_outcome": "binding_context_changed",
+                },
+            )
+    else:
+        binding_file = None
+        binding_before = None
+
+    record_file = capability_record_path(
+        paths, value["capability_record_id"]
+    )
+    record_before = (
+        _physical_identity(record_file)
+        if record_file.exists() or record_file.is_symlink()
+        else None
+    )
+    pre_read_identities = {
+        f"{root}:{relative}": _physical_identity(path)
+        for root, relative, path in _verification_locator_paths(
+            installed,
             branch_root=actual_branch_root,
             user_config_root=actual_user_config_root,
         )
-        observed_by_locator[(component["root"], component["path"])] = observed
-        for field in ("byte_count", "sha256"):
-            if observed[field] != component[field]:
-                mismatches.append(
-                    {
-                        "field": f"component:{component['name']}:{field}",
-                        "expected": component[field],
-                        "observed": observed[field],
-                    }
-                )
-    for manifest in installed["manifests"]:
-        observed_files = []
-        for expected in manifest["files"]:
-            key = (expected["root"], expected["path"])
-            observed = observed_by_locator.get(key)
-            if observed is None:
-                observed = _observed_component(
-                    expected,
-                    branch_root=actual_branch_root,
-                    user_config_root=actual_user_config_root,
-                )
-                observed_by_locator[key] = observed
-            observed_files.append(observed)
+    }
+    context["pre_read_identities"] = pre_read_identities
+
+    try:
+        mismatches: list[dict[str, Any]] = []
+        commit = _git_commit(actual_branch_root)
+        if commit != installed["source_commit"]:
+            mismatches.append(
+                {
+                    "field": "source_commit",
+                    "expected": installed["source_commit"],
+                    "observed": commit,
+                }
+            )
+        observed_by_locator: dict[
+            tuple[str, str], dict[str, Any]
+        ] = {}
+        for component in installed["components"]:
+            observed = _observed_component(
+                component,
+                branch_root=actual_branch_root,
+                user_config_root=actual_user_config_root,
+            )
+            observed_by_locator[(component["root"], component["path"])] = observed
             for field in ("byte_count", "sha256"):
-                if observed[field] != expected[field]:
+                if observed[field] != component[field]:
                     mismatches.append(
                         {
-                            "field": (
-                                f"manifest:{manifest['name']}:"
-                                f"{expected['path']}:{field}"
-                            ),
-                            "expected": expected[field],
+                            "field": f"component:{component['name']}:{field}",
+                            "expected": component[field],
                             "observed": observed[field],
                         }
                     )
-        observed_identity = _identity(_manifest_basis(observed_files))
-        if observed_identity != manifest["identity"]:
-            mismatches.append(
-                {
-                    "field": f"manifest:{manifest['name']}:identity",
-                    "expected": manifest["identity"],
-                    "observed": observed_identity,
-                }
-            )
-    return {
-        "applicable": True,
-        "verified": not mismatches,
-        "mismatches": mismatches,
-        "source_commit": commit,
-        "component_count": len(installed["components"]),
-        "manifest_count": len(installed["manifests"]),
-    }
+        for manifest in installed["manifests"]:
+            observed_files = []
+            for expected in manifest["files"]:
+                key = (expected["root"], expected["path"])
+                observed = observed_by_locator.get(key)
+                if observed is None:
+                    observed = _observed_component(
+                        expected,
+                        branch_root=actual_branch_root,
+                        user_config_root=actual_user_config_root,
+                    )
+                    observed_by_locator[key] = observed
+                observed_files.append(observed)
+                for field in ("byte_count", "sha256"):
+                    if observed[field] != expected[field]:
+                        mismatches.append(
+                            {
+                                "field": (
+                                    f"manifest:{manifest['name']}:"
+                                    f"{expected['path']}:{field}"
+                                ),
+                                "expected": expected[field],
+                                "observed": observed[field],
+                            }
+                        )
+            observed_identity = _identity(_manifest_basis(observed_files))
+            if observed_identity != manifest["identity"]:
+                mismatches.append(
+                    {
+                        "field": f"manifest:{manifest['name']}:identity",
+                        "expected": manifest["identity"],
+                        "observed": observed_identity,
+                    }
+                )
 
+        post_read_identities = {
+            f"{root}:{relative}": _physical_identity(path)
+            for root, relative, path in _verification_locator_paths(
+                installed,
+                branch_root=actual_branch_root,
+                user_config_root=actual_user_config_root,
+            )
+        }
+        context["post_read_identities"] = post_read_identities
+        if pre_read_identities != post_read_identities:
+            raise _fail(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "installed tuple object identity changed during verification",
+                data={
+                    "verification_context": context,
+                    "verification_outcome": "tuple_object_changed",
+                },
+            )
+
+        if (
+            context["branch_root_identity"]
+            != _physical_identity(actual_branch_root)
+            or context["user_config_root_identity"]
+            != _physical_identity(actual_user_config_root)
+        ):
+            raise _fail(
+                "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                "resolved verification root changed during verification",
+                data={
+                    "verification_context": context,
+                    "verification_outcome": "resolved_root_changed",
+                },
+            )
+
+        if bound is not None:
+            current_binding = load_binding(paths, bound["branch_identity"])
+            if (
+                current_binding != bound
+                or _physical_identity(binding_file) != binding_before
+            ):
+                raise _fail(
+                    "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                    "capability binding changed during verification",
+                    data={
+                        "verification_context": context,
+                        "verification_outcome": "binding_changed_during_verification",
+                    },
+                )
+
+        if record_before is not None:
+            current_record = load_capability_record(
+                paths, value["capability_record_id"]
+            )
+            if (
+                current_record != value
+                or _physical_identity(record_file) != record_before
+            ):
+                raise _fail(
+                    "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+                    "capability record changed during verification",
+                    data={
+                        "verification_context": context,
+                        "verification_outcome": "capability_record_changed_during_verification",
+                    },
+                )
+
+        return {
+            "applicable": True,
+            "verified": not mismatches,
+            "mismatches": mismatches,
+            "source_commit": commit,
+            "component_count": len(installed["components"]),
+            "manifest_count": len(installed["manifests"]),
+            "verification_context": context,
+        }
+    except InspectorError as error:
+        error.data = _verification_error_data(
+            error,
+            context,
+            outcome=str(
+                getattr(error, "data", {}).get(
+                    "verification_outcome", "raised_inspector_error"
+                )
+            ),
+        )
+        raise
+    except Exception as error:
+        raise _fail(
+            "CAPABILITY_INSTALLED_TUPLE_MISMATCH",
+            "installed tuple verification raised an unexpected internal exception",
+            data={
+                "verification_context": context,
+                "verification_outcome": "unexpected_exception",
+                "exception_class": (
+                    f"{type(error).__module__}.{type(error).__name__}"
+                ),
+            },
+        ) from error
 
 def capability_inventory(paths: InspectorPaths) -> dict[str, Any]:
     validate_capability_store(paths)

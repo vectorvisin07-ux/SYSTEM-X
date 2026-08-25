@@ -36,10 +36,11 @@ from .native import FORMAT_DEFINITION_IDENTITY as NATIVE_DEFINITION_IDENTITY
 
 
 def layout_report(paths: InspectorPaths) -> dict[str, Any]:
+    context_roots = {"source_root", "user_config_root"}
     states = {
         key: physical_state(
             path,
-            path.parent if key == "source_root" else paths.inspector_root,
+            path.parent if key in context_roots else paths.inspector_root,
         )
         for key, path in paths.as_mapping().items()
     }
@@ -48,13 +49,19 @@ def layout_report(paths: InspectorPaths) -> dict[str, Any]:
     for key, state in states.items():
         if key == "source_root":
             expected = "regular_directory"
+            matches = state["state"] == expected
+        elif key == "user_config_root":
+            expected = "regular_directory_or_absent"
+            matches = state["state"] in {"regular_directory", "absent"}
         elif key in expected_files:
             expected = "regular_file"
+            matches = state["state"] == expected
         else:
             expected = "regular_directory"
+            matches = state["state"] == expected
         state["expected_state"] = expected
-        state["matches_expected"] = state["state"] == expected
-        valid = valid and state["matches_expected"]
+        state["matches_expected"] = matches
+        valid = valid and matches
     if not valid:
         raise InspectorError(
             "LAYOUT_INVALID",

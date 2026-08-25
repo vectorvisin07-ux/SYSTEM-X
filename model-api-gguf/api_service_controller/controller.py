@@ -93,8 +93,8 @@ DEPENDENCY_FILES = {
         "d3fa631d1a9c24e3e8045f77d33398c78e3a9bb4141fbac37fbdd47f8a6a11cd",
     ),
     "src/system_x_gguf_api/backend.py": (
-        51383,
-        "c079342b236147502b876dff0a53248562213a5e27c8995711594a3d696689f2",
+        51919,
+        "63c32aa5eccaf04f21dd72c5a94600441bc3964d5379a8b536d604934dd6bd2a",
     ),
     "src/system_x_gguf_api/capability_inspector.py": (
         6822,

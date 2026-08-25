@@ -30,6 +30,13 @@ _WSL_CMD_EXECUTABLE = Path("/mnt/c/Windows/System32/cmd.exe")
 _WSL_EXECUTABLE = Path("/mnt/c/Windows/System32/wsl.exe")
 _WSL_WINDOWS_EXECUTABLE = r"C:\Windows\System32\wsl.exe"
 _SAFE_WSL_TOKEN = re.compile(r"^[A-Za-z0-9_./:-]+$")
+_SAFE_WSL_PATH_TOKEN = re.compile(r"^[A-Za-z0-9_./: @+\-]+$")
+
+
+def _quote_wsl_path(value: str, purpose: str) -> str:
+    if "\x00" in value or "\r" in value or "\n" in value or not _SAFE_WSL_PATH_TOKEN.fullmatch(value):
+        raise BootstrapError(ErrorCode.AUTHORIZATION_REQUIRED, f"{purpose} contains unsafe command characters")
+    return f'"{value}"'
 
 
 def _running_on_wsl() -> bool:
@@ -80,17 +87,18 @@ def _wsl_reconstruct_argv(
     allow_patch_difference: bool,
 ) -> tuple[str, ...]:
     distribution = _validated_wsl_distribution()
-    values = (str(repository_root), str(entrypoint), user.name)
-    if any(not _SAFE_WSL_TOKEN.fullmatch(value) for value in values):
-        raise BootstrapError(ErrorCode.AUTHORIZATION_REQUIRED, "WSL elevation route received an unsafe token")
+    if not _SAFE_WSL_TOKEN.fullmatch(user.name):
+        raise BootstrapError(ErrorCode.AUTHORIZATION_REQUIRED, "WSL installation user is unsafe")
+    quoted_repository_root = _quote_wsl_path(str(repository_root), "WSL repository root")
+    quoted_entrypoint = _quote_wsl_path(str(entrypoint), "WSL reconstruct entrypoint")
     command = " ".join(
         (
             _WSL_WINDOWS_EXECUTABLE,
             "--distribution", distribution,
             "--user", "root",
-            "--cd", str(repository_root),
+            "--cd", quoted_repository_root,
             "--exec", str(PYTHON_EXECUTABLE),
-            "-I", "-S", "-B", str(entrypoint),
+            "-I", "-S", "-B", quoted_entrypoint,
             "reconstruct", "--authorize", "--install-user", user.name,
             *(("--allow-patch-difference",) if allow_patch_difference else ()),
         )
@@ -397,9 +405,10 @@ def resolve_installation_user(name: str | None) -> InstallationUser:
 
 
 @contextmanager
-def installation_user_context(user: InstallationUser):
+def installation_user_context(user: InstallationUser, *, home: Path | None = None):
+    selected_home = user.home if home is None else Path(home)
     saved_env = {key: os.environ.get(key) for key in ("HOME", "USER", "LOGNAME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")}
-    updates = {"HOME": str(user.home), "USER": user.name, "LOGNAME": user.name, "XDG_RUNTIME_DIR": str(user.xdg_runtime_dir), "DBUS_SESSION_BUS_ADDRESS": user.dbus_session_bus_address}
+    updates = {"HOME": str(selected_home), "USER": user.name, "LOGNAME": user.name, "XDG_RUNTIME_DIR": str(user.xdg_runtime_dir), "DBUS_SESSION_BUS_ADDRESS": user.dbus_session_bus_address}
     saved_ids = (os.getresuid(), os.getresgid(), tuple(os.getgroups()))
     switched = os.geteuid() == 0 and user.uid != 0 and os.getuid() != user.uid
     try:

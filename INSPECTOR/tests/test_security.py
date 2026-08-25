@@ -46,6 +46,8 @@ class SecurityTest(unittest.TestCase):
             {
                 SCHEMA_IDENTITIES["configuration"],
                 SCHEMA_IDENTITIES["machine_result"],
+                SCHEMA_IDENTITIES["automatic_intake_result"],
+                SCHEMA_IDENTITIES["automatic_intake_basis"],
                 SCHEMA_IDENTITIES["status"],
                 SCHEMA_IDENTITIES["transaction"],
                 SCHEMA_IDENTITIES["intake_candidate"],

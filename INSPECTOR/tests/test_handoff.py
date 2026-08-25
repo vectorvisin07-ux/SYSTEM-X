@@ -20,6 +20,7 @@ from system_x_inspector.handoff import (
     SourceEvidence,
     _load_authenticated_decision,
     _load_linked_inspection,
+    _handoff_transaction_value,
     authenticate_handoff_decision,
     create_staged_artifact,
     finalize_handoff_record,
@@ -1118,6 +1119,67 @@ class HandoffFoundationTest(unittest.TestCase):
             sorted(self.paths.transactions.iterdir()), before_transactions
         )
         self.assertEqual(len(list(self.paths.handoff_results.iterdir())), 1)
+
+    def test_stale_pre_authentication_partial_resumes_same_transaction(self) -> None:
+        authorization, source_name, managed_name, common = (
+            self.transaction_fixture()
+        )
+        transaction_id = "tx-partial-stale"
+        handoff_id = (
+            "handoff-20260101T000000000000Z-"
+            "fedcba9876543210"
+        )
+        partial = _handoff_transaction_value(
+            transaction_id=transaction_id,
+            handoff_id=handoff_id,
+            start_utc=utc_now(),
+            owner_identity={
+                "pid": 99999999,
+                "process_start_identity": "procfs-start-ticks:0",
+                "boot_identity": "dead",
+                "inspector_root_identity": {"device": 1, "inode": 1},
+            },
+            source_candidate=source_name,
+            managed_name=managed_name,
+        )
+        atomic_write_json(
+            self.paths.transactions / f"{transaction_id}.json",
+            partial,
+            mode=0o600,
+        )
+        atomic_write_json(
+            self.paths.locks / "active.json",
+            {
+                "schema_version": "system-x.inspector-active-lock.v1",
+                "transaction_id": transaction_id,
+                "operation": "handoff",
+                "pid": 99999999,
+                "process_start_identity": "procfs-start-ticks:0",
+                "boot_identity": "dead",
+                "created_utc": utc_now(),
+                "inspector_root_identity": {"device": 1, "inode": 1},
+            },
+            mode=0o600,
+        )
+
+        def forbidden_factory() -> str:
+            raise AssertionError("stale partial resume created a new identity")
+
+        result = handoff_transaction(
+            self.paths,
+            authorization.decision["decision_id"],
+            source_name,
+            managed_name,
+            transaction_id_factory=forbidden_factory,
+            handoff_id_factory=forbidden_factory,
+            **{key: value for key, value in common.items()
+               if key not in {"transaction_id_factory", "handoff_id_factory"}},
+        )
+        self.assertEqual(result[0], transaction_id)
+        self.assertEqual(read_json_record(
+            self.paths.transactions / f"{transaction_id}.json"
+        )["state"], "COMPLETED")
+        self.assertFalse((self.paths.locks / "active.json").exists())
 
     def test_cold_install_and_unrecorded_publication_recovery(self) -> None:
         authorization, source_name, managed_name, common = (

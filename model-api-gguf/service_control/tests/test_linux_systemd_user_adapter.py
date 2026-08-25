@@ -354,6 +354,44 @@ class ContractRendererRegistryTests(SelectedAdapterCase):
         self.assertIn("KillMode=control-group", unit)
         self.assertIn("StandardOutput=journal", unit)
 
+    def test_renderer_quotes_space_bearing_product_paths(self) -> None:
+        branch_root = self.root / "space-bearing source" / "model-api-gguf"
+        supervisor = branch_root / "service_control/supervisor.py"
+        profile = branch_root / "RUNTIME/service_control/operating-profile.json"
+        kwargs = {
+            "interpreter": str(selected.PYTHON),
+            "supervisor_entrypoint": str(supervisor),
+            "profile_path": str(profile),
+            "state_path": str(
+                branch_root / "RUNTIME/service_control/desired-state.json"
+            ),
+            "supervisor_runtime_root": str(
+                branch_root / "RUNTIME/service_control"
+            ),
+            "api_controller": str(
+                branch_root / "api_service_controller/controller.py"
+            ),
+            "branch_controller": str(
+                branch_root / "branch_controller/controller.py"
+            ),
+            "api_controller_sha256": selected.API_CONTROLLER_SHA256,
+            "branch_controller_sha256": selected.BRANCH_CONTROLLER_SHA256,
+            "timeout_stop_seconds": 20,
+        }
+        with mock.patch.object(selected, "BRANCH_ROOT", branch_root):
+            unit = selected.render_unit(**kwargs)
+        self.assertIn("WorkingDirectory=/", unit)
+        self.assertIn(
+            f'ExecStart={selected.PYTHON} "{supervisor}" run --profile "{profile}"',
+            unit,
+        )
+        self.assertNotIn(";", unit)
+        unit_path = self.root / "space-bearing system-x.service"
+        unit_path.write_text(unit, encoding="utf-8")
+        unit_path.chmod(0o600)
+        identity = selected._existing_product_unit_identity(unit_path)
+        self.assertEqual(identity["branch_root"], str(branch_root.parent))
+
     def test_renderer_rejects_command_and_raw_key_injection(self) -> None:
         kwargs = {
             "interpreter": "/usr/bin/python3.14",

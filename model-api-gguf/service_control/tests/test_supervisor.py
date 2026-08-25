@@ -779,6 +779,124 @@ class ForegroundBehaviorTests(SupervisorFixtureCase):
         self.assertEqual(transaction["outcome"], "CANCELLED_BY_STOPPED")
         self.assertEqual(stopped.desired_state, "STOPPED")
 
+    def test_external_shutdown_during_recovery_is_failed_not_stopped(self) -> None:
+        desired = self.initialize("RUNNING")
+        supervisor = self.supervisor()
+        recovery = recovery_api.RecoveryStore(
+            self.runtime_root / "recovery",
+            self.profile.identity,
+            supervisor_api._recovery_policy(self.profile),
+        )
+        attempt = recovery.begin(
+            reason_code="API_PROCESS_LOST",
+            desired_state=desired.desired_state,
+            desired_generation=desired.generation,
+            observation={"fixture": "external-shutdown"},
+            selected_action="CONTROLLER_OWNED_API_STACK_RESTART",
+        )
+        self.assertIsNotNone(attempt)
+        assert attempt is not None
+        supervisor.supervisor_identity = {
+            "pid": 101,
+            "process_start_identity": "fixture-supervisor-start",
+        }
+        supervisor.request_graceful_shutdown()
+        with mock.patch.object(
+            supervisor_api, "_endpoint_bindable", return_value=False
+        ) as bindable:
+            result = supervisor._wait_for_reusable_stack_endpoints(
+                profile=self.profile,
+                recovery=recovery,
+                attempt=attempt,
+                observation={"fixture": "external-shutdown"},
+            )
+        self.assertIsNone(result)
+        bindable.assert_not_called()
+        transaction = json.loads(
+            recovery.paths.transaction(
+                attempt.recovery_transaction_id
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(transaction["outcome"], "FAILED")
+        self.assertEqual(transaction["error"]["category"], "EXTERNAL_GRACEFUL_SHUTDOWN")
+        self.assertEqual(transaction["desired_state_generation"], 1)
+        self.assertEqual(
+            transaction["post_identities"]["authenticated_desired_state"],
+            "RUNNING",
+        )
+        self.assertEqual(
+            transaction["post_identities"]["control_signal"],
+            "external_graceful_shutdown",
+        )
+        self.assertEqual(
+            transaction["post_identities"]["writer_identity"]["pid"],
+            101,
+        )
+
+    def test_external_shutdown_accepts_already_inactive_api_stack(self) -> None:
+        class AlreadyInactiveAdapter:
+            def invoke(self, kind, operation, arguments=()):
+                if kind == "api" and operation == "stop":
+                    raise supervisor_api.SupervisorError(
+                        "controller_operation_failed",
+                        "api controller stop failed: SERVICE_NOT_ACTIVE",
+                        details={
+                            "controller_result": {
+                                "schema_version": supervisor_api.API_CONTROLLER_SCHEMA,
+                                "operation": "stop",
+                                "ok": False,
+                                "reason_code": "SERVICE_NOT_ACTIVE",
+                            }
+                        },
+                    )
+                if kind == "api" and operation == "status":
+                    return {
+                        "schema_version": supervisor_api.API_CONTROLLER_SCHEMA,
+                        "operation": "status",
+                        "ok": True,
+                        "runtime": {
+                            "active": False,
+                            "consistent": True,
+                            "transaction_id": None,
+                            "pid": None,
+                            "process_start_identity": None,
+                            "pgid": None,
+                            "sid": None,
+                        },
+                        "listener": None,
+                    }
+                if kind == "branch" and operation == "status":
+                    return {
+                        "schema_version": supervisor_api.BRANCH_CONTROLLER_SCHEMA,
+                        "operation": "status",
+                        "ok": True,
+                        "data": {
+                            "active": False,
+                            "active_state_consistent": True,
+                            "endpoint": None,
+                            "transaction_id": None,
+                            "pid": None,
+                            "process_start_identity": None,
+                            "pgid": None,
+                            "sid": None,
+                            "lifecycle_state": "STOPPED",
+                            "observed_model_child": {"present": False},
+                        },
+                    }
+                raise AssertionError((kind, operation, arguments))
+
+        self.initialize("RUNNING")
+        supervisor = self.supervisor()
+        supervisor.adapter = AlreadyInactiveAdapter()
+        supervisor.request_graceful_shutdown()
+        stop_result, api_after, router_after = supervisor._controller_owned_stop(
+            self.profile
+        )
+        self.assertTrue(stop_result["ok"])
+        self.assertTrue(stop_result["external_graceful_shutdown_reconciled"])
+        self.assertFalse(api_after["active"])
+        self.assertFalse(router_after["active"])
+
     def test_restricted_router_control_startup_policy(self) -> None:
         self.initialize("RUNNING")
         arguments = supervisor_api.build_argument_parser().parse_args(
@@ -1048,6 +1166,7 @@ class StaticContractTests(unittest.TestCase):
             "service_control",
             "operating_profile",
             "recovery",
+            "automatic_coordinator",
             "__future__",
         }
         third_party = sorted(

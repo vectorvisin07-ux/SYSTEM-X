@@ -9,6 +9,7 @@ import stat
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from system_x_inspector.capabilities import (
     build_binding,
@@ -298,6 +299,78 @@ class CapabilityStoreTest(unittest.TestCase):
         )
         self.assertTrue(result["verified"])
         self.assertEqual(result["source_commit"], "1" * 40)
+
+    def test_verification_binds_installation_context_and_binding(self) -> None:
+        bound_config = self.temporary / "bound-config"
+        ambient_config = self.temporary / "ambient-config"
+        paths = InspectorPaths.discover(
+            self.root,
+            explicit_user_config_root=bound_config,
+        )
+        binding = build_binding(
+            self.record,
+            binding_generation=1,
+            updated_utc="2026-01-01T00:00:00Z",
+        )
+        publish_capability_record(paths, self.record)
+        publish_binding(paths, binding)
+        with patch.dict(os.environ, {"HOME": str(ambient_config)}):
+            observed = verify_installed_tuple(
+                paths,
+                self.record,
+                branch_root=self.branch,
+                binding=binding,
+            )
+        context = observed["verification_context"]
+        self.assertEqual(context["user_config_root"], str(bound_config))
+        self.assertEqual(context["binding_generation"], 1)
+        self.assertEqual(
+            context["capability_record_identity"],
+            self.record["capability_record_identity"],
+        )
+        self.assertEqual(
+            context["pre_read_identities"],
+            context["post_read_identities"],
+        )
+        self.assertTrue(observed["verified"])
+
+        changed = build_binding(
+            self.record,
+            binding_generation=2,
+            updated_utc="2026-01-01T00:00:01Z",
+        )
+        publish_binding(paths, changed)
+        with self.assertRaises(InspectorError) as caught:
+            verify_installed_tuple(
+                paths,
+                self.record,
+                branch_root=self.branch,
+                binding=binding,
+            )
+        self.assertEqual(
+            caught.exception.data["verification_outcome"],
+            "binding_context_changed",
+        )
+
+    def test_unexpected_component_observer_is_fail_closed_and_typed(self) -> None:
+        with patch(
+            "system_x_inspector.capabilities._observed_component",
+            side_effect=RuntimeError("fixture-internal"),
+        ):
+            with self.assertRaises(InspectorError) as caught:
+                verify_installed_tuple(
+                    self.paths,
+                    self.record,
+                    branch_root=self.branch,
+                )
+        self.assertEqual(
+            caught.exception.data["verification_outcome"],
+            "unexpected_exception",
+        )
+        self.assertEqual(
+            caught.exception.data["exception_class"],
+            "builtins.RuntimeError",
+        )
 
     def test_binding_identity_tamper(self) -> None:
         value = build_binding(

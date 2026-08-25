@@ -35,10 +35,35 @@ def _validate_root(path: Path) -> Path:
     return path.resolve(strict=True)
 
 
+def _validate_context_root(path: Path) -> Path:
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        raise InspectorError(
+            "LAYOUT_INVALID",
+            "installation context root must be absolute",
+        )
+    try:
+        details = candidate.lstat()
+    except FileNotFoundError:
+        return candidate.resolve(strict=False)
+    if stat.S_ISLNK(details.st_mode):
+        raise InspectorError(
+            "LAYOUT_INVALID",
+            "installation context root is a symlink",
+        )
+    if not stat.S_ISDIR(details.st_mode):
+        raise InspectorError(
+            "LAYOUT_INVALID",
+            "installation context root is not a directory",
+        )
+    return candidate.resolve(strict=True)
+
+
 @dataclass(frozen=True)
 class InspectorPaths:
     inspector_root: Path
     source_root: Path
+    user_config_root: Path
     schema_root: Path
     environment_lock: Path
     intake_root: Path
@@ -55,6 +80,9 @@ class InspectorPaths:
     promotion_results: Path
     retirement_results: Path
     deployment_results: Path
+    automatic_results: Path
+    automatic_processed_results: Path
+    automatic_rejected_results: Path
     staging: Path
     tmp: Path
     capability_root: Path
@@ -62,13 +90,23 @@ class InspectorPaths:
     capability_bindings: Path
 
     @classmethod
-    def discover(cls, explicit_root: Path | None = None) -> "InspectorPaths":
+    def discover(
+        cls,
+        explicit_root: Path | None = None,
+        explicit_user_config_root: Path | None = None,
+    ) -> "InspectorPaths":
         source_root = Path(__file__).resolve().parent
         candidate = explicit_root if explicit_root is not None else source_root.parent
         root = _validate_root(Path(candidate))
+        user_config_root = _validate_context_root(
+            explicit_user_config_root
+            if explicit_user_config_root is not None
+            else Path.home() / ".config"
+        )
         values = cls(
             inspector_root=root,
             source_root=source_root,
+            user_config_root=user_config_root,
             schema_root=root / "schemas",
             environment_lock=root / "environment.lock.json",
             intake_root=root / "MODEL-TEST",
@@ -93,6 +131,13 @@ class InspectorPaths:
             deployment_results=(
                 root / "RUNTIME" / "results" / "deployment"
             ),
+            automatic_results=root / "RUNTIME" / "results" / "automatic",
+            automatic_processed_results=(
+                root / "RUNTIME" / "results" / "automatic" / "processed"
+            ),
+            automatic_rejected_results=(
+                root / "RUNTIME" / "results" / "automatic" / "rejected"
+            ),
             staging=root / "RUNTIME" / "staging",
             tmp=root / "RUNTIME" / "tmp",
             capability_root=root / "capabilities",
@@ -111,13 +156,14 @@ class InspectorPaths:
         return {
             key: value
             for key, value in self.as_mapping().items()
-            if key != "source_root"
+            if key not in {"source_root", "user_config_root"}
         }
 
     def as_mapping(self) -> dict[str, Path]:
         return {
             "inspector_root": self.inspector_root,
             "source_root": self.source_root,
+            "user_config_root": self.user_config_root,
             "schema_root": self.schema_root,
             "environment_lock": self.environment_lock,
             "intake_root": self.intake_root,
@@ -134,6 +180,9 @@ class InspectorPaths:
             "promotion_results": self.promotion_results,
             "retirement_results": self.retirement_results,
             "deployment_results": self.deployment_results,
+            "automatic_results": self.automatic_results,
+            "automatic_processed_results": self.automatic_processed_results,
+            "automatic_rejected_results": self.automatic_rejected_results,
             "staging": self.staging,
             "tmp": self.tmp,
             "capability_root": self.capability_root,

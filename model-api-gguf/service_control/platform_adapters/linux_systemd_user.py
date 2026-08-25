@@ -99,6 +99,7 @@ PLATFORM_FAMILY = "linux-systemd-user"
 ACTIVATION_METHOD = "systemd-user-unit"
 AUTOMATIC_ACTIVATION_SUPPORTED = True
 SERVICE_NAME = "system-x.service"
+TRIAL_SERVICE_NAME = re.compile(r"^system-x-trial-[0-9a-f]{16}\.service$")
 SYSTEMCTL = Path("/usr/bin/systemctl")
 SYSTEMD_ANALYZE = Path("/usr/bin/systemd-analyze")
 PYTHON = Path("/usr/bin/python3").resolve()
@@ -122,6 +123,7 @@ REQUIRED_HOST_CAPABILITIES = (
 )
 MAX_RECORD_BYTES = 1_048_576
 SAFE_UNIT_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@,-]+$")
+SYSTEMD_PATH_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@, -]+$")
 MANAGER_PROPERTIES = (
     "LoadState",
     "ActiveState",
@@ -573,6 +575,40 @@ def _safe_token(value: str, label: str) -> str:
     return value
 
 
+def _safe_systemd_path(value: str, label: str) -> str:
+    """Validate a product path and quote spaces for systemd ExecStart."""
+    if (
+        not value
+        or len(value) > 4_096
+        or not value.startswith("/")
+        or value != value.strip()
+        or SYSTEMD_PATH_TOKEN.fullmatch(value) is None
+    ):
+        _fail(
+            "COMMAND_INJECTION_REJECTED",
+            f"{label} is not a safe structured systemd path token",
+        )
+    if any(character.isspace() for character in value):
+        return '"' + value + '"'
+    return value
+
+
+def _safe_systemd_assignment_path(value: str, label: str) -> str:
+    """Validate a path and quote systemd C-style assignment escaping for spaces."""
+    if (
+        not value
+        or len(value) > 4_096
+        or not value.startswith("/")
+        or value != value.strip()
+        or SYSTEMD_PATH_TOKEN.fullmatch(value) is None
+    ):
+        _fail(
+            "COMMAND_INJECTION_REJECTED",
+            f"{label} is not a safe structured systemd path token",
+        )
+    return value
+
+
 def _configuration_identity(value: Mapping[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(
         canonical_json(value).encode("utf-8")
@@ -644,10 +680,10 @@ class SystemdUserManager:
         unit_path: Path = DEFAULT_UNIT_PATH,
         service_name: str = SERVICE_NAME,
     ) -> None:
-        if service_name != SERVICE_NAME:
+        if service_name != SERVICE_NAME and TRIAL_SERVICE_NAME.fullmatch(service_name) is None:
             _fail(
                 "SERVICE_NAME_COLLISION",
-                "service name is not the frozen adapter identity",
+                "service name is not an approved System X identity",
             )
         self.unit_path = _absolute(unit_path)
         self.service_name = service_name
@@ -896,11 +932,38 @@ def render_unit(
         branch_controller_sha256,
     )
     safe_arguments = [
-        _safe_token(str(value), f"ExecStart argument {index}")
-        for index, value in enumerate(arguments)
+        _safe_systemd_path(str(interpreter), "ExecStart interpreter"),
+        _safe_systemd_path(
+            str(supervisor_entrypoint), "ExecStart supervisor entrypoint"
+        ),
+        _safe_token("run", "ExecStart operation"),
+        _safe_token("--profile", "ExecStart profile flag"),
+        _safe_systemd_path(str(profile_path), "ExecStart profile path"),
+        _safe_token("--state", "ExecStart state flag"),
+        _safe_systemd_path(str(state_path), "ExecStart state path"),
+        _safe_token("--runtime-root", "ExecStart runtime flag"),
+        _safe_systemd_path(
+            str(supervisor_runtime_root), "ExecStart runtime path"
+        ),
+        _safe_token("--api-controller", "ExecStart API flag"),
+        _safe_systemd_path(str(api_controller), "ExecStart API path"),
+        _safe_token("--branch-controller", "ExecStart branch flag"),
+        _safe_systemd_path(
+            str(branch_controller), "ExecStart branch path"
+        ),
+        _safe_token("--api-controller-sha256", "ExecStart API digest flag"),
+        _safe_token(
+            api_controller_sha256, "ExecStart API controller digest"
+        ),
+        _safe_token(
+            "--branch-controller-sha256", "ExecStart branch digest flag"
+        ),
+        _safe_token(
+            branch_controller_sha256, "ExecStart branch controller digest"
+        ),
     ]
-    working_directory = _safe_token(
-        str(BRANCH_ROOT), "WorkingDirectory"
+    working_directory = _safe_systemd_assignment_path(
+        "/", "WorkingDirectory"
     )
     if (
         type(timeout_stop_seconds) is not int
@@ -950,6 +1013,26 @@ def render_unit(
     return value
 
 
+def _decode_systemd_assignment_path(value: str, label: str) -> str:
+    """Decode the quoted path emitted by this adapter."""
+    raw = value
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        raw = raw[1:-1]
+    decoded = raw.replace(r"\s", " ").replace(r"\x20", " ")
+    if (
+        not decoded
+        or not decoded.startswith("/")
+        or decoded != decoded.strip()
+        or SYSTEMD_PATH_TOKEN.fullmatch(decoded) is None
+        or "\\" in decoded
+    ):
+        _fail(
+            "SERVICE_NAME_COLLISION",
+            f"{label} is not a valid escaped System X path",
+        )
+    return decoded
+
+
 def _existing_product_unit_identity(unit_path: Path) -> dict[str, str]:
     """Identify an existing System X unit before replacing its root binding."""
 
@@ -996,7 +1079,13 @@ def _existing_product_unit_identity(unit_path: Path) -> dict[str, str]:
         _fail("SERVICE_NAME_COLLISION", f"existing service definition has invalid argv: {exc}")
     if len(arguments) != 17 or arguments[0] != str(PYTHON) or arguments[2] != "run":
         _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected supervisor argv")
-    model_root = Path(working_directory)
+    working_root = Path(_decode_systemd_assignment_path(working_directory, "WorkingDirectory"))
+    if working_root != Path("/"):
+        _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected working directory")
+    runtime_root = Path(arguments[8])
+    if runtime_root.name != "service_control" or runtime_root.parent.name != "RUNTIME":
+        _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected runtime root")
+    model_root = runtime_root.parent.parent
     if model_root.name != "model-api-gguf" or not model_root.is_absolute():
         _fail("SERVICE_NAME_COLLISION", "existing service definition has an unexpected working directory")
     branch_root = model_root.parent
@@ -1031,6 +1120,7 @@ class LinuxSystemdUserServiceAdapter:
         *,
         manager: NativeManager | None = None,
         unit_path: Path | None = None,
+        service_name: str = SERVICE_NAME,
     ) -> None:
         self.paths = AdapterPaths(_absolute(adapter_runtime_root))
         if manager is not None and unit_path is not None:
@@ -1038,9 +1128,15 @@ class LinuxSystemdUserServiceAdapter:
                 "ADAPTER_CONFIGURATION_CONFLICT",
                 "manager and unit_path injection are mutually exclusive",
             )
-        self.manager: NativeManager = manager or SystemdUserManager(
-            unit_path or DEFAULT_UNIT_PATH
-        )
+        if manager is None:
+            selected_unit_path = unit_path or (
+                Path.home() / ".config/systemd/user" / service_name
+            )
+            manager = SystemdUserManager(
+                selected_unit_path, service_name=service_name
+            )
+        self.manager = manager
+        self.service_name = getattr(self.manager, "service_name", SERVICE_NAME)
         self.unit_path = _absolute(self.manager.unit_path)
 
     def _prepare_runtime(self) -> None:
@@ -1166,7 +1262,7 @@ class LinuxSystemdUserServiceAdapter:
         native_service = {
             "manager": "systemd",
             "manager_scope": "user",
-            "service_name": SERVICE_NAME,
+            "service_name": self.service_name,
             "registration_path": str(self.unit_path),
             "service_definition_sha256": unit_sha,
             "interpreter_identity": interpreter,
@@ -1208,6 +1304,7 @@ class LinuxSystemdUserServiceAdapter:
         self,
         *,
         allow_stale_configuration_for_inactive_removal: bool = False,
+        allow_missing_service_definition: bool = False,
     ) -> tuple[
         dict[str, Any],
         OperatingProfile,
@@ -1286,9 +1383,17 @@ class LinuxSystemdUserServiceAdapter:
         _reject_symlink_components(
             self.unit_path, "native service definition"
         )
-        unit_data = _read_regular(
-            self.unit_path, "native service definition"
-        )
+        try:
+            unit_data = _read_regular(
+                self.unit_path, "native service definition"
+            )
+        except AdapterError as exc:
+            if not (
+                allow_missing_service_definition
+                and exc.reason_code == "ADAPTER_NOT_REGISTERED"
+            ):
+                raise
+            unit_data = unit
         if (
             (
                 hashlib.sha256(unit_data).hexdigest()
@@ -1695,7 +1800,7 @@ class LinuxSystemdUserServiceAdapter:
                 "supported_platform_family": PLATFORM_FAMILY,
                 "activation_method": ACTIVATION_METHOD,
                 "operation_set": list(OPERATIONS),
-                "service_name": SERVICE_NAME,
+                "service_name": self.service_name,
             },
         )
 
@@ -1804,7 +1909,8 @@ class LinuxSystemdUserServiceAdapter:
     ) -> dict[str, Any]:
         old_manifest, _old_profile, _old_desired, _old_unit = (
             self._load_manifest(
-                allow_stale_configuration_for_inactive_removal=True
+                allow_stale_configuration_for_inactive_removal=True,
+                allow_missing_service_definition=True,
             )
         )
         config, profile, desired, unit = self._render_configuration(
@@ -1826,13 +1932,123 @@ class LinuxSystemdUserServiceAdapter:
             )
         old_native = old_manifest["native_service"]
         if (
-            old_native.get("service_name") != SERVICE_NAME
+            old_native.get("service_name") != self.service_name
             or old_native.get("registration_path") != str(self.unit_path)
         ):
             _fail(
                 "SERVICE_NAME_COLLISION",
                 "registered adapter ownership does not match the selected service",
             )
+        if not self.unit_path.exists():
+            before = self.manager.status()
+            manager_stop_result = None
+            if before.get("active") or before.get("active_state") in {
+                "activating",
+                "deactivating",
+                "reloading",
+                "auto-restart",
+            }:
+                manager_stop_result = self.manager.stop()
+                before = self.manager.status()
+            if before.get("active") or before.get("active_state") in {
+                "activating",
+                "deactivating",
+                "reloading",
+                "auto-restart",
+            }:
+                _fail(
+                    "MANAGER_STATE_MISMATCH",
+                    "owned service remained active while recovering its missing definition",
+                    data={"manager_status": before},
+                )
+            if desired.desired_state == "RUNNING":
+                try:
+                    desired = set_desired_state(
+                        profile,
+                        "STOPPED",
+                        config["configuration_reference"]["state_path"],
+                        expected_generation=desired.generation,
+                    )
+                except ServiceControlError as exc:
+                    _fail("DESIRED_STATE_PROFILE_MISMATCH", exc.message)
+            self._prepare_runtime()
+            try:
+                _atomic_write(
+                    self.unit_path,
+                    unit,
+                    exclusive=True,
+                    conflict_reason="SERVICE_NAME_COLLISION",
+                )
+                verify = self.manager.verify_unit()
+                reload_result = self.manager.daemon_reload()
+                after = self.manager.status()
+                if (
+                    not after.get("registered")
+                    or after.get("active")
+                    or after.get("fragment_path") != str(self.unit_path)
+                ):
+                    _fail(
+                        "MANAGER_STATE_MISMATCH",
+                        "missing service definition recovery did not produce an inactive registered unit",
+                        data={"manager_before": before, "manager_after": after},
+                    )
+                timestamp = utc_now()
+                manifest = dict(old_manifest)
+                manifest.update(
+                    {
+                        "supervisor_entrypoint": config["supervisor_entrypoint"],
+                        "configuration_reference": config["configuration_reference"],
+                        "configuration_identity": config["configuration_identity"],
+                        "registered": True,
+                        "enabled": bool(after.get("enabled")),
+                        "active": False,
+                        "manifest_generation": int(old_manifest["manifest_generation"]) + 1,
+                        "updated_utc": timestamp,
+                        "last_activation_result": None,
+                        "last_failure_reason": None,
+                        "native_service": config["native_service"],
+                    }
+                )
+                _atomic_json(self.paths.manifest, manifest)
+            except BaseException:
+                try:
+                    if self.unit_path.is_file() and self.unit_path.read_bytes() == unit:
+                        self.unit_path.unlink()
+                        _fsync_directory(self.unit_path.parent)
+                    self.manager.daemon_reload()
+                except BaseException:
+                    pass
+                raise
+            identity, supervisor_status, manager = self._correlate(manifest)
+            status = self._status_value(
+                manifest,
+                profile,
+                desired,
+                identity,
+                supervisor_status,
+                manager,
+            )
+            result = self._result(
+                "register",
+                manifest,
+                profile,
+                desired,
+                manager,
+                message="exact-owned missing systemd user service definition recovered without activation",
+                data={
+                    "status": status,
+                    "unit_verify": verify,
+                    "daemon_reload": reload_result,
+                    "process_started": False,
+                    "manager_stop_result": manager_stop_result,
+                    "missing_service_definition_recovered": True,
+                },
+            )
+            transaction_id = self._record_transaction(
+                "register", before=before, after=manager, result=result
+            )
+            result["data"]["adapter_transaction_id"] = transaction_id
+            return result
         metadata = self.unit_path.lstat()
         owner_uid, owner_gid = _repository_owner()
         if (
@@ -2872,6 +3088,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_ADAPTER_RUNTIME_ROOT,
     )
+    parser.add_argument("--service-name", default=SERVICE_NAME)
+    parser.add_argument("--unit-path", type=Path)
     subparsers = parser.add_subparsers(dest="operation", required=True)
     for operation in OPERATIONS:
         command = subparsers.add_parser(operation)
@@ -2935,7 +3153,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         arguments = build_argument_parser().parse_args(argv)
         operation = arguments.operation
         adapter = LinuxSystemdUserServiceAdapter(
-            arguments.adapter_runtime_root
+            arguments.adapter_runtime_root,
+            service_name=arguments.service_name,
+            unit_path=arguments.unit_path,
         )
         result = adapter.invoke(
             operation, **_operation_arguments(arguments)

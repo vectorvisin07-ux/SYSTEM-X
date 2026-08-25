@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from system_x_inspector.connection_receipt import (
+    bootstrap_current_receipt,
     build_legacy_repair_candidate,
     build_receipt,
     complete_compatibility_proof,
@@ -20,6 +21,7 @@ from system_x_inspector.connection_receipt import (
     load_legacy_current_receipt_for_repair,
     normalize_base_url,
     normalized_openai_base,
+    _operation_proof,
     publish_current_receipt,
     receipt_identity,
     render_connection,
@@ -421,6 +423,70 @@ class ConnectionReceiptTest(unittest.TestCase):
             "CONNECTION_STATUS_CAS_CONFLICT",
         )
 
+    def test_existing_deployed_receipt_refreshes_via_initialize_transaction(self) -> None:
+        for path in (self.paths.locks, self.paths.transactions):
+            path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        receipt = self.receipt(
+            receipt_source="DEPLOY_GGUF",
+            receipt_id=(
+                "connection-20260730T230000000000Z-"
+                "abcdefabcdefabcd"
+            ),
+        )
+        publish_current_receipt(
+            self.paths,
+            receipt,
+            expected_previous_identity=None,
+        )
+        changed = copy.deepcopy(self.observation)
+        changed["capability_manifest_identity"] = "sha256:" + "8" * 64
+        calls: list[dict[str, object]] = []
+
+        def observer(
+            _paths: InspectorPaths, **kwargs: object
+        ) -> dict[str, object]:
+            calls.append(kwargs)
+            return changed
+
+        transaction_id = "tx-20260730T230000000001Z-abcdef012345"
+        deployment_id, refreshed, identity = bootstrap_current_receipt(
+            self.paths,
+            observer=observer,
+            transaction_id_factory=lambda: transaction_id,
+        )
+        self.assertEqual(deployment_id, receipt["deployment_id"])
+        self.assertEqual(refreshed["receipt_source"], "DEPLOY_GGUF")
+        self.assertEqual(refreshed["deployment_id"], receipt["deployment_id"])
+        self.assertEqual(
+            refreshed["deployment_result_identity"],
+            receipt["deployment_result_identity"],
+        )
+        self.assertEqual(
+            refreshed["model"]["capability_manifest_identity"],
+            changed["capability_manifest_identity"],
+        )
+        self.assertNotEqual(identity, receipt["receipt_identity"])
+        self.assertEqual(load_current_receipt(self.paths), refreshed)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            calls[0]["proof_request_id"], receipt["proof"]["proof_request_id"]
+        )
+        self.assertEqual(
+            calls[1]["proof_request_id"], receipt["proof"]["proof_request_id"]
+        )
+        record = json.loads(
+            (self.paths.transactions / f"{transaction_id}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(record["operation"], "initialize-connection")
+        self.assertEqual(record["state"], "COMPLETE")
+        self.assertEqual(
+            record["connection_status_previous_identity"],
+            receipt["receipt_identity"],
+        )
+        self.assertEqual(record["connection_receipt_identity"], identity)
+        self.assertEqual(record["connection_receipt_id"], refreshed["receipt_id"])
     def test_known_legacy_receipt_migrates_once_through_cas(self) -> None:
         legacy = self.legacy_receipt()
         self.write_current(legacy)
@@ -520,6 +586,77 @@ class ConnectionReceiptTest(unittest.TestCase):
         with self.assertRaises(InspectorError):
             load_current_receipt(self.paths)
 
+
+    def test_owned_rotated_log_reuses_exact_request_id(self) -> None:
+        active = self.temporary / "active.log"
+        rotated = self.temporary / "rotated.log"
+        active.write_bytes(b"")
+        request_id = "sx_req_" + "5" * 32
+        record = {
+            "request_id": request_id,
+            "public_model_id": self.observation["resolved_immutable_model_id"],
+            "artifact_version_id": self.observation["artifact_version_id"],
+            "key_id": self.observation["non_secret_key_id"],
+            "http_status": 200,
+            "operation_state": "completed",
+            "operation": "messages",
+            "output_tokens": 3,
+            "finish_reason": "end_turn",
+        }
+        rotated.write_text(
+            "INFO system_x_operation "
+            + json.dumps(record, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
+        proof = _operation_proof(
+            active,
+            model_id=self.observation["resolved_immutable_model_id"],
+            artifact_version_id=self.observation["artifact_version_id"],
+            key_id=self.observation["non_secret_key_id"],
+            request_id=request_id,
+        )
+        self.assertEqual(proof["request_id"], request_id)
+        self.assertEqual(proof["http_status"], 200)
+
+    def test_rotated_log_multiple_or_mismatched_proofs_fail_closed(self) -> None:
+        active = self.temporary / "active.log"
+        request_id = "sx_req_" + "6" * 32
+        record = {
+            "request_id": request_id,
+            "public_model_id": self.observation["resolved_immutable_model_id"],
+            "artifact_version_id": self.observation["artifact_version_id"],
+            "key_id": self.observation["non_secret_key_id"],
+            "http_status": 200,
+            "operation_state": "completed",
+            "operation": "messages",
+            "output_tokens": 3,
+            "finish_reason": "end_turn",
+        }
+        for label, records in (
+            ("multiple", [record, dict(record)]),
+            ("mismatched", [{**record, "request_id": "sx_req_" + "7" * 32}]),
+        ):
+            with self.subTest(label=label):
+                for path in self.temporary.glob("*.log"):
+                    path.unlink()
+                active.write_bytes(b"")
+                for index, value in enumerate(records):
+                    (self.temporary / f"rotated-{label}-{index}.log").write_text(
+                        "INFO system_x_operation "
+                        + json.dumps(value, sort_keys=True)
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                with self.assertRaises(InspectorError) as caught:
+                    _operation_proof(
+                        active,
+                        model_id=self.observation["resolved_immutable_model_id"],
+                        artifact_version_id=self.observation["artifact_version_id"],
+                        key_id=self.observation["non_secret_key_id"],
+                        request_id=request_id,
+                    )
+                self.assertEqual(caught.exception.reason_code, "CONNECTION_STALE")
 
 if __name__ == "__main__":
     unittest.main()

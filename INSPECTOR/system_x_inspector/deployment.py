@@ -98,6 +98,7 @@ CHILD_NAMES = (
     "promotion",
     "retirement",
 )
+DEPLOYMENT_INPUT_IMPLEMENTATION_EPOCH = "deployment-input-identity-epoch-v2"
 CHILD_ID_KEYS = {
     "inspection": "inspection_id",
     "decision": "decision_id",
@@ -613,6 +614,7 @@ def _input_identity(
                 "required_capability_profile"
             ],
             "retirement_policy": request["retirement_policy"],
+            "deployment_implementation_epoch": DEPLOYMENT_INPUT_IMPLEMENTATION_EPOCH,
             "current_capability_binding_identity": prestate[
                 "capability_binding_identity"
             ],
@@ -778,6 +780,9 @@ def _find_retryable_failed_clean(
     paths: InspectorPaths,
     request: dict[str, str],
     source: dict[str, Any],
+    *,
+    current_input_identity: str,
+    allow_input_identity_change: bool = False,
 ) -> dict[str, Any] | None:
     candidates: list[tuple[str, dict[str, Any]]] = []
     for path in sorted(paths.deployment_results.glob("deployment-*.json")):
@@ -818,6 +823,11 @@ def _find_retryable_failed_clean(
         if (
             transaction.get("operation") != "deploy-gguf"
             or transaction.get("state") != "FAILED_CLEAN"
+            or (
+                not allow_input_identity_change
+                and transaction.get("deployment_input_identity")
+                != current_input_identity
+            )
             or transaction.get("deployment_result_identity")
             != result["result_identity"]
             or not isinstance(runtime, dict)
@@ -869,6 +879,70 @@ def _clear_exact_stale_deployment_lock(
         raise _error(
             "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
             "stale deployment lock has an unsafe physical type",
+        )
+    paths.deployment_lock.unlink()
+    fsync_directory(paths.deployment_lock.parent)
+def _clear_exact_stale_publication_lock_for_resume(
+    paths: InspectorPaths, runtime: dict[str, Any]
+) -> None:
+    """Clear only an interrupted child publication lock owned by this resume."""
+    state = inspect_active_lock(paths.deployment_lock)
+    if state["state"] == "absent":
+        return
+    if state["state"] == "active":
+        raise _error(
+            "DEPLOYMENT_ACTIVE",
+            "publication child is still active",
+        )
+    if state["state"] == "uncertain":
+        raise _error(
+            "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
+            "publication child lock ownership is uncertain",
+        )
+    record = state.get("record")
+    if not isinstance(record, dict) or record.get("operation") != "publish-service":
+        return
+    publication_transaction_id = record.get("transaction_id")
+    if not isinstance(publication_transaction_id, str) or not publication_transaction_id:
+        raise _error(
+            "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
+            "stale publication lock identity is incomplete",
+        )
+    publication_path = (
+        paths.transactions / f"{publication_transaction_id}.json"
+    )
+    try:
+        publication = read_json_record(publication_path)
+    except (OSError, InspectorError) as error:
+        raise _error(
+            "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
+            "stale publication transaction cannot be authenticated",
+        ) from error
+    handoff = (runtime.get("child_data") or {}).get("handoff")
+    if (
+        publication.get("operation") != "publish-service"
+        or publication.get("transaction_id") != publication_transaction_id
+        or not isinstance(handoff, dict)
+        or publication.get("handoff_id") != handoff.get("handoff_id")
+        or publication.get("finish_utc") is not None
+        or publication.get("publication_result_identity") is not None
+        or publication.get("publication_result_path") is not None
+        or publication.get("request_id") is not None
+        or publication.get("proof_evidence") is not None
+    ):
+        raise _error(
+            "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
+            "stale publication transaction is not an uncommitted child of this deployment",
+        )
+    details = paths.deployment_lock.lstat()
+    if (
+        stat.S_ISLNK(details.st_mode)
+        or not stat.S_ISREG(details.st_mode)
+        or details.st_nlink != 1
+    ):
+        raise _error(
+            "DEPLOYMENT_OWNERSHIP_UNCERTAIN",
+            "stale publication lock has an unsafe physical type",
         )
     paths.deployment_lock.unlink()
     fsync_directory(paths.deployment_lock.parent)
@@ -1183,13 +1257,20 @@ def deploy_transaction(
                 path,
                 record["result_identity"],
             )
-        retryable = _find_retryable_failed_clean(paths, request, source)
         prestate = adapter.capture_prestate(paths)
-        converged_retry = (
-            retryable is not None
-            and request["deployment_mode"] == "install-first"
+        converged_state = (
+            request["deployment_mode"] == "install-first"
             and _converged_install_first_retry(source, prestate)
         )
+        input_identity = _input_identity(request, source, prestate)
+        retryable = _find_retryable_failed_clean(
+            paths,
+            request,
+            source,
+            current_input_identity=input_identity,
+            allow_input_identity_change=converged_state,
+        )
+        converged_retry = retryable is not None and converged_state
         if not converged_retry:
             _preconditions(request["deployment_mode"], prestate)
         try:
@@ -1200,7 +1281,6 @@ def deploy_transaction(
             previous_receipt = None
         transaction_id = transaction_id_factory()
         deployment_id = deployment_id_factory()
-        input_identity = _input_identity(request, source, prestate)
         runtime = {
             "request": request,
             "source": source,
@@ -1282,6 +1362,7 @@ def deploy_transaction(
                 "DEPLOYMENT_SOURCE_CHANGED",
                 "candidate identity changed before deployment resume",
             )
+        _clear_exact_stale_publication_lock_for_resume(paths, runtime)
         _clear_exact_stale_deployment_lock(paths, transaction_id)
 
     lock = TransactionLock(
@@ -1516,11 +1597,23 @@ def deploy_transaction(
             )
 
         mode = request["deployment_mode"]
+        first_model_publication = (
+            mode == "install-first"
+            and runtime["prestate"].get("ready_model_count") == 0
+            and runtime["prestate"].get("default_target") is None
+            and isinstance(publication.get("candidate_identity"), dict)
+            and publication.get("default_target")
+            == publication["candidate_identity"].get(
+                "resolved_immutable_model_id"
+            )
+        )
         if mode in {"install-first", "replace-default"}:
-            if mode == "install-first" and converged_retry:
+            if mode == "install-first" and (
+                converged_retry or first_model_publication
+            ):
                 candidate = publication.get("candidate_identity")
                 prestate = runtime["prestate"]
-                if (
+                if converged_retry and (
                     not isinstance(candidate, dict)
                     or candidate.get("resolved_immutable_model_id")
                     != prestate.get("default_target")
@@ -1542,6 +1635,8 @@ def deploy_transaction(
                     )
                 runtime["promotion_result"] = (
                     "PROMOTION_NOT_REQUIRED_ALREADY_DEFAULT"
+                    if converged_retry
+                    else "PROMOTION_NOT_REQUIRED_FIRST_MODEL_PUBLICATION"
                 )
                 transaction["deployment_runtime"] = runtime
                 for state in (
@@ -1585,7 +1680,9 @@ def deploy_transaction(
                     observer=transition_observer,
                 )
             promotion = child_data.get("promotion")
-            if converged_retry and mode == "install-first":
+            if (
+                converged_retry or first_model_publication
+            ) and mode == "install-first":
                 promotion = {"result_class": "PROMOTION_COMPLETE"}
             if promotion.get("result_class") != "PROMOTION_COMPLETE":
                 raise _error(
@@ -1925,7 +2022,12 @@ class CurrentSourceDeploymentAdapter:
         if incumbent.present:
             from .connection_receipt import observe_current_connection
 
-            observation = observe_current_connection(paths)
+            current_receipt = load_current_receipt(paths)
+            proof_request_id = current_receipt["proof"]["proof_request_id"]
+            observation = observe_current_connection(
+                paths,
+                proof_request_id=proof_request_id,
+            )
             if (
                 observation["resolved_immutable_model_id"]
                 != incumbent.public_model_id
@@ -2139,6 +2241,12 @@ class CurrentSourceDeploymentAdapter:
                     "capability_manifest_identity"
                 ],
             },
+            "default_target": (
+                record["public_service"]["public_model_id"]
+                if "default"
+                in record["public_service"].get("aliases", [])
+                else None
+            ),
         }
 
     def promote(

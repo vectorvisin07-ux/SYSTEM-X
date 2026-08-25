@@ -1276,6 +1276,52 @@ def _operation_proof(
             continue
         if request_id is None or record.get("request_id") == request_id:
             matches.append(record)
+    if not matches and request_id is not None:
+        # A product service restart rotates the active log. Re-authenticate
+        # the already accepted request from the same owned log directory;
+        # never issue a replacement request.
+        try:
+            for sibling in sorted(log_path.parent.glob("*.log")):
+                if sibling == log_path:
+                    continue
+                sibling_details = sibling.lstat()
+                if (
+                    stat.S_ISLNK(sibling_details.st_mode)
+                    or not stat.S_ISREG(sibling_details.st_mode)
+                    or sibling_details.st_nlink != 1
+                ):
+                    continue
+                sibling_lower = max(
+                    0, sibling_details.st_size - MAX_OPERATION_LOG_SCAN_BYTES
+                )
+                with sibling.open("rb") as handle:
+                    handle.seek(sibling_lower)
+                    sibling_raw = handle.read(MAX_OPERATION_LOG_SCAN_BYTES + 1)
+                if len(sibling_raw) > MAX_OPERATION_LOG_SCAN_BYTES:
+                    sibling_raw = sibling_raw[-MAX_OPERATION_LOG_SCAN_BYTES:]
+                for sibling_line in sibling_raw.splitlines():
+                    record = _operation_record_from_line(sibling_line)
+                    if (
+                        isinstance(record, dict)
+                        and record.get("public_model_id") == model_id
+                        and record.get("artifact_version_id")
+                        == artifact_version_id
+                        and record.get("key_id") == key_id
+                        and record.get("http_status") == 200
+                        and record.get("operation_state") == "completed"
+                        and record.get("operation")
+                        in {"chat", "generate", "responses", "completion", "messages"}
+                        and type(record.get("output_tokens")) is int
+                        and int(record["output_tokens"]) >= 1
+                        and isinstance(record.get("finish_reason"), str)
+                        and record.get("request_id") == request_id
+                    ):
+                        matches.append(record)
+        except OSError as error:
+            raise _fail(
+                "CONNECTION_SERVICE_UNAVAILABLE",
+                "durable operation record logs are unavailable",
+            ) from error
     if len(matches) != 1 and request_id is not None:
         raise _fail(
             "CONNECTION_STALE",
@@ -2199,11 +2245,7 @@ def show_connection(
             current["non_secret_key_id"],
         ),
     }
-    mismatches = [
-        name
-        for name, (stored_value, current_value) in comparisons.items()
-        if stored_value != current_value
-    ]
+    mismatches = _receipt_mismatch_names(stored, current)
     if mismatches:
         return {
             "result_class": "CONNECTION_STALE",
@@ -2280,6 +2322,42 @@ def render_connection(receipt: dict[str, Any]) -> str:
     )
 
 
+def _receipt_mismatch_names(
+    stored: dict[str, Any], current: dict[str, Any]
+) -> tuple[str, ...]:
+    comparisons = {
+        "public_origin": (
+            stored["service"]["public_origin"],
+            current["public_origin"],
+        ),
+        "default_alias": (
+            stored["model"]["default_alias"],
+            current["default_alias"],
+        ),
+        "resolved_immutable_model_id": (
+            stored["model"]["resolved_immutable_model_id"],
+            current["resolved_immutable_model_id"],
+        ),
+        "artifact_version_id": (
+            stored["model"]["artifact_version_id"],
+            current["artifact_version_id"],
+        ),
+        "capability_manifest_identity": (
+            stored["model"]["capability_manifest_identity"],
+            current["capability_manifest_identity"],
+        ),
+        "non_secret_key_id": (
+            stored["authentication"]["non_secret_key_id"],
+            current["non_secret_key_id"],
+        ),
+    }
+    return tuple(
+        name
+        for name, (stored_value, current_value) in comparisons.items()
+        if stored_value != current_value
+    )
+
+
 def bootstrap_current_receipt(
     paths: InspectorPaths,
     *,
@@ -2291,15 +2369,24 @@ def bootstrap_current_receipt(
     ]
     | None = None,
 ) -> tuple[str, dict[str, Any], str]:
+    existing: dict[str, Any] | None = None
+    expected_previous_identity: str | None = None
     if paths.current_connection_status.exists() or (
         paths.current_connection_status.is_symlink()
     ):
         existing = load_current_receipt(paths)
-        return (
-            str(existing["deployment_id"]),
-            existing,
-            str(existing["receipt_identity"]),
+        expected_previous_identity = str(existing["receipt_identity"])
+        current = observer(
+            paths,
+            reference="default",
+            proof_request_id=existing["proof"]["proof_request_id"],
         )
+        if not _receipt_mismatch_names(existing, current):
+            return (
+                str(existing["deployment_id"]),
+                existing,
+                str(existing["receipt_identity"]),
+            )
     transaction_id = transaction_id_factory()
     lock = TransactionLock(
         paths,
@@ -2336,7 +2423,7 @@ def bootstrap_current_receipt(
         "status_record_identity": None,
         "connection_receipt_id": None,
         "connection_receipt_identity": None,
-        "connection_status_previous_identity": None,
+        "connection_status_previous_identity": expected_previous_identity,
     }
     try:
         status = _status_value(
@@ -2350,7 +2437,15 @@ def bootstrap_current_receipt(
             paths, status, transition_observer
         )
         _write_transaction(paths, transaction, transition_observer)
-        observation = observer(paths, reference="default")
+        observation = observer(
+            paths,
+            reference="default",
+            proof_request_id=(
+                existing["proof"]["proof_request_id"]
+                if existing is not None
+                else None
+            ),
+        )
         if (
             observation["desired_state"] != "RUNNING"
             or observation["service_readiness"] != "READY"
@@ -2364,18 +2459,41 @@ def bootstrap_current_receipt(
                 "CONNECTION_SERVICE_UNAVAILABLE",
                 "accepted baseline predicates are incomplete",
             )
+        if existing is None:
+            receipt_source = "EXISTING_ACCEPTED_READY_BASELINE"
+            deployment_id = transaction_id
+            deployment_result_identity = None
+            recommended_reference = observation["default_alias"]
+            promotion_result = None
+            rollback_result = None
+            retirement_result = None
+        else:
+            receipt_source = existing["receipt_source"]
+            deployment_id = existing["deployment_id"]
+            deployment_result_identity = existing[
+                "deployment_result_identity"
+            ]
+            recommended_reference = existing["model"][
+                "recommended_reference"
+            ]
+            promotion_result = existing["lifecycle"]["promotion_result"]
+            rollback_result = existing["lifecycle"]["rollback_result"]
+            retirement_result = existing["lifecycle"]["retirement_result"]
         receipt = build_receipt(
             observation,
-            receipt_source="EXISTING_ACCEPTED_READY_BASELINE",
-            deployment_id=transaction_id,
-            deployment_result_identity=None,
-            recommended_reference=observation["default_alias"],
+            receipt_source=receipt_source,
+            deployment_id=deployment_id,
+            deployment_result_identity=deployment_result_identity,
+            recommended_reference=recommended_reference,
+            promotion_result=promotion_result,
+            rollback_result=rollback_result,
+            retirement_result=retirement_result,
             current_receipt_updated=True,
         )
         identity = publisher(
             paths,
             receipt,
-            expected_previous_identity=None,
+            expected_previous_identity=expected_previous_identity,
         )
         transaction.update(
             {
@@ -2397,7 +2515,7 @@ def bootstrap_current_receipt(
             paths, idle, transition_observer
         )
         _write_transaction(paths, transaction, transition_observer)
-        return transaction_id, receipt, identity
+        return str(deployment_id), receipt, identity
     except BaseException:
         failed = {
             **transaction,

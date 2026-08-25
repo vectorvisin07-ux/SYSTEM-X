@@ -71,6 +71,20 @@ MAX_RECORD_BYTES = 2 * 1024 * 1024
 MAX_LOG_SCAN_BYTES = 8 * 1024 * 1024
 HTTP_TIMEOUT_SECONDS = 180.0
 OPERATION_RECORD_WAIT_SECONDS = 12.0
+REGISTRY_CONVERGENCE_WAIT_SECONDS = 45.0
+REGISTRY_CONVERGENCE_POLL_SECONDS = 0.25
+REGISTRY_CONVERGENCE_TRANSIENT_REASONS = frozenset(
+    {
+        "SERVICE_NOT_READY",
+        "REGISTRY_UNAVAILABLE",
+        "REGISTRY_SCHEMA_UNSUPPORTED",
+        "REGISTRY_LOCATION_NOT_FOUND",
+        "REGISTRY_LOCATION_NOT_READY",
+        "REGISTRY_MODEL_VERSION_NOT_FOUND",
+        "REGISTRY_MODEL_VERSION_NOT_READY",
+        "CAPABILITY_MANIFEST_NOT_FOUND",
+    }
+)
 HASH_CHUNK_BYTES = 8 * 1024 * 1024
 
 TOP_LEVEL_FIELDS = frozenset(
@@ -701,8 +715,9 @@ def observe_registry(
         connection = sqlite3.connect(
             f"{database.as_uri()}?mode=ro",
             uri=True,
-            timeout=5.0,
+            timeout=0.25,
         )
+        connection.execute("PRAGMA busy_timeout=250")
     except (OSError, sqlite3.Error) as error:
         raise _fail(
             "REGISTRY_UNAVAILABLE",
@@ -1440,6 +1455,25 @@ def prepare_publication(
         public=public,
     )
 
+
+def prepare_publication_with_convergence_wait(
+    paths: InspectorPaths, handoff_id: str
+) -> PreparedPublication:
+    """Wait for product-owned registry rows to converge before publication."""
+    deadline = time.monotonic() + REGISTRY_CONVERGENCE_WAIT_SECONDS
+    while True:
+        try:
+            return prepare_publication(paths, handoff_id)
+        except InspectorError as error:
+            if (
+                error.reason_code
+                not in REGISTRY_CONVERGENCE_TRANSIENT_REASONS
+            ):
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(REGISTRY_CONVERGENCE_POLL_SECONDS, remaining))
 
 def _proof_request_body(model_id: str) -> dict[str, Any]:
     instruction = (
@@ -2210,7 +2244,10 @@ def publish_service_transaction(
             transaction,
             "VALIDATING_PUBLICATION",
         )
-        prepared = prepare_publication(paths, handoff_id)
+        prepared = prepare_publication_with_convergence_wait(
+            paths,
+            handoff_id,
+        )
         transaction = _stage(
             paths,
             transaction,

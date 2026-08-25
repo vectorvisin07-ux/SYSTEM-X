@@ -1270,3 +1270,48 @@ class RouterShutdownReconciliationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, ["status", "reconcile", "stop", "status"])
         self.assertIsNone(backend.identity)
         self.assertFalse(backend._router_ready)
+
+    async def test_shutdown_does_not_stop_new_router_owner(self) -> None:
+        identity = RouterIdentity("router-tx", 100, 100, 100, "start")
+        calls: list[str] = []
+
+        def response(data: dict[str, object]) -> ControllerResult:
+            return ControllerResult(
+                operation="status",
+                ok=True,
+                reason_code="OK",
+                message="fixture",
+                data=data,
+                stderr="",
+                exit_status=0,
+            )
+
+        class ReplacementOwnerController:
+            async def status(self) -> ControllerResult:
+                calls.append("status")
+                return response(
+                    {
+                        "active": True,
+                        "active_state_consistent": True,
+                        "transaction_id": "replacement-tx",
+                        "pid": 200,
+                        "pgid": 200,
+                        "sid": 200,
+                        "launch_mode": "router",
+                    }
+                )
+
+            async def stop(self) -> ControllerResult:
+                calls.append("stop")
+                raise AssertionError("foreign router must not be stopped")
+
+        backend = object.__new__(BackendCoordinator)
+        backend.settings = SimpleNamespace(private_backend_enabled=True)
+        backend.controller = ReplacementOwnerController()
+        backend.router = None
+        backend.identity = identity
+        backend._router_ready = True
+        backend._loaded_by_transaction = {"candidate"}
+        backend._warm_model_id = "candidate"
+
+        await backend._stop_exact_router()
