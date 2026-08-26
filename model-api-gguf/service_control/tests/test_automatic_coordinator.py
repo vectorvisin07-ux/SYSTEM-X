@@ -24,8 +24,10 @@ if mode == "bad":
     print("not-json", flush=True)
     raise SystemExit(3)
 action = "DISPATCH_FIRST_MODEL" if mode == "dispatch" else "NOOP_WAITING"
+if mode == "ready":
+    action = "NOOP_READY_MODEL_PRESENT"
 basis = {"basis_class":"PROCESSED","basis_identity":"sha256:"+"1"*64,"record_identity":"sha256:"+"2"*64,"record_path":"/trial/processed.json"} if action.startswith("DISPATCH") else None
-automatic = {"action":action,"reason_code":"AUTOMATIC_DISPATCH_ACCEPTED" if action.startswith("DISPATCH") else "AUTOMATIC_NO_VISIBLE_CANDIDATE","active_transaction_reference":None,"existing_result_reference":None}
+automatic = {"action":action,"reason_code":"AUTOMATIC_DISPATCH_ACCEPTED" if action.startswith("DISPATCH") else ("AUTOMATIC_READY_MODEL_PRESENT" if action == "NOOP_READY_MODEL_PRESENT" else "AUTOMATIC_NO_VISIBLE_CANDIDATE"),"active_transaction_reference":None,"existing_result_reference":None}
 print(json.dumps({"schema_version":"system-x.inspector-machine-result.v1","operation":"reconcile-intake","ok":True,"reason_code":automatic["reason_code"],"message":"trial","timestamp_utc":"2026-01-01T00:00:00.000000Z","inspector_root":"/trial/INSPECTOR","transaction_id":None,"data":{"automatic_result":automatic,"terminal_basis_reference":basis},"paths":{}},sort_keys=True,separators=(",",":")),flush=True)
 '''
 
@@ -115,6 +117,20 @@ class CoordinatorTest(unittest.TestCase):
         self.assertEqual(final["consecutive_method_failure_count"], 1)
         self.assertEqual(final["last_reason_code"], "COORDINATOR_MACHINE_RESULT_INVALID")
         self.assertLessEqual(final["next_due_monotonic"], 4.0)
+
+    def test_ready_noop_resets_prior_failure_state_without_relaunch(self) -> None:
+        self.launch_mode = "ready"
+        coordinator = self.coordinator()
+        coordinator._failure_count = 23
+        coordinator._state = "BACKOFF"
+        coordinator._next_due = 0.0
+        coordinator._last_reason = "CONNECTION_STALE"
+        final = self.wait_terminal(coordinator)
+        self.assertEqual(final["last_inspector_action"], "NOOP_READY_MODEL_PRESENT")
+        self.assertEqual(final["last_reason_code"], "AUTOMATIC_READY_MODEL_PRESENT")
+        self.assertEqual(final["coordinator_state"], "IDLE")
+        self.assertEqual(final["consecutive_method_failure_count"], 0)
+        self.assertEqual(len(self.launched), 1)
 
     def test_uncertain_owner_is_not_signalled_or_replaced(self) -> None:
         coordinator_observer = self.coordinator().observer

@@ -131,6 +131,38 @@ class ConnectionReceiptTest(unittest.TestCase):
             "messages_token_count_result_valid": True,
         }
 
+    def operation_record(
+        self,
+        request_id: str,
+        transaction_id: str,
+    ) -> dict[str, object]:
+        return {
+            "schema": "system-x.operation-record.v1",
+            "request_id": request_id,
+            "key_id": self.observation["non_secret_key_id"],
+            "protocol_family": "system_x",
+            "endpoint": "/system/v1/chat",
+            "operation": "chat",
+            "streamed": False,
+            "public_model_id": self.observation[
+                "resolved_immutable_model_id"
+            ],
+            "artifact_version_id": self.observation[
+                "artifact_version_id"
+            ],
+            "api_service_transaction_id": transaction_id,
+            "router_transaction_id": None,
+            "started_utc": "2026-07-30T23:00:00.000000Z",
+            "completed_utc": "2026-07-30T23:00:00.001000Z",
+            "latency_ms": 1,
+            "http_status": 200,
+            "error_code": None,
+            "finish_reason": "completed",
+            "operation_state": "completed",
+            "input_tokens": 1,
+            "output_tokens": 3,
+        }
+
     def receipt(
         self,
         *,
@@ -546,6 +578,10 @@ class ConnectionReceiptTest(unittest.TestCase):
 
     def test_stale_invalid_secret_symlink_and_wrong_mode_fail_closed(self) -> None:
         receipt = self.receipt()
+        self.assertIs(
+            receipt["authentication"]["raw_api_key_returned"],
+            False,
+        )
         publish_current_receipt(
             self.paths,
             receipt,
@@ -588,27 +624,19 @@ class ConnectionReceiptTest(unittest.TestCase):
 
 
     def test_owned_rotated_log_reuses_exact_request_id(self) -> None:
-        active = self.temporary / "active.log"
-        rotated = self.temporary / "rotated.log"
+        active = self.temporary / "tx-active.log"
+        rotated = self.temporary / "tx-rotated.log"
         active.write_bytes(b"")
+        active.chmod(0o640)
         request_id = "sx_req_" + "5" * 32
-        record = {
-            "request_id": request_id,
-            "public_model_id": self.observation["resolved_immutable_model_id"],
-            "artifact_version_id": self.observation["artifact_version_id"],
-            "key_id": self.observation["non_secret_key_id"],
-            "http_status": 200,
-            "operation_state": "completed",
-            "operation": "messages",
-            "output_tokens": 3,
-            "finish_reason": "end_turn",
-        }
+        record = self.operation_record(request_id, "tx-rotated")
         rotated.write_text(
             "INFO system_x_operation "
             + json.dumps(record, sort_keys=True)
             + "\n",
             encoding="utf-8",
         )
+        rotated.chmod(0o640)
         proof = _operation_proof(
             active,
             model_id=self.observation["resolved_immutable_model_id"],
@@ -620,34 +648,41 @@ class ConnectionReceiptTest(unittest.TestCase):
         self.assertEqual(proof["http_status"], 200)
 
     def test_rotated_log_multiple_or_mismatched_proofs_fail_closed(self) -> None:
-        active = self.temporary / "active.log"
+        active = self.temporary / "tx-active.log"
         request_id = "sx_req_" + "6" * 32
-        record = {
-            "request_id": request_id,
-            "public_model_id": self.observation["resolved_immutable_model_id"],
-            "artifact_version_id": self.observation["artifact_version_id"],
-            "key_id": self.observation["non_secret_key_id"],
-            "http_status": 200,
-            "operation_state": "completed",
-            "operation": "messages",
-            "output_tokens": 3,
-            "finish_reason": "end_turn",
-        }
-        for label, records in (
-            ("multiple", [record, dict(record)]),
-            ("mismatched", [{**record, "request_id": "sx_req_" + "7" * 32}]),
-        ):
+        for label in ("multiple", "mismatched"):
             with self.subTest(label=label):
-                for path in self.temporary.glob("*.log"):
+                for path in self.temporary.glob("tx-*.log"):
                     path.unlink()
                 active.write_bytes(b"")
+                active.chmod(0o640)
+                if label == "multiple":
+                    records = [
+                        self.operation_record(
+                            request_id,
+                            "tx-rotated-multiple-0",
+                        ),
+                        self.operation_record(
+                            request_id,
+                            "tx-rotated-multiple-1",
+                        ),
+                    ]
+                else:
+                    records = [
+                        self.operation_record(
+                            "sx_req_" + "7" * 32,
+                            "tx-rotated-mismatched-0",
+                        )
+                    ]
                 for index, value in enumerate(records):
-                    (self.temporary / f"rotated-{label}-{index}.log").write_text(
+                    path = self.temporary / f"tx-rotated-{label}-{index}.log"
+                    path.write_text(
                         "INFO system_x_operation "
                         + json.dumps(value, sort_keys=True)
                         + "\n",
                         encoding="utf-8",
                     )
+                    path.chmod(0o640)
                 with self.assertRaises(InspectorError) as caught:
                     _operation_proof(
                         active,
@@ -657,6 +692,60 @@ class ConnectionReceiptTest(unittest.TestCase):
                         request_id=request_id,
                     )
                 self.assertEqual(caught.exception.reason_code, "CONNECTION_STALE")
+
+    def test_missing_and_malformed_owned_proof_fail_closed(self) -> None:
+        active = self.temporary / "tx-active.log"
+        active.write_bytes(b"")
+        active.chmod(0o640)
+        request_id = "sx_req_" + "8" * 32
+        with self.assertRaises(InspectorError) as missing:
+            _operation_proof(
+                active,
+                model_id=self.observation["resolved_immutable_model_id"],
+                artifact_version_id=self.observation["artifact_version_id"],
+                key_id=self.observation["non_secret_key_id"],
+                request_id=request_id,
+            )
+        self.assertEqual(missing.exception.reason_code, "CONNECTION_STALE")
+        malformed = self.temporary / "tx-malformed.log"
+        malformed.write_text(
+            "INFO system_x_operation {not-json}\n",
+            encoding="utf-8",
+        )
+        malformed.chmod(0o640)
+        with self.assertRaises(InspectorError) as invalid:
+            _operation_proof(
+                active,
+                model_id=self.observation["resolved_immutable_model_id"],
+                artifact_version_id=self.observation["artifact_version_id"],
+                key_id=self.observation["non_secret_key_id"],
+                request_id=request_id,
+            )
+        self.assertEqual(
+            invalid.exception.reason_code,
+            "CONNECTION_RECORD_INVALID",
+        )
+
+    def test_unsafe_named_log_is_rejected(self) -> None:
+        active = self.temporary / "tx-active.log"
+        target = self.temporary / "target.log"
+        active.write_bytes(b"")
+        active.chmod(0o640)
+        target.write_bytes(b"")
+        target.chmod(0o640)
+        os.symlink(target, self.temporary / "tx-unsafe.log")
+        with self.assertRaises(InspectorError) as caught:
+            _operation_proof(
+                active,
+                model_id=self.observation["resolved_immutable_model_id"],
+                artifact_version_id=self.observation["artifact_version_id"],
+                key_id=self.observation["non_secret_key_id"],
+                request_id="sx_req_" + "9" * 32,
+            )
+        self.assertEqual(
+            caught.exception.reason_code,
+            "CONNECTION_RECORD_INVALID",
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,8 +47,46 @@ PUBLIC_MODEL_PATTERN = re.compile(r"sx-[a-z0-9-]{8,127}\Z")
 ARTIFACT_VERSION_PATTERN = re.compile(r"bundle-[0-9a-f]{64}\Z")
 REQUEST_ID_PATTERN = re.compile(r"sx_req_[0-9a-f]{32}\Z")
 KEY_ID_PATTERN = re.compile(r"[0-9a-f]{32}\Z")
+OPERATION_LOG_NAME_PATTERN = re.compile(
+    r"tx-[A-Za-z0-9][A-Za-z0-9._:-]{0,124}\.log\Z"
+)
+OPERATION_RECORD_SCHEMA = "system-x.operation-record.v1"
+OPERATION_RECORD_FIELDS = frozenset(
+    {
+        "schema",
+        "request_id",
+        "key_id",
+        "protocol_family",
+        "endpoint",
+        "operation",
+        "streamed",
+        "public_model_id",
+        "artifact_version_id",
+        "api_service_transaction_id",
+        "router_transaction_id",
+        "started_utc",
+        "completed_utc",
+        "latency_ms",
+        "http_status",
+        "error_code",
+        "finish_reason",
+        "operation_state",
+        "input_tokens",
+        "output_tokens",
+    }
+)
+OPERATION_ROUTES = frozenset(
+    {
+        ("system_x", "/system/v1/generate", "generate"),
+        ("system_x", "/system/v1/chat", "chat"),
+        ("system_x", "/system/v1/responses", "responses"),
+        ("openai_compatible", "/v1/completions", "generate"),
+        ("openai_compatible", "/v1/chat/completions", "chat"),
+        ("openai_compatible", "/v1/responses", "responses"),
+        ("messages_compatible", "/v1/messages", "chat"),
+    }
+)
 MAX_CONTROL_BYTES = 2 * 1024 * 1024
-MAX_OPERATION_LOG_SCAN_BYTES = 8 * 1024 * 1024
 MESSAGES_COMPATIBILITY_VERSION = "2023-06-01"
 BASE_URL_PATTERN = re.compile(
     r"(?P<scheme>http|https)://(?P<authority>[^/?#]+)"
@@ -1229,6 +1267,181 @@ def _registry_model(
         connection.close()
 
 
+def _owned_operation_log_set(log_path: Path) -> tuple[Path, ...]:
+    """Return the complete physical operation-log set owned by this service."""
+
+    try:
+        root_details = log_path.parent.lstat()
+        active_details = log_path.lstat()
+        root = log_path.parent.resolve(strict=True)
+        active = log_path.resolve(strict=True)
+    except OSError as error:
+        raise _fail(
+            "CONNECTION_SERVICE_UNAVAILABLE",
+            "operation record log root is unavailable",
+        ) from error
+    if (
+        stat.S_ISLNK(root_details.st_mode)
+        or not stat.S_ISDIR(root_details.st_mode)
+        or stat.S_ISLNK(active_details.st_mode)
+        or not stat.S_ISREG(active_details.st_mode)
+        or active_details.st_nlink != 1
+        or OPERATION_LOG_NAME_PATTERN.fullmatch(active.name) is None
+        or active.parent != root
+        or (root_details.st_uid, root_details.st_gid)
+        != (active_details.st_uid, active_details.st_gid)
+    ):
+        raise _fail(
+            "CONNECTION_RECORD_INVALID",
+            "API service operation-log root or active log is unsafe",
+        )
+    owner = (active_details.st_uid, active_details.st_gid)
+    candidates: list[Path] = []
+    try:
+        entries = sorted(root.iterdir(), key=lambda item: item.name)
+        for candidate in entries:
+            if OPERATION_LOG_NAME_PATTERN.fullmatch(candidate.name) is None:
+                continue
+            details = candidate.lstat()
+            if (
+                stat.S_ISLNK(details.st_mode)
+                or not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+            ):
+                raise _fail(
+                    "CONNECTION_RECORD_INVALID",
+                    "accepted operation log has an unsafe physical type",
+                )
+            if (details.st_uid, details.st_gid) != owner:
+                continue
+            if stat.S_IMODE(details.st_mode) & 0o022:
+                raise _fail(
+                    "CONNECTION_RECORD_INVALID",
+                    "owned operation log is writable by a foreign principal",
+                )
+            resolved = candidate.resolve(strict=True)
+            if resolved.parent != root or resolved != candidate:
+                raise _fail(
+                    "CONNECTION_RECORD_INVALID",
+                    "operation log escapes its owned root",
+                )
+            candidates.append(resolved)
+    except InspectorError:
+        raise
+    except OSError as error:
+        raise _fail(
+            "CONNECTION_SERVICE_UNAVAILABLE",
+            "durable operation record logs are unavailable",
+        ) from error
+    if active not in candidates:
+        raise _fail(
+            "CONNECTION_RECORD_INVALID",
+            "active operation log is absent from its owned log set",
+        )
+    return tuple(candidates)
+
+
+def _operation_log_records(log_path: Path) -> tuple[dict[str, Any], ...]:
+    """Read all complete operation records from one stable physical log."""
+
+    try:
+        before = log_path.lstat()
+        if (
+            stat.S_ISLNK(before.st_mode)
+            or not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+        ):
+            raise _fail(
+                "CONNECTION_RECORD_INVALID",
+                "operation log is not a physical regular file",
+            )
+        records: list[dict[str, Any]] = []
+        with log_path.open("rb") as handle:
+            for line in handle:
+                if b"system_x_operation " not in line:
+                    continue
+                record = _operation_record_from_line(line)
+                if not isinstance(record, dict):
+                    raise _fail(
+                        "CONNECTION_RECORD_INVALID",
+                        "operation log contains a malformed operation record",
+                    )
+                records.append(record)
+        after = log_path.lstat()
+    except InspectorError:
+        raise
+    except OSError as error:
+        raise _fail(
+            "CONNECTION_SERVICE_UNAVAILABLE",
+            "operation record log is unavailable",
+        ) from error
+    if (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    ) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise _fail(
+            "CONNECTION_SERVICE_UNAVAILABLE",
+            "operation record log changed during observation",
+        )
+    return tuple(records)
+
+
+def _operation_record_matches(
+    record: dict[str, Any],
+    *,
+    log_path: Path,
+    model_id: str,
+    artifact_version_id: str,
+    key_id: str,
+    request_id: str | None,
+) -> bool:
+    if set(record) != OPERATION_RECORD_FIELDS:
+        return False
+    if request_id is not None and record.get("request_id") != request_id:
+        return False
+    if (
+        record.get("schema") != OPERATION_RECORD_SCHEMA
+        or record.get("public_model_id") != model_id
+        or record.get("artifact_version_id") != artifact_version_id
+        or record.get("key_id") != key_id
+        or record.get("api_service_transaction_id") != log_path.stem
+        or record.get("http_status") != 200
+        or record.get("operation_state") != "completed"
+        or record.get("error_code") is not None
+        or type(record.get("streamed")) is not bool
+        or type(record.get("output_tokens")) is not int
+        or int(record["output_tokens"]) < 1
+        or not isinstance(record.get("finish_reason"), str)
+        or not record["finish_reason"]
+    ):
+        return False
+    route = (
+        record.get("protocol_family"),
+        record.get("endpoint"),
+        record.get("operation"),
+    )
+    if route not in OPERATION_ROUTES:
+        return False
+    router_transaction_id = record.get("router_transaction_id")
+    if router_transaction_id is not None and (
+        not isinstance(router_transaction_id, str)
+        or re.fullmatch(
+            r"tx-[A-Za-z0-9][A-Za-z0-9._:-]{0,124}",
+            router_transaction_id,
+        )
+        is None
+    ):
+        return False
+    return True
+
+
 def _operation_proof(
     log_path: Path,
     *,
@@ -1237,102 +1450,34 @@ def _operation_proof(
     key_id: str,
     request_id: str | None,
 ) -> dict[str, Any]:
-    try:
-        details = log_path.lstat()
-        if (
-            stat.S_ISLNK(details.st_mode)
-            or not stat.S_ISREG(details.st_mode)
-            or details.st_nlink != 1
-        ):
-            raise OSError("unsafe operation log")
-        lower = max(0, details.st_size - MAX_OPERATION_LOG_SCAN_BYTES)
-        with log_path.open("rb") as handle:
-            handle.seek(lower)
-            raw = handle.read(MAX_OPERATION_LOG_SCAN_BYTES + 1)
-    except OSError as error:
-        raise _fail(
-            "CONNECTION_SERVICE_UNAVAILABLE",
-            "operation record log is unavailable",
-        ) from error
-    if len(raw) > MAX_OPERATION_LOG_SCAN_BYTES:
-        raw = raw[-MAX_OPERATION_LOG_SCAN_BYTES:]
     matches: list[dict[str, Any]] = []
-    for line in raw.splitlines():
-        record = _operation_record_from_line(line)
-        if (
-            not isinstance(record, dict)
-            or record.get("public_model_id") != model_id
-            or record.get("artifact_version_id")
-            != artifact_version_id
-            or record.get("key_id") != key_id
-            or record.get("http_status") != 200
-            or record.get("operation_state") != "completed"
-            or record.get("operation")
-            not in {"chat", "generate", "responses", "completion", "messages"}
-            or type(record.get("output_tokens")) is not int
-            or int(record["output_tokens"]) < 1
-            or not isinstance(record.get("finish_reason"), str)
-        ):
-            continue
-        if request_id is None or record.get("request_id") == request_id:
-            matches.append(record)
-    if not matches and request_id is not None:
-        # A product service restart rotates the active log. Re-authenticate
-        # the already accepted request from the same owned log directory;
-        # never issue a replacement request.
-        try:
-            for sibling in sorted(log_path.parent.glob("*.log")):
-                if sibling == log_path:
-                    continue
-                sibling_details = sibling.lstat()
-                if (
-                    stat.S_ISLNK(sibling_details.st_mode)
-                    or not stat.S_ISREG(sibling_details.st_mode)
-                    or sibling_details.st_nlink != 1
-                ):
-                    continue
-                sibling_lower = max(
-                    0, sibling_details.st_size - MAX_OPERATION_LOG_SCAN_BYTES
-                )
-                with sibling.open("rb") as handle:
-                    handle.seek(sibling_lower)
-                    sibling_raw = handle.read(MAX_OPERATION_LOG_SCAN_BYTES + 1)
-                if len(sibling_raw) > MAX_OPERATION_LOG_SCAN_BYTES:
-                    sibling_raw = sibling_raw[-MAX_OPERATION_LOG_SCAN_BYTES:]
-                for sibling_line in sibling_raw.splitlines():
-                    record = _operation_record_from_line(sibling_line)
-                    if (
-                        isinstance(record, dict)
-                        and record.get("public_model_id") == model_id
-                        and record.get("artifact_version_id")
-                        == artifact_version_id
-                        and record.get("key_id") == key_id
-                        and record.get("http_status") == 200
-                        and record.get("operation_state") == "completed"
-                        and record.get("operation")
-                        in {"chat", "generate", "responses", "completion", "messages"}
-                        and type(record.get("output_tokens")) is int
-                        and int(record["output_tokens"]) >= 1
-                        and isinstance(record.get("finish_reason"), str)
-                        and record.get("request_id") == request_id
-                    ):
-                        matches.append(record)
-        except OSError as error:
-            raise _fail(
-                "CONNECTION_SERVICE_UNAVAILABLE",
-                "durable operation record logs are unavailable",
-            ) from error
-    if len(matches) != 1 and request_id is not None:
+    for candidate in _owned_operation_log_set(log_path):
+        for record in _operation_log_records(candidate):
+            if _operation_record_matches(
+                record,
+                log_path=candidate,
+                model_id=model_id,
+                artifact_version_id=artifact_version_id,
+                key_id=key_id,
+                request_id=request_id,
+            ):
+                matches.append(record)
+    if request_id is not None and len(matches) != 1:
         raise _fail(
             "CONNECTION_STALE",
             "stored proof operation record is absent or ambiguous",
+        )
+    if request_id is None and len(matches) > 1:
+        raise _fail(
+            "CONNECTION_STALE",
+            "accepted inference proof records are ambiguous",
         )
     if not matches:
         raise _fail(
             "CONNECTION_NOT_INITIALIZED",
             "no suitable accepted inference proof record exists",
         )
-    record = matches[-1]
+    record = matches[0]
     return {
         "request_id": record["request_id"],
         "http_status": record["http_status"],
