@@ -804,7 +804,11 @@ def _api_arguments(
         "--service-control-desired-state-path",
         str(Path(state_path).resolve(strict=True)),
         "--external-static-enabled",
-        "false",
+        "true" if profile.external_static_enabled else "false",
+        "--external-static-distribution-root",
+        profile.external_static_distribution_root or "",
+        "--external-static-mount-path",
+        profile.external_static_mount_path,
         "--log-level",
         "info",
     ]
@@ -846,6 +850,11 @@ def _verify_api_plan(
             profile.recovery_stable_reset_seconds
         ),
         "service_control_profile_identity": profile.identity,
+        "external_static_enabled": profile.external_static_enabled,
+        "external_static_distribution_root": (
+            profile.external_static_distribution_root
+        ),
+        "external_static_mount_path": profile.external_static_mount_path,
     }
     if any(values.get(name) != value for name, value in expected.items()):
         _fail(
@@ -1461,6 +1470,11 @@ class ForegroundSupervisor:
             "supervisor_state": supervisor_state,
             "service_readiness_state": service_readiness_state,
             "model_service_state": model_service_state,
+            "external_static_enabled": profile.external_static_enabled,
+            "external_static_distribution_root": (
+                profile.external_static_distribution_root
+            ),
+            "external_static_mount_path": profile.external_static_mount_path,
             "service_operational": service_operational,
             "inference_ready": inference_ready,
             "reason_code": reason_code,
@@ -1524,6 +1538,11 @@ class ForegroundSupervisor:
             "stop_utc": None,
             "api_controller": dependencies["api"],
             "branch_controller": dependencies["branch"],
+            "external_static_configuration": {
+                "enabled": profile.external_static_enabled,
+                "distribution_root": profile.external_static_distribution_root,
+                "mount_path": profile.external_static_mount_path,
+            },
             "started_api_transaction_id": None,
             "observed_router_transaction_id": None,
             "observed_model_child": None,

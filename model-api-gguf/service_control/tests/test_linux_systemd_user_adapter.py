@@ -330,10 +330,14 @@ class ContractRendererRegistryTests(SelectedAdapterCase):
             line for line in unit.splitlines() if line.startswith("ExecStart=")
         ]
         self.assertEqual(len(exec_lines), 1)
+        expected_supervisor = selected._safe_systemd_path(
+            str(BRANCH_ROOT / "service_control/supervisor.py"),
+            "ExecStart supervisor entrypoint",
+        )
         self.assertTrue(
             exec_lines[0].startswith(
                 "ExecStart=/usr/bin/python3.14 "
-                + str(BRANCH_ROOT / "service_control/supervisor.py")
+                + expected_supervisor
                 + " run --profile "
             )
         )
@@ -707,6 +711,64 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
             result["data"]["lifecycle"]["start"]["desired_state"],
             "RUNNING",
         )
+
+    def test_configure_static_ui_persists_and_exact_repeat_is_noop(
+        self,
+    ) -> None:
+        self.register()
+        distribution = self.root / "distribution"
+        assets = distribution / "assets"
+        assets.mkdir(parents=True)
+        (distribution / "index.html").write_text(
+            '<script type="module" src="/ui/assets/app-12345678.js"></script>'
+            '<link rel="stylesheet" href="/ui/assets/app-12345678.css">',
+            encoding="utf-8",
+        )
+        (assets / "app-12345678.js").write_text(
+            "console.log('fixture');", encoding="utf-8"
+        )
+        (assets / "app-12345678.css").write_text(
+            "body{color:white}", encoding="utf-8"
+        )
+        first = self.adapter.configure_static_ui(
+            enabled=True,
+            distribution_root=distribution,
+            mount_path="/ui",
+        )
+        self.assertTrue(first["ok"])
+        self.assertTrue(first["data"]["changed"])
+        self.assertFalse(first["data"]["no_op"])
+        profile = operating_profile.load_operating_profile(
+            self.profile_path
+        )
+        self.assertTrue(profile.external_static_fields_present)
+        self.assertTrue(profile.external_static_enabled)
+        self.assertEqual(
+            profile.external_static_distribution_root,
+            str(distribution),
+        )
+        self.assertEqual(profile.external_static_mount_path, "/ui")
+        profile_bytes = self.profile_path.read_bytes()
+        state_bytes = self.state_path.read_bytes()
+        manifest_bytes = self.adapter.paths.manifest.read_bytes()
+        transactions = sorted(self.adapter.paths.transactions.glob("*.json"))
+        second = self.adapter.configure_static_ui(
+            enabled=True,
+            distribution_root=distribution,
+            mount_path="/ui",
+        )
+        self.assertTrue(second["ok"])
+        self.assertFalse(second["data"]["changed"])
+        self.assertTrue(second["data"]["no_op"])
+        self.assertEqual(self.profile_path.read_bytes(), profile_bytes)
+        self.assertEqual(self.state_path.read_bytes(), state_bytes)
+        self.assertEqual(self.adapter.paths.manifest.read_bytes(), manifest_bytes)
+        self.assertEqual(
+            sorted(self.adapter.paths.transactions.glob("*.json")),
+            transactions,
+        )
+        self.assertEqual(self.manager.start_calls, 0)
+        self.assertEqual(self.manager.stop_calls, 0)
 
     def test_explicit_isolated_unregister_is_narrow_and_preserves_history(
         self,

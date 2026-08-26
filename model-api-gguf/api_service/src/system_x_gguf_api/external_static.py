@@ -125,6 +125,41 @@ class ExternalStaticDistribution:
         async def index_response(_request: Request) -> Response:
             return self._response_for(PurePosixPath("index.html"), html=True)
 
+        async def chat_canonical_redirect(_request: Request) -> Response:
+            return RedirectResponse(
+                f"{mount}/chat/",
+                status_code=308,
+                headers=_security_headers(cache_control="no-store", html=False),
+            )
+
+        async def chat_index_response(_request: Request) -> Response:
+            return self._response_for(PurePosixPath("index.html"), html=True)
+
+        async def chat_asset_response(
+            request: Request,
+            chat_asset_path: str,
+        ) -> Response:
+            if chat_asset_path == "":
+                return self._response_for(
+                    PurePosixPath("index.html"), html=True
+                )
+            relative = self._validated_relative(chat_asset_path)
+            if relative is None:
+                return self._not_found()
+            exact = _read_regular_file(self.root, relative)
+            if exact is not None:
+                return self._response_for(
+                    relative,
+                    content=exact,
+                    html=relative == PurePosixPath("index.html"),
+                )
+            accepts_html = "text/html" in request.headers.get("accept", "")
+            if accepts_html and relative.suffix == "":
+                return self._response_for(
+                    PurePosixPath("index.html"), html=True
+                )
+            return self._not_found()
+
         async def asset_response(
             request: Request,
             asset_path: str,
@@ -155,12 +190,34 @@ class ExternalStaticDistribution:
             name="external_static_index",
         )
         application.add_api_route(
+            f"{mount}/chat",
+            chat_canonical_redirect,
+            methods=["GET"],
+            include_in_schema=False,
+            name="external_static_chat_canonical_redirect",
+        )
+        application.add_api_route(
+            f"{mount}/chat/",
+            chat_index_response,
+            methods=["GET"],
+            include_in_schema=False,
+            name="external_static_chat_index",
+        )
+        application.add_api_route(
+            f"{mount}/chat/{{chat_asset_path:path}}",
+            chat_asset_response,
+            methods=["GET"],
+            include_in_schema=False,
+            name="external_static_chat_asset",
+        )
+        application.add_api_route(
             f"{mount}/{{asset_path:path}}",
             asset_response,
             methods=["GET"],
             include_in_schema=False,
             name="external_static_asset",
         )
+
 
     @staticmethod
     def _validated_relative(value: str) -> PurePosixPath | None:

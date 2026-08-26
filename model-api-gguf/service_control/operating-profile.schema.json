@@ -108,6 +108,28 @@
           "default": 30
         }
       }
+    },
+    "external_static_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "external_static_distribution_root": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^/[^\\u0000]+$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "external_static_mount_path": {
+      "type": "string",
+      "pattern": "/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*",
+      "default": "/ui/chat"
     }
   },
   "$defs": {

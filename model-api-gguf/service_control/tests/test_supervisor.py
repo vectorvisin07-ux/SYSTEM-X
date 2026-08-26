@@ -107,6 +107,15 @@ def values_from_argv():
         "service_control_profile_identity": values[
             "service_control_profile_identity"
         ],
+        "external_static_enabled": values[
+            "external_static_enabled"
+        ].lower() == "true",
+        "external_static_distribution_root": values[
+            "external_static_distribution_root"
+        ] or None,
+        "external_static_mount_path": values[
+            "external_static_mount_path"
+        ],
     }
 
 if kind == "api":

@@ -9,12 +9,14 @@ router, Uvicorn, llama-server, or a model child directly.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from dataclasses import dataclass
+import fcntl
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import secrets
 import shlex
@@ -25,6 +27,7 @@ import sys
 import tempfile
 import time
 from typing import Any, Mapping, NoReturn, Protocol, Sequence
+from urllib.parse import unquote, urlsplit
 
 if __package__:
     from .contract import (
@@ -42,6 +45,7 @@ if __package__:
         DesiredState,
         OperatingProfile,
         ServiceControlError,
+        configure_static_profile,
         load_desired_state,
         load_operating_profile,
         set_desired_state,
@@ -75,6 +79,7 @@ else:
         DesiredState,
         OperatingProfile,
         ServiceControlError,
+        configure_static_profile,
         load_desired_state,
         load_operating_profile,
         set_desired_state,
@@ -122,6 +127,20 @@ REQUIRED_HOST_CAPABILITIES = (
     "manager_owned_journal",
 )
 MAX_RECORD_BYTES = 1_048_576
+STATIC_REFERENCE_PATTERN = re.compile(
+    r'''(?:src|href)\s*=\s*["']([^"']+)["']''',
+    re.IGNORECASE,
+)
+STATIC_MOUNT_PATTERN = re.compile(
+    r"\A/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*\Z"
+)
+STATIC_RESERVED_PREFIXES = (
+    "/system",
+    "/v1",
+    "/openapi.json",
+    "/docs",
+    "/redoc",
+)
 SAFE_UNIT_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@,-]+$")
 SYSTEMD_PATH_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@, -]+$")
 MANAGER_PROPERTIES = (
@@ -420,6 +439,121 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def _validate_static_distribution(
+    root_value: str,
+    mount_path: str,
+) -> list[str]:
+    """Validate the unchanged distribution and every index asset reference."""
+    if (
+        not isinstance(mount_path, str)
+        or mount_path != mount_path.strip()
+        or "\x00" in mount_path
+        or STATIC_MOUNT_PATTERN.fullmatch(mount_path) is None
+        or any(
+            mount_path == prefix or mount_path.startswith(prefix + "/")
+            for prefix in STATIC_RESERVED_PREFIXES
+        )
+    ):
+        _fail(
+            "ADAPTER_CONFIGURATION_CONFLICT",
+            "static mount path is not a normalized non-API path",
+        )
+    root = Path(root_value)
+    if (
+        not root.is_absolute()
+        or str(root) != root_value
+        or ".." in root.parts
+    ):
+        _fail(
+            "ADAPTER_CONFIGURATION_CONFLICT",
+            "static distribution root is not a normalized absolute path",
+        )
+    _reject_symlink_components(root, "static distribution root")
+    try:
+        root_metadata = root.lstat()
+    except OSError as exc:
+        _fail(
+            "ADAPTER_CONFIGURATION_CONFLICT",
+            f"static distribution root cannot be inspected: {exc}",
+        )
+    owner_uid, owner_gid = _repository_owner()
+    if (
+        not stat.S_ISDIR(root_metadata.st_mode)
+        or root_metadata.st_uid != owner_uid
+        or root_metadata.st_gid != owner_gid
+        or stat.S_IMODE(root_metadata.st_mode) & 0o022
+    ):
+        _fail(
+            "ADAPTER_CONFIGURATION_CONFLICT",
+            "static distribution root is not a private user-owned directory",
+        )
+    index = _read_regular(root / "index.html", "static distribution index")
+    try:
+        index_text = index.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        _fail(
+            "ADAPTER_CONFIGURATION_CONFLICT",
+            f"static distribution index is not UTF-8: {exc}",
+        )
+    references = sorted(set(STATIC_REFERENCE_PATTERN.findall(index_text)))
+    prefix = mount_path.rstrip("/") + "/"
+    checked: list[str] = []
+    for reference in references:
+        parsed = urlsplit(reference)
+        if (
+            parsed.scheme
+            or parsed.netloc
+            or parsed.query
+            or parsed.fragment
+        ):
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "static index contains a non-local asset reference",
+            )
+        decoded_path = unquote(parsed.path)
+        if not decoded_path.startswith(prefix):
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "static index reference is outside the configured mount",
+            )
+        relative_value = decoded_path[len(prefix):]
+        if relative_value.startswith("chat/"):
+            relative_value = relative_value[len("chat/"):]
+        if not relative_value or relative_value == "chat":
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "static index contains an empty asset reference",
+            )
+        relative = PurePosixPath(relative_value)
+        if (
+            relative.is_absolute()
+            or any(part in {"", ".", ".."} for part in relative.parts)
+        ):
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "static index contains traversal in an asset reference",
+            )
+        candidate = root.joinpath(*relative.parts)
+        _read_regular(candidate, f"static asset {reference}")
+        try:
+            candidate_metadata = candidate.lstat()
+        except OSError as exc:
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                f"static asset cannot be inspected: {exc}",
+            )
+        if (
+            candidate_metadata.st_uid != owner_uid
+            or candidate_metadata.st_gid != owner_gid
+        ):
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                f"static asset is not owned by the service user: {reference}",
+            )
+        checked.append(decoded_path)
+    return checked
+
+
 def _atomic_write(
     path: Path,
     data: bytes,
@@ -650,6 +784,10 @@ class AdapterPaths:
     @property
     def transactions(self) -> Path:
         return self.root / "transactions"
+
+    @property
+    def configuration_lock(self) -> Path:
+        return self.root / "configuration.lock"
 
     def transaction(self, transaction_id: str) -> Path:
         return self.transactions / f"{transaction_id}.json"
@@ -1533,6 +1671,42 @@ class LinuxSystemdUserServiceAdapter:
             },
         )
 
+    def _configuration_transition_is_valid(
+        self,
+        manifest: Mapping[str, Any],
+        previous_profile_identity: Any,
+    ) -> bool:
+        expected_profile_identity = manifest["configuration_reference"][
+            "profile_identity"
+        ]
+        if not isinstance(previous_profile_identity, str):
+            return False
+        if not self.paths.transactions.is_dir():
+            return False
+        for candidate in sorted(
+            self.paths.transactions.glob("*.json"),
+            key=lambda item: item.name,
+            reverse=True,
+        ):
+            transaction = _read_json(candidate, "adapter transaction")
+            if transaction.get("operation") != "configure-static-ui":
+                continue
+            result = transaction.get("result")
+            if not isinstance(result, dict):
+                continue
+            data = result.get("data")
+            if not isinstance(data, dict):
+                continue
+            if (
+                result.get("profile_identity") == expected_profile_identity
+                and data.get("previous_profile_identity")
+                == previous_profile_identity
+                and data.get("new_profile_identity")
+                == expected_profile_identity
+            ):
+                return True
+        return False
+
     def _supervisor_evidence(
         self,
         manifest: Mapping[str, Any],
@@ -1558,13 +1732,32 @@ class LinuxSystemdUserServiceAdapter:
         profile_identity = manifest["configuration_reference"][
             "profile_identity"
         ]
+        active_profile_identity = profile_identity
+        recorded_profile_identity = lock.get("profile_identity")
+        if (
+            recorded_profile_identity != profile_identity
+            or pid_record.get("profile_identity") != profile_identity
+        ):
+            if (
+                pid_record.get("profile_identity")
+                != recorded_profile_identity
+                or not self._configuration_transition_is_valid(
+                    manifest, recorded_profile_identity
+                )
+            ):
+                _fail(
+                    "MANAGER_SUPERVISOR_IDENTITY_MISMATCH",
+                    "supervisor active record identity is invalid",
+                    exit_code=3,
+                )
+            active_profile_identity = recorded_profile_identity
         if (
             lock.get("schema_version") != SUPERVISOR_LOCK_SCHEMA
             or pid_record.get("schema_version") != SUPERVISOR_PID_SCHEMA
             or lock.get("supervisor_transaction_id")
             != pid_record.get("supervisor_transaction_id")
-            or lock.get("profile_identity") != profile_identity
-            or pid_record.get("profile_identity") != profile_identity
+            or lock.get("profile_identity") != active_profile_identity
+            or pid_record.get("profile_identity") != active_profile_identity
         ):
             _fail(
                 "MANAGER_SUPERVISOR_IDENTITY_MISMATCH",
@@ -1590,7 +1783,7 @@ class LinuxSystemdUserServiceAdapter:
             status = _read_json(paths.status_record, "supervisor status")
             if (
                 status.get("schema_version") != SUPERVISOR_STATUS_SCHEMA
-                or status.get("profile_identity") != profile_identity
+                or status.get("profile_identity") != active_profile_identity
                 or status.get("supervisor_transaction_id")
                 != pid_record.get("supervisor_transaction_id")
                 or status.get("supervisor_identity") != observed
@@ -1799,7 +1992,7 @@ class LinuxSystemdUserServiceAdapter:
             data={
                 "supported_platform_family": PLATFORM_FAMILY,
                 "activation_method": ACTIVATION_METHOD,
-                "operation_set": list(OPERATIONS),
+                "operation_set": list(LINUX_OPERATIONS),
                 "service_name": self.service_name,
             },
         )
@@ -2872,6 +3065,282 @@ class LinuxSystemdUserServiceAdapter:
             },
         )
 
+    @contextmanager
+    def _configuration_lock(self):
+        self._prepare_runtime()
+        lock_path = self.paths.configuration_lock
+        _reject_symlink_components(lock_path, "static configuration lock")
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_RDWR
+                | os.O_CREAT
+                | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+        except OSError as exc:
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                f"static configuration lock cannot open: {exc}",
+            )
+        try:
+            metadata = os.fstat(descriptor)
+            owner_uid, owner_gid = _repository_owner()
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != owner_uid
+                or metadata.st_gid != owner_gid
+            ):
+                _fail(
+                    "ADAPTER_CONFIGURATION_CONFLICT",
+                    "static configuration lock is not user-owned",
+                )
+            os.fchmod(descriptor, 0o600)
+            os.fsync(descriptor)
+            _fsync_directory(lock_path.parent)
+            try:
+                fcntl.flock(
+                    descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB
+                )
+            except BlockingIOError:
+                _fail(
+                    "ADAPTER_CONFIGURATION_CONFLICT",
+                    "static configuration lock is busy",
+                )
+            try:
+                yield lock_path
+            finally:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+    def configure_static_ui(
+        self,
+        *,
+        enabled: bool,
+        distribution_root: Path | str | None,
+        mount_path: str,
+    ) -> dict[str, Any]:
+        if type(enabled) is not bool:
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "enabled must be a Boolean",
+            )
+        if distribution_root is None:
+            root_value = None
+        else:
+            try:
+                root_value = os.fspath(distribution_root)
+            except TypeError:
+                _fail(
+                    "ADAPTER_CONFIGURATION_CONFLICT",
+                    "distribution_root must be a path or null",
+                )
+            if not isinstance(root_value, str):
+                _fail(
+                    "ADAPTER_CONFIGURATION_CONFLICT",
+                    "distribution_root must be a text path",
+                )
+        if not enabled and root_value is not None:
+            _fail(
+                "ADAPTER_CONFIGURATION_CONFLICT",
+                "distribution_root must be null when disabled",
+            )
+        references = (
+            _validate_static_distribution(root_value, mount_path)
+            if enabled and root_value is not None
+            else []
+        )
+        with self._configuration_lock() as lock_path:
+            old_manifest, old_profile, old_desired, old_unit = (
+                self._load_manifest()
+            )
+            old_identity, old_supervisor_status, before = self._correlate(
+                old_manifest
+            )
+            current_enabled = (
+                old_profile.external_static_enabled
+                if old_profile.external_static_fields_present
+                else False
+            )
+            current_root = (
+                old_profile.external_static_distribution_root
+                if old_profile.external_static_fields_present
+                else None
+            )
+            current_mount = old_profile.external_static_mount_path
+            requested = (enabled, root_value, mount_path)
+            current = (current_enabled, current_root, current_mount)
+            if current == requested:
+                status = self._status_value(
+                    old_manifest,
+                    old_profile,
+                    old_desired,
+                    old_identity,
+                    old_supervisor_status,
+                    before,
+                )
+                return self._result(
+                    "configure-static-ui",
+                    old_manifest,
+                    old_profile,
+                    old_desired,
+                    before,
+                    message="static UI configuration is already exact; no-op verified",
+                    data={
+                        "changed": False,
+                        "no_op": True,
+                        "configuration_lock": str(lock_path),
+                        "configuration": {
+                            "enabled": enabled,
+                            "distribution_root": root_value,
+                            "mount_path": mount_path,
+                        },
+                        "status": status,
+                    },
+                )
+            reference = old_manifest["configuration_reference"]
+            profile_file = Path(reference["profile_path"])
+            state_file = Path(reference["state_path"])
+            old_profile_bytes = _read_regular(
+                profile_file, "operating profile"
+            )
+            old_state_bytes = _read_regular(state_file, "desired state")
+            old_manifest_bytes = _read_regular(
+                self.paths.manifest, "adapter manifest"
+            )
+            old_status_bytes = _read_regular(
+                self.paths.status, "adapter status"
+            )
+            transaction_recorded = False
+            try:
+                (
+                    previous_profile,
+                    new_profile,
+                    previous_desired,
+                    new_desired,
+                ) = configure_static_profile(
+                    profile_file,
+                    state_file,
+                    external_static_enabled=enabled,
+                    external_static_distribution_root=root_value,
+                    external_static_mount_path=mount_path,
+                )
+                config, rendered_profile, rendered_desired, new_unit = (
+                    self._render_configuration(
+                        profile_path=profile_file,
+                        state_path=state_file,
+                        supervisor_runtime_root=reference[
+                            "supervisor_runtime_root"
+                        ],
+                        supervisor_entrypoint=old_manifest[
+                            "supervisor_entrypoint"
+                        ]["path"],
+                    )
+                )
+                if (
+                    rendered_profile.identity != new_profile.identity
+                    or rendered_desired.profile_identity
+                    != new_desired.profile_identity
+                    or new_unit != old_unit
+                ):
+                    _fail(
+                        "ADAPTER_CONFIGURATION_CONFLICT",
+                        "static configuration changed a generic service identity",
+                    )
+                new_manifest = dict(old_manifest)
+                new_manifest.update(
+                    {
+                        "supervisor_entrypoint": config[
+                            "supervisor_entrypoint"
+                        ],
+                        "configuration_reference": config[
+                            "configuration_reference"
+                        ],
+                        "configuration_identity": config[
+                            "configuration_identity"
+                        ],
+                        "manifest_generation": int(
+                            old_manifest["manifest_generation"]
+                        )
+                        + 1,
+                        "updated_utc": utc_now(),
+                        "native_service": config["native_service"],
+                    }
+                )
+                _atomic_json(self.paths.manifest, new_manifest)
+                status = self._status_value(
+                    new_manifest,
+                    new_profile,
+                    new_desired,
+                    old_identity,
+                    old_supervisor_status,
+                    before,
+                )
+                result = self._result(
+                    "configure-static-ui",
+                    new_manifest,
+                    new_profile,
+                    new_desired,
+                    before,
+                    message="static UI configuration persisted without restart",
+                    data={
+                        "changed": True,
+                        "no_op": False,
+                        "configuration_lock": str(lock_path),
+                        "configuration": {
+                            "enabled": enabled,
+                            "distribution_root": root_value,
+                            "mount_path": mount_path,
+                        },
+                        "static_references": references,
+                        "previous_profile_identity": previous_profile.identity,
+                        "new_profile_identity": new_profile.identity,
+                        "previous_desired_state_generation": (
+                            previous_desired.generation
+                        ),
+                        "new_desired_state_generation": new_desired.generation,
+                        "previous_configuration_identity": old_manifest[
+                            "configuration_identity"
+                        ],
+                        "new_configuration_identity": new_manifest[
+                            "configuration_identity"
+                        ],
+                        "service_restarted": False,
+                        "status": status,
+                    },
+                )
+                transaction_id = self._record_transaction(
+                    "configure-static-ui",
+                    before=before,
+                    after=before,
+                    result=result,
+                )
+                transaction_recorded = True
+                result["data"]["adapter_transaction_id"] = transaction_id
+                return result
+            except BaseException:
+                if not transaction_recorded:
+                    try:
+                        _atomic_write(profile_file, old_profile_bytes)
+                    except BaseException:
+                        pass
+                    try:
+                        _atomic_write(state_file, old_state_bytes)
+                    except BaseException:
+                        pass
+                    try:
+                        _atomic_write(
+                            self.paths.manifest, old_manifest_bytes
+                        )
+                    except BaseException:
+                        pass
+                    try:
+                        _atomic_write(self.paths.status, old_status_bytes)
+                    except BaseException:
+                        pass
+                raise
+
     def supervisor_entrypoint(self) -> dict[str, Any]:
         manifest, profile, desired, _unit = self._load_manifest()
         identity, supervisor_status, manager = self._correlate(manifest)
@@ -3014,6 +3483,7 @@ class LinuxSystemdUserServiceAdapter:
             "unregister": self.unregister,
             "capability": self.capability,
             "configuration": self.configuration,
+            "configure-static-ui": self.configure_static_ui,
             "supervisor-entrypoint": self.supervisor_entrypoint,
         }
         method = methods.get(operation)
@@ -3091,7 +3561,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--service-name", default=SERVICE_NAME)
     parser.add_argument("--unit-path", type=Path)
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    for operation in OPERATIONS:
+    for operation in LINUX_OPERATIONS:
         command = subparsers.add_parser(operation)
         if operation == "register":
             _add_configuration_arguments(command, required=True)
@@ -3102,6 +3572,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
             command.add_argument("--wait-timeout-seconds", type=float)
         elif operation == "restart":
             command.add_argument("--wait-timeout-seconds", type=float)
+        elif operation == "configure-static-ui":
+            command.add_argument(
+                "--enabled", choices=("true", "false"), required=True
+            )
+            command.add_argument("--distribution-root", type=Path)
+            command.add_argument("--mount-path", required=True)
         elif operation == "unregister":
             command.add_argument("--explicit", action="store_true")
         elif operation == "capability":
@@ -3139,6 +3615,12 @@ def _operation_arguments(
             if arguments.wait_timeout_seconds is not None
             else {}
         )
+    if operation == "configure-static-ui":
+        return {
+            "enabled": arguments.enabled == "true",
+            "distribution_root": arguments.distribution_root,
+            "mount_path": arguments.mount_path,
+        }
     if operation == "unregister":
         return {"explicit": arguments.explicit}
     if operation == "capability":

@@ -59,7 +59,29 @@ _PROFILE_REQUIRED_FIELDS = frozenset(
         "recovery_delay",
     )
 )
-_PROFILE_FIELDS = _PROFILE_REQUIRED_FIELDS | frozenset(("recovery_loop",))
+_STATIC_FIELDS = frozenset(
+    (
+        "external_static_enabled",
+        "external_static_distribution_root",
+        "external_static_mount_path",
+    )
+)
+_DEFAULT_EXTERNAL_STATIC_MOUNT_PATH = "/ui/chat"
+_EXTERNAL_STATIC_MOUNT_PATTERN = re.compile(
+    r"\A/[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*\Z"
+)
+_EXTERNAL_STATIC_RESERVED_PREFIXES = (
+    "/system",
+    "/v1",
+    "/openapi.json",
+    "/docs",
+    "/redoc",
+)
+_PROFILE_FIELDS = (
+    _PROFILE_REQUIRED_FIELDS
+    | frozenset(("recovery_loop",))
+    | _STATIC_FIELDS
+)
 _ENDPOINT_FIELDS = frozenset(("host", "port"))
 _GRACEFUL_FIELDS = frozenset(("enabled", "timeout_seconds"))
 _RECOVERY_FIELDS = frozenset(
@@ -121,9 +143,13 @@ class OperatingProfile:
     recovery_maximum_attempts_in_window: int
     recovery_attempt_window_seconds: float
     recovery_stable_reset_seconds: float
+    external_static_enabled: bool = False
+    external_static_distribution_root: str | None = None
+    external_static_mount_path: str = _DEFAULT_EXTERNAL_STATIC_MOUNT_PATH
+    external_static_fields_present: bool = False
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             "schema_version": OPERATING_PROFILE_SCHEMA,
             "public_endpoint": self.public_endpoint.as_dict(),
             "private_router_endpoint": self.private_router_endpoint.as_dict(),
@@ -149,6 +175,17 @@ class OperatingProfile:
                 "stable_reset_seconds": self.recovery_stable_reset_seconds,
             },
         }
+        if self.external_static_fields_present:
+            value.update(
+                {
+                    "external_static_enabled": self.external_static_enabled,
+                    "external_static_distribution_root": (
+                        self.external_static_distribution_root
+                    ),
+                    "external_static_mount_path": self.external_static_mount_path,
+                }
+            )
+        return value
 
     @property
     def canonical_json(self) -> str:
@@ -294,6 +331,127 @@ def _validate_alias(value: Any) -> str:
     return value
 
 
+def _validate_external_static_mount_path(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or value != value.strip()
+        or "\x00" in value
+        or _EXTERNAL_STATIC_MOUNT_PATTERN.fullmatch(value) is None
+    ):
+        _fail(
+            "invalid_external_static_mount_path",
+            "external_static_mount_path must be a canonical lower-case URL path",
+        )
+    if any(
+        value == prefix or value.startswith(prefix + "/")
+        for prefix in _EXTERNAL_STATIC_RESERVED_PREFIXES
+    ):
+        _fail(
+            "external_static_mount_conflict",
+            "external_static_mount_path must not shadow a public API root",
+        )
+    return value
+
+
+def _validate_external_static_distribution_root(value: Any) -> str:
+    if not isinstance(value, str) or not value or value != value.strip():
+        _fail(
+            "invalid_external_static_distribution_root",
+            "external_static_distribution_root must be a canonical absolute path",
+        )
+    if "\x00" in value:
+        _fail(
+            "invalid_external_static_distribution_root",
+            "external_static_distribution_root must not contain a NUL byte",
+        )
+    root = Path(value)
+    if (
+        not root.is_absolute()
+        or str(root) != value
+        or ".." in root.parts
+    ):
+        _fail(
+            "invalid_external_static_distribution_root",
+            "external_static_distribution_root must be an absolute normalized path",
+        )
+    _reject_symlink_components(root, "external static distribution root")
+    try:
+        metadata = root.lstat()
+        resolved = root.resolve(strict=True)
+    except OSError as exc:
+        _fail(
+            "invalid_external_static_distribution_root",
+            f"external static distribution root is unavailable: {exc}",
+        )
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+        _fail(
+            "invalid_external_static_distribution_root",
+            "external static distribution root must be a directory",
+        )
+    if resolved != root:
+        _fail(
+            "invalid_external_static_distribution_root",
+            "external static distribution root must not resolve through a symlink",
+        )
+    if stat.S_IMODE(metadata.st_mode) & 0o002:
+        _fail(
+            "unsafe_external_static_distribution_root",
+            "external static distribution root must not be world-writable",
+        )
+    if metadata.st_uid != os.geteuid() or metadata.st_gid != os.getegid():
+        _fail(
+            "invalid_external_static_distribution_owner",
+            "external static distribution root must be owned by the service user",
+        )
+    try:
+        index = _read_regular_file(root / "index.html", "external static index.html")
+        index.decode("utf-8")
+    except ServiceControlError as exc:
+        _fail("invalid_external_static_distribution_root", exc.message)
+    except UnicodeDecodeError as exc:
+        _fail(
+            "invalid_external_static_distribution_root",
+            f"external static index.html must be UTF-8: {exc}",
+        )
+    return value
+
+
+def _validate_external_static_configuration(
+    profile: Mapping[str, Any], present: frozenset[str]
+) -> tuple[bool, bool, str | None, str]:
+    static_present = bool(present & _STATIC_FIELDS)
+    if not static_present:
+        return False, False, None, _DEFAULT_EXTERNAL_STATIC_MOUNT_PATH
+    missing = sorted(_STATIC_FIELDS - present)
+    if missing:
+        _fail(
+            "missing_field",
+            f"external static configuration is missing fields: {missing}",
+        )
+    enabled = _require_boolean(
+        profile["external_static_enabled"], "external_static_enabled"
+    )
+    mount_path = _validate_external_static_mount_path(
+        profile["external_static_mount_path"]
+    )
+    root_value = profile["external_static_distribution_root"]
+    if enabled:
+        if root_value is None or root_value == "":
+            _fail(
+                "invalid_external_static_distribution_root",
+                "external_static_distribution_root is required when enabled",
+            )
+        root = _validate_external_static_distribution_root(root_value)
+    else:
+        if root_value is not None:
+            _fail(
+                "invalid_external_static_configuration",
+                "external_static_distribution_root must be null when disabled",
+            )
+        root = None
+    return True, enabled, root, mount_path
+
+
 def validate_operating_profile(value: Any) -> OperatingProfile:
     """Validate and normalize a decoded operating-profile object."""
 
@@ -387,6 +545,10 @@ def validate_operating_profile(value: Any) -> OperatingProfile:
             "recovery_delay.initial_seconds must not exceed maximum_seconds",
         )
 
+    static_fields_present, static_enabled, static_root, static_mount = (
+        _validate_external_static_configuration(profile, present)
+    )
+
     return OperatingProfile(
         public_endpoint=public_endpoint,
         private_router_endpoint=private_endpoint,
@@ -430,6 +592,10 @@ def validate_operating_profile(value: Any) -> OperatingProfile:
             maximum=3_600.0,
             minimum_inclusive=True,
         ),
+        external_static_enabled=static_enabled,
+        external_static_distribution_root=static_root,
+        external_static_mount_path=static_mount,
+        external_static_fields_present=static_fields_present,
     )
 
 
@@ -789,6 +955,70 @@ def set_desired_state(
     )
     _atomic_write_json(state_path, next_state.as_dict())
     return next_state
+
+
+def configure_static_profile(
+    profile_path: Path | str,
+    state_path: Path | str,
+    *,
+    external_static_enabled: bool,
+    external_static_distribution_root: Path | str | None,
+    external_static_mount_path: str = _DEFAULT_EXTERNAL_STATIC_MOUNT_PATH,
+) -> tuple[OperatingProfile, OperatingProfile, DesiredState, DesiredState]:
+    """Persist one product-owned static configuration and rebind desired state."""
+
+    if type(external_static_enabled) is not bool:
+        _fail(
+            "invalid_external_static_configuration",
+            "external_static_enabled must be a Boolean",
+        )
+    if external_static_distribution_root is not None:
+        try:
+            root_value = os.fspath(external_static_distribution_root)
+        except TypeError:
+            _fail(
+                "invalid_external_static_distribution_root",
+                "external_static_distribution_root must be a path or null",
+            )
+        if not isinstance(root_value, str):
+            _fail(
+                "invalid_external_static_distribution_root",
+                "external_static_distribution_root must be a text path",
+            )
+    else:
+        root_value = None
+    profile_file = Path(profile_path)
+    state_file = Path(state_path)
+    old_profile_value = _load_json(profile_file, "operating profile file")
+    old_state_value = _load_json(state_file, "desired-state file")
+    old_profile = validate_operating_profile(old_profile_value)
+    old_state = validate_desired_state(
+        old_state_value, expected_profile_identity=old_profile.identity
+    )
+    candidate_value = old_profile.as_dict()
+    candidate_value.update(
+        {
+            "external_static_enabled": external_static_enabled,
+            "external_static_distribution_root": root_value,
+            "external_static_mount_path": external_static_mount_path,
+        }
+    )
+    new_profile = validate_operating_profile(candidate_value)
+    rebound_state_value = old_state.as_dict()
+    rebound_state_value["profile_identity"] = new_profile.identity
+    new_state = validate_desired_state(
+        rebound_state_value, expected_profile_identity=new_profile.identity
+    )
+    _atomic_write_json(profile_file, new_profile.as_dict())
+    try:
+        _atomic_write_json(state_file, new_state.as_dict())
+    except BaseException:
+        try:
+            _atomic_write_json(profile_file, old_profile_value)
+        except BaseException:
+            pass
+        raise
+    return old_profile, new_profile, old_state, new_state
 
 
 class _ArgumentParser(argparse.ArgumentParser):
