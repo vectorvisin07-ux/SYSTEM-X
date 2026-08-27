@@ -728,11 +728,11 @@
     {
       "bytes": 3005,
       "classification": "STATIC_CONTRACT",
-      "git_blob": "697ba72e44983a723ca63d471c228851fc2d853e",
+      "git_blob": "a059ad25cc8463a09f37df25d8f01ebf9f8f290b",
       "git_mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
       "portable_mode": "0o0644",
-      "sha256": "505fb3c19279d4c1e181ca5ed74752c4d3d0958ec8874994850102c8613b560b"
+      "sha256": "f27b8a6316607ba0de50dd0aa6dc6e3dc121c086fbdf0a4317cdcadcb2503f3a"
     },
     {
       "bytes": 1009,
@@ -1790,11 +1790,11 @@
     {
       "bytes": 104774,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "cb966c90d4cac0cfdadd84bd881cd8483beac671",
+      "git_blob": "80bc0232989aab1c87d85afdb378aa2b73466d53",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service_controller/controller.py",
       "portable_mode": "0o0644",
-      "sha256": "7bf8e9101891c13e3aa46aed4b562c71bd8ebd0e236dd4f6ec13c7e1b6ad9646"
+      "sha256": "55771d6472cc016b3e4aab5a8da728bf1927c0b964a660f4673d4bc2f212611d"
     },
     {
       "bytes": 74310,
@@ -31112,7 +31112,7 @@
     {
       "bytes": 133224,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "123db10721c20e0fa92fbafcfaf7f34a0ea5dfdb",
+      "git_blob": "8b8b0bb2c66fc0f357c19e4716dbab818b3a2cae",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
       "portable_mode": "0o0644",
@@ -31175,11 +31175,11 @@
     {
       "bytes": 129705,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "01f781ddfb7204a4d35ac718e55dc0e39049905e",
+      "git_blob": "5eb36db3673178609167dfe083f30f7ed4f24007",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
       "portable_mode": "0o0644",
-      "sha256": "febd1630a997e6293fe63ef3d7c3f41addc53bdaa1f36e6be6c0f42237dba178"
+      "sha256": "dd8ba0338b661b3005c177e228403177ce26cf00fde3839572c27f7c389e0e3d"
     },
     {
       "bytes": 7585,
@@ -31202,7 +31202,7 @@
     {
       "bytes": 43936,
       "classification": "TRACKED_TEST",
-      "git_blob": "7792e51c87bec0052de23befa3f26a67bb6141d6",
+      "git_blob": "871590c8791f8179e664507b6399ca5b121ab4da",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/tests/test_linux_systemd_user_adapter.py",
       "portable_mode": "0o0644",

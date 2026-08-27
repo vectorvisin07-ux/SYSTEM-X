@@ -137,8 +137,8 @@ DEPENDENCY_FILES = {
         "2cb0966209ce3783077a37cd791fe4c31c7b750c9c8b46ddfe30b74c1877d58f",
     ),
     "src/system_x_gguf_api/external_static.py": (
-        7801,
-        "b4396d2e4f7d12f483a8baa3ac25f6b123f111bb8ea5d464dc8f2168ad1ed6ff",
+        9926,
+        "1afc528a63f317c5d498a5bdcf7ffbf81281cb6eb13693ca3491328aebcf9e94",
     ),
     "src/system_x_gguf_api/finalization_policy.py": (
         2371,
