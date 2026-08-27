@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import ast
+from contextlib import redirect_stdout
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -885,7 +889,7 @@ class CorrelationAndNegativeTests(SelectedAdapterCase):
         )
 
 
-class StaticIsolationTests(unittest.TestCase):
+class StaticIsolationTests(SelectedAdapterCase):
 
     def test_missing_user_config_directory_is_creatable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -968,6 +972,159 @@ class StaticIsolationTests(unittest.TestCase):
                 for name in core_imports
             )
         )
+
+
+    def test_public_front_door_parser_and_argument_contract(self) -> None:
+        parser = selected.build_argument_parser()
+        help_text = parser.format_help()
+        self.assertIn("status", help_text)
+        self.assertIn("configure-static-ui", help_text)
+        status = parser.parse_args(["status"])
+        self.assertEqual(status.operation, "status")
+        distribution_root = "/tmp/space-bearing distribution"
+        configuration = parser.parse_args(
+            [
+                "configure-static-ui",
+                "--enabled",
+                "true",
+                "--distribution-root",
+                distribution_root,
+                "--mount-path",
+                "/ui",
+            ]
+        )
+        self.assertEqual(configuration.operation, "configure-static-ui")
+        self.assertEqual(configuration.distribution_root, Path(distribution_root))
+        self.assertEqual(configuration.mount_path, "/ui")
+        with self.assertRaises(contract.AdapterError):
+            parser.parse_args(["unsupported-operation"])
+        with self.assertRaises(contract.AdapterError):
+            parser.parse_args(["configure-static-ui", "--enabled", "true"])
+        self.assertEqual(
+            set(selected.LINUX_OPERATION_HANDLERS),
+            {
+                "identify",
+                "validate",
+                "register",
+                "enable",
+                "disable",
+                "start",
+                "stop",
+                "restart",
+                "status",
+                "unregister",
+                "capability",
+                "configuration",
+                "configure-static-ui",
+                "supervisor-entrypoint",
+            },
+        )
+
+    def test_public_front_door_main_dispatches_isolated_status_and_configuration(
+        self,
+    ) -> None:
+        self.register()
+        distribution = self.root / "space-bearing distribution"
+        assets = distribution / "assets"
+        assets.mkdir(parents=True)
+        (distribution / "index.html").write_text(
+            '<script type="module" src="/ui/assets/app-12345678.js"></script>'
+            '<link rel="stylesheet" href="/ui/assets/app-12345678.css">',
+            encoding="utf-8",
+        )
+        (assets / "app-12345678.js").write_text(
+            "console.log('fixture');", encoding="utf-8"
+        )
+        (assets / "app-12345678.css").write_text(
+            "body{color:white}", encoding="utf-8"
+        )
+        common = [
+            "--adapter-runtime-root",
+            str(self.adapter_runtime),
+            "--unit-path",
+            str(self.unit_path),
+        ]
+
+        def invoke(arguments: list[str]) -> dict:
+            output = io.StringIO()
+            with mock.patch.object(
+                selected,
+                "LinuxSystemdUserServiceAdapter",
+                return_value=self.adapter,
+            ), redirect_stdout(output):
+                code = selected.main([*common, *arguments])
+            self.assertEqual(code, 0)
+            self.assertNotIn("Traceback", output.getvalue())
+            return json.loads(output.getvalue())
+
+        status = invoke(["status"])
+        self.assertTrue(status["ok"])
+        self.assertEqual(status["operation"], "status")
+        first = invoke(
+            [
+                "configure-static-ui",
+                "--enabled",
+                "true",
+                "--distribution-root",
+                str(distribution),
+                "--mount-path",
+                "/ui",
+            ]
+        )
+        self.assertTrue(first["ok"])
+        self.assertTrue(first["data"]["changed"])
+        self.assertEqual(first["data"]["configuration"]["mount_path"], "/ui")
+        first_manifest = self.manifest()
+        first_generation = first_manifest["manifest_generation"]
+        first_profile = self.profile_path.read_bytes()
+        first_state = self.state_path.read_bytes()
+        first_transactions = sorted(self.adapter.paths.transactions.glob("*.json"))
+        second = invoke(
+            [
+                "configure-static-ui",
+                "--enabled",
+                "true",
+                "--distribution-root",
+                str(distribution),
+                "--mount-path",
+                "/ui",
+            ]
+        )
+        self.assertTrue(second["ok"])
+        self.assertFalse(second["data"]["changed"])
+        self.assertTrue(second["data"]["no_op"])
+        self.assertEqual(self.manifest()["manifest_generation"], first_generation)
+        self.assertEqual(self.profile_path.read_bytes(), first_profile)
+        self.assertEqual(self.state_path.read_bytes(), first_state)
+        self.assertEqual(
+            sorted(self.adapter.paths.transactions.glob("*.json")),
+            first_transactions,
+        )
+
+    def test_public_front_door_failure_records_are_structured(self) -> None:
+        for arguments in (["unsupported-operation"], ["register"]):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = selected.main(arguments)
+            self.assertEqual(code, 2)
+            value = json.loads(output.getvalue())
+            self.assertFalse(value["ok"])
+            self.assertNotIn("Traceback", output.getvalue())
+            self.assertNotIn("NameError", output.getvalue())
+
+    def test_physical_front_door_help_subprocess_starts_cleanly(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, str(Path(selected.__file__)), "--help"],
+            cwd=str(BRANCH_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertIn("status", completed.stdout)
+        self.assertIn("configure-static-ui", completed.stdout)
 
 
 if __name__ == "__main__":

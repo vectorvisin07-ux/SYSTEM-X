@@ -26,13 +26,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import MappingProxyType
 from typing import Any, Mapping, NoReturn, Protocol, Sequence
 from urllib.parse import unquote, urlsplit
 
 if __package__:
     from .contract import (
         MANIFEST_SCHEMA,
-        OPERATIONS,
         STATUS_SCHEMA,
         AdapterError,
         AdapterPathsView,
@@ -66,7 +66,6 @@ else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from service_control.platform_adapters.contract import (  # type: ignore
         MANIFEST_SCHEMA,
-        OPERATIONS,
         STATUS_SCHEMA,
         AdapterError,
         AdapterPathsView,
@@ -127,6 +126,24 @@ REQUIRED_HOST_CAPABILITIES = (
     "manager_owned_journal",
 )
 MAX_RECORD_BYTES = 1_048_576
+LINUX_OPERATION_HANDLERS = MappingProxyType(
+    {
+        "identify": "identify",
+        "validate": "validate",
+        "register": "register",
+        "enable": "enable",
+        "disable": "disable",
+        "start": "start",
+        "stop": "stop",
+        "restart": "restart",
+        "status": "status",
+        "unregister": "unregister",
+        "capability": "capability",
+        "configuration": "configuration",
+        "configure-static-ui": "configure_static_ui",
+        "supervisor-entrypoint": "supervisor_entrypoint",
+    }
+)
 STATIC_REFERENCE_PATTERN = re.compile(
     r'''(?:src|href)\s*=\s*["']([^"']+)["']''',
     re.IGNORECASE,
@@ -1992,7 +2009,7 @@ class LinuxSystemdUserServiceAdapter:
             data={
                 "supported_platform_family": PLATFORM_FAMILY,
                 "activation_method": ACTIVATION_METHOD,
-                "operation_set": list(LINUX_OPERATIONS),
+                "operation_set": list(LINUX_OPERATION_HANDLERS),
                 "service_name": self.service_name,
             },
         )
@@ -3470,26 +3487,10 @@ class LinuxSystemdUserServiceAdapter:
         return result
 
     def invoke(self, operation: str, **arguments: Any) -> dict[str, Any]:
-        methods = {
-            "identify": self.identify,
-            "validate": self.validate,
-            "register": self.register,
-            "enable": self.enable,
-            "disable": self.disable,
-            "start": self.start,
-            "stop": self.stop,
-            "restart": self.restart,
-            "status": self.status,
-            "unregister": self.unregister,
-            "capability": self.capability,
-            "configuration": self.configuration,
-            "configure-static-ui": self.configure_static_ui,
-            "supervisor-entrypoint": self.supervisor_entrypoint,
-        }
-        method = methods.get(operation)
-        if method is None:
+        method_name = LINUX_OPERATION_HANDLERS.get(operation)
+        if method_name is None:
             _fail("ADAPTER_NOT_SUPPORTED", f"unknown operation: {operation}")
-        return method(**arguments)
+        return getattr(self, method_name)(**arguments)
 
     def error_result(
         self, operation: str, error: AdapterError
@@ -3561,7 +3562,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--service-name", default=SERVICE_NAME)
     parser.add_argument("--unit-path", type=Path)
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    for operation in LINUX_OPERATIONS:
+    for operation in LINUX_OPERATION_HANDLERS:
         command = subparsers.add_parser(operation)
         if operation == "register":
             _add_configuration_arguments(command, required=True)

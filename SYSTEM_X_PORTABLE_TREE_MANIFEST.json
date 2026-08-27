@@ -1331,7 +1331,7 @@
     {
       "bytes": 9926,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "b30fca582a42c106124d59352160f0daac057d74",
+      "git_blob": "0b108846fb3dff2e2cce6549b89954d393a0d6a5",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/external_static.py",
       "portable_mode": "0o0644",
@@ -31040,7 +31040,7 @@
     {
       "bytes": 3520,
       "classification": "STATIC_CONTRACT",
-      "git_blob": "52730494d399d9eb5fd451e2b53047fb7d1ff0f9",
+      "git_blob": "4bebafcabe08877282005453a58d5a52264ce230",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/operating-profile.schema.json",
       "portable_mode": "0o0644",
@@ -31049,7 +31049,7 @@
     {
       "bytes": 41595,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "180211f2323338a43c63c5d53715f1ede31dfc2b",
+      "git_blob": "8a5603b5ddb6c9b2db3e29dd178515ad2d6643a8",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/operating_profile.py",
       "portable_mode": "0o0644",
@@ -31110,13 +31110,13 @@
       "sha256": "8d6ad7643ab6c7243c2b392a5a81e43493218aecc63b39c1313524e4512f540d"
     },
     {
-      "bytes": 133235,
+      "bytes": 133224,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "4b7ca9de71294e2216f3a560bac21fd15a2baf16",
+      "git_blob": "123db10721c20e0fa92fbafcfaf7f34a0ea5dfdb",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
       "portable_mode": "0o0644",
-      "sha256": "dce7ddae4fb1b20f7d18b11436fc0bc5f177b78aeebfb7616b087bb383927d05"
+      "sha256": "6207564ea05e75fe1c3b79e4418e0acba32af9519c1daa966530daa466a20902"
     },
     {
       "bytes": 1737,
@@ -31175,7 +31175,7 @@
     {
       "bytes": 129705,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "4ed3e76208c1d5df5ab4ff211953b47ace25a84f",
+      "git_blob": "01f781ddfb7204a4d35ac718e55dc0e39049905e",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
       "portable_mode": "0o0644",
@@ -31200,13 +31200,13 @@
       "sha256": "528b3193c8924e4a97db7822dd5d40fd0e3d24bfc47576dcb63a178dc4bfc9c0"
     },
     {
-      "bytes": 37988,
+      "bytes": 43936,
       "classification": "TRACKED_TEST",
-      "git_blob": "57c0d8634112dd947d107055f9fb16859f2ee52b",
+      "git_blob": "7792e51c87bec0052de23befa3f26a67bb6141d6",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/tests/test_linux_systemd_user_adapter.py",
       "portable_mode": "0o0644",
-      "sha256": "bb74e549fdff1885f9231f67ecdf74eb6cc45558c8a36b2d38b175446e71fb3c"
+      "sha256": "0920ee359a69b32cdcaeb8c69c0c2531f5e3b80c0977927ee476b10197a16abe"
     },
     {
       "bytes": 30048,
@@ -31238,7 +31238,7 @@
     {
       "bytes": 47738,
       "classification": "TRACKED_TEST",
-      "git_blob": "794d0e887a4e3e10ee56f7f5585f42f2247e20e5",
+      "git_blob": "5855948abcced90781eb2fbf058d4ca4a47417c3",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/tests/test_supervisor.py",
       "portable_mode": "0o0644",
