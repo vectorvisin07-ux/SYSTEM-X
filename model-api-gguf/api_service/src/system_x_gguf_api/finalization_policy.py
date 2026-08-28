@@ -18,6 +18,40 @@ class TurnIntent(str, Enum):
     STRUCTURED_FINALIZATION = "structured_finalization"
 
 
+FINAL_ANSWER_RESERVE_CONTRACT = "bounded_two_phase_non_stream"
+
+
+def validate_final_answer_reserve(
+    *,
+    intent: TurnIntent,
+    reasoning_mode: str | None,
+    reserve_tokens: int | None,
+    max_output_tokens: int,
+    stream: bool,
+) -> int | None:
+    """Validate the explicit reserve contract before private forwarding."""
+
+    if reserve_tokens is None:
+        return None
+    if intent is not TurnIntent.NORMAL_TEXT or reasoning_mode != "pro_extended":
+        raise ValueError(
+            "final_answer_reserve_tokens requires pro_extended normal text"
+        )
+    if stream:
+        raise ValueError(
+            "final_answer_reserve_tokens is unsupported for streaming"
+        )
+    if type(reserve_tokens) is not int or reserve_tokens < 1:
+        raise ValueError(
+            "final_answer_reserve_tokens must be at least one token"
+        )
+    if reserve_tokens >= max_output_tokens:
+        raise ValueError(
+            "final_answer_reserve_tokens must leave a reasoning allocation"
+        )
+    return reserve_tokens
+
+
 def classify_turn_intent(
     *,
     history: ToolHistory,

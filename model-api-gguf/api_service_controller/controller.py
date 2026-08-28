@@ -141,12 +141,12 @@ DEPENDENCY_FILES = {
         "1afc528a63f317c5d498a5bdcf7ffbf81281cb6eb13693ca3491328aebcf9e94",
     ),
     "src/system_x_gguf_api/finalization_policy.py": (
-        2371,
-        "1e94665f7dcd50553cfb903b949c9bf71c84aab7d1e64a387e601f4ebeec9687",
+        3423,
+        "c1cba47c2f9f7a5aa6a47aa677774863ecd81b82222a4411448a62968f6cab5d",
     ),
     "src/system_x_gguf_api/inference_service.py": (
-        31794,
-        "b125008b916e060f86d58c294bfa5b5970050417a67c8a8ff59288ede9aabce0",
+        38538,
+        "1b8ab7555adebe271688d60be489f7efd8f6a1b5f7754dc6ab502c788133fd65",
     ),
     "src/system_x_gguf_api/model_catalogue.py": (
         21837,

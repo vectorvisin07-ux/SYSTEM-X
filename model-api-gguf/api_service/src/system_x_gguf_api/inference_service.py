@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import logging
 import os
@@ -17,9 +17,11 @@ from .backend import (
 )
 from .errors import SystemXError
 from .finalization_policy import (
+    TurnIntent,
     classify_turn_intent,
     private_chat_template_kwargs,
     retain_declared_tools,
+    validate_final_answer_reserve,
 )
 from .model_catalogue import ModelCatalogue, ModelSnapshot
 from .request_governance import RequestGovernance
@@ -93,6 +95,7 @@ class PreparedChat:
     private_choice: str | dict[str, Any] | None
     private_format: dict[str, Any] | None
     private_template_kwargs: dict[str, bool] | None
+    final_answer_reserve_tokens: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +107,7 @@ class PreparedResponses:
     private_choice: str | dict[str, Any] | None
     private_format: dict[str, Any] | None
     private_template_kwargs: dict[str, bool] | None
+    final_answer_reserve_tokens: int | None
 
 
 class InferenceService:
@@ -226,16 +230,19 @@ class InferenceService:
         endpoint: str,
         lease: InferenceBackendLease,
         observation: RouterObservation,
+        *,
+        phase: str = "single",
     ) -> None:
         body_bytes = observation.body.encode("utf-8")
         LOGGER.info(
             "private inference result "
-            "service_transaction=%s request_id=%s "
+            "service_transaction=%s request_id=%s phase=%s "
             "router_transaction=%s router_pid=%s router_pgid=%s router_sid=%s "
             "router_start=%s router_model=%s endpoint=%s "
             "status=%s transport_error=%s body_bytes=%s body_sha256=%s",
             os.environ.get(SERVICE_TRANSACTION_ENV, "unavailable"),
             request_id,
+            phase,
             lease.router_identity.transaction_id,
             lease.router_identity.pid,
             lease.router_identity.pgid,
@@ -347,6 +354,33 @@ class InferenceService:
             str(exc),
         ) from exc
 
+    @staticmethod
+    def _validate_reserve(
+        *,
+        intent: TurnIntent,
+        reasoning: ReasoningRequest | None,
+        max_output_tokens: int,
+        stream: bool,
+    ) -> int | None:
+        try:
+            return validate_final_answer_reserve(
+                intent=intent,
+                reasoning_mode=reasoning.mode if reasoning is not None else None,
+                reserve_tokens=(
+                    reasoning.final_answer_reserve_tokens
+                    if reasoning is not None
+                    else None
+                ),
+                max_output_tokens=max_output_tokens,
+                stream=stream,
+            )
+        except ValueError as exc:
+            raise SystemXError(
+                422,
+                "system_x_capability_unavailable",
+                str(exc),
+            ) from exc
+
     async def _reasoning_template_kwargs(
         self,
         snapshot: ModelSnapshot,
@@ -366,8 +400,11 @@ class InferenceService:
             snapshot
         )
         enable: bool | None = None
-        if reasoning is not None and available:
-            enable = reasoning.mode == "pro_extended"
+        if available:
+            if reasoning is None and intent is TurnIntent.NORMAL_TEXT:
+                enable = False
+            elif reasoning is not None:
+                enable = reasoning.mode == "pro_extended"
         return private_chat_template_kwargs(intent, enable)
 
     async def prepare_generate(
@@ -411,6 +448,12 @@ class InferenceService:
             messages=request.messages,
             has_tools=bool(definitions),
             has_output_format=request.output_format is not None,
+        )
+        reserve_tokens = self._validate_reserve(
+            intent=intent,
+            reasoning=request.reasoning,
+            max_output_tokens=request.max_output_tokens,
+            stream=request.stream,
         )
         snapshot = await self.catalogue.resolve(request.model)
         self.operations.note_model(
@@ -456,6 +499,7 @@ class InferenceService:
             private_template_kwargs=await self._reasoning_template_kwargs(
                 snapshot, intent, request.reasoning
             ),
+            final_answer_reserve_tokens=reserve_tokens,
         )
 
     async def prepare_responses(
@@ -492,6 +536,12 @@ class InferenceService:
             messages=canonical_messages,
             has_tools=bool(definitions),
             has_output_format=request.output_format is not None,
+        )
+        reserve_tokens = self._validate_reserve(
+            intent=intent,
+            reasoning=request.reasoning,
+            max_output_tokens=request.max_output_tokens,
+            stream=request.stream,
         )
         snapshot = await self.catalogue.resolve(request.model)
         self.operations.note_model(
@@ -535,6 +585,7 @@ class InferenceService:
             private_template_kwargs=await self._reasoning_template_kwargs(
                 snapshot, intent, request.reasoning
             ),
+            final_answer_reserve_tokens=reserve_tokens,
         )
 
     async def generate(
@@ -598,6 +649,10 @@ class InferenceService:
         prepared = await self.prepare_chat(request_id, request)
         snapshot = prepared.snapshot
         selected = prepared.selected
+        reserve_tokens = prepared.final_answer_reserve_tokens
+        phase_one_max_tokens = request.max_output_tokens
+        if reserve_tokens is not None:
+            phase_one_max_tokens -= reserve_tokens
         try:
             async with self.backend.inference_session(
                 snapshot.router_model_id,
@@ -616,7 +671,7 @@ class InferenceService:
                 observation = await lease.router.chat_completion(
                     lease.router_model_id,
                     prepared.messages,
-                    request.max_output_tokens,
+                    phase_one_max_tokens,
                     request.temperature,
                     request.stop,
                     prepared.private_tools,
@@ -629,13 +684,63 @@ class InferenceService:
                     "/v1/chat/completions",
                     lease,
                     observation,
+                    phase="reasoning" if reserve_tokens is not None else "single",
                 )
-                normalized = normalize_chat_turn(
-                    observation,
-                    request.tools,
-                    selected,
-                    request.output_format,
-                )
+                phase_one = None
+                try:
+                    phase_one = normalize_chat_turn(
+                        observation,
+                        request.tools,
+                        selected,
+                        request.output_format,
+                    )
+                except ResponseNormalizationError as exc:
+                    if reserve_tokens is None or exc.kind not in {
+                        "reasoning_only_output",
+                        "empty_final_chat_output",
+                    }:
+                        raise
+                normalized = phase_one
+                if reserve_tokens is not None and (
+                    normalized is None or normalized.content is None
+                ):
+                    final_observation = await lease.router.chat_completion(
+                        lease.router_model_id,
+                        prepared.messages,
+                        reserve_tokens,
+                        request.temperature,
+                        request.stop,
+                        prepared.private_tools,
+                        prepared.private_choice,
+                        prepared.private_format,
+                        private_chat_template_kwargs(
+                            TurnIntent.NORMAL_TEXT, False
+                        ),
+                    )
+                    self._record_private_result(
+                        request_id,
+                        "/v1/chat/completions",
+                        lease,
+                        final_observation,
+                        phase="final_answer",
+                    )
+                    final_normalized = normalize_chat_turn(
+                        final_observation,
+                        request.tools,
+                        selected,
+                        request.output_format,
+                    )
+                    phase_reasoning = (
+                        phase_one.reasoning if phase_one is not None else ()
+                    )
+                    normalized = replace(
+                        final_normalized,
+                        reasoning=phase_reasoning + final_normalized.reasoning,
+                        reasoning_observed=(
+                            bool(phase_reasoning)
+                            or final_normalized.reasoning_observed
+                        ),
+                    )
         except ResponseNormalizationError as exc:
             self._raise_normalization(exc)
         except BackendError as exc:
@@ -685,6 +790,10 @@ class InferenceService:
         prepared = await self.prepare_responses(request_id, request)
         snapshot = prepared.snapshot
         selected = prepared.selected
+        reserve_tokens = prepared.final_answer_reserve_tokens
+        phase_one_max_tokens = request.max_output_tokens
+        if reserve_tokens is not None:
+            phase_one_max_tokens -= reserve_tokens
         try:
             async with self.backend.inference_session(
                 snapshot.router_model_id,
@@ -703,7 +812,7 @@ class InferenceService:
                 observation = await lease.router.responses(
                     lease.router_model_id,
                     prepared.private_input,
-                    request.max_output_tokens,
+                    phase_one_max_tokens,
                     request.instructions,
                     request.temperature,
                     prepared.private_tools,
@@ -712,15 +821,69 @@ class InferenceService:
                     prepared.private_template_kwargs,
                 )
                 self._record_private_result(
-                    request_id, "/v1/responses", lease, observation
-                )
-                normalized = normalize_responses_turn(
+                    request_id,
+                    "/v1/responses",
+                    lease,
                     observation,
-                    request.tools,
-                    selected,
-                    request.output_format,
-                    request.max_output_tokens,
+                    phase="reasoning" if reserve_tokens is not None else "single",
                 )
+                phase_one = None
+                try:
+                    phase_one = normalize_responses_turn(
+                        observation,
+                        request.tools,
+                        selected,
+                        request.output_format,
+                        phase_one_max_tokens,
+                    )
+                except ResponseNormalizationError as exc:
+                    if reserve_tokens is None or exc.kind not in {
+                        "reasoning_only_output",
+                        "empty_responses_output",
+                    }:
+                        raise
+                normalized = phase_one
+                if reserve_tokens is not None and (
+                    normalized is None or normalized.content is None
+                ):
+                    final_observation = await lease.router.responses(
+                        lease.router_model_id,
+                        prepared.private_input,
+                        reserve_tokens,
+                        request.instructions,
+                        request.temperature,
+                        prepared.private_tools,
+                        prepared.private_choice,
+                        prepared.private_format,
+                        private_chat_template_kwargs(
+                            TurnIntent.NORMAL_TEXT, False
+                        ),
+                    )
+                    self._record_private_result(
+                        request_id,
+                        "/v1/responses",
+                        lease,
+                        final_observation,
+                        phase="final_answer",
+                    )
+                    final_normalized = normalize_responses_turn(
+                        final_observation,
+                        request.tools,
+                        selected,
+                        request.output_format,
+                        reserve_tokens,
+                    )
+                    phase_reasoning = (
+                        phase_one.reasoning if phase_one is not None else ()
+                    )
+                    normalized = replace(
+                        final_normalized,
+                        reasoning=phase_reasoning + final_normalized.reasoning,
+                        reasoning_observed=(
+                            bool(phase_reasoning)
+                            or final_normalized.reasoning_observed
+                        ),
+                    )
         except ResponseNormalizationError as exc:
             self._raise_normalization(exc)
         except BackendError as exc:

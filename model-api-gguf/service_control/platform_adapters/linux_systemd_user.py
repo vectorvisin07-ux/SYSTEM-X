@@ -1188,7 +1188,9 @@ def _decode_systemd_assignment_path(value: str, label: str) -> str:
     return decoded
 
 
-def _existing_product_unit_identity(unit_path: Path) -> dict[str, str]:
+def _existing_product_unit_identity(
+    unit_path: Path, *, expected_branch_root: Path | None = None
+) -> dict[str, str]:
     """Identify an existing System X unit before replacing its root binding."""
 
     if os.path.islink(unit_path):
@@ -1259,6 +1261,17 @@ def _existing_product_unit_identity(unit_path: Path) -> dict[str, str]:
         _fail("SERVICE_NAME_COLLISION", "existing service definition lacks locked controller identities")
     if arguments[14] != API_CONTROLLER_SHA256 or arguments[16] != BRANCH_CONTROLLER_SHA256:
         _fail("SERVICE_NAME_COLLISION", "existing service definition has unexpected controller identities")
+    if expected_branch_root is not None:
+        expected_root = _absolute(expected_branch_root)
+        if branch_root != expected_root:
+            _fail(
+                "SERVICE_NAME_COLLISION",
+                "existing service definition belongs to another System X installation",
+                data={
+                    "existing_branch_root": str(branch_root),
+                    "expected_branch_root": str(expected_root),
+                },
+            )
     return {
         "branch_root": str(branch_root),
         "unit_sha256": hashlib.sha256(data).hexdigest(),
@@ -2377,7 +2390,18 @@ class LinuxSystemdUserServiceAdapter:
         unit: bytes,
         before: Mapping[str, Any],
     ) -> dict[str, Any]:
-        existing = _existing_product_unit_identity(self.unit_path)
+        candidate_root = _absolute(supervisor_runtime_root)
+        expected_branch_root = None
+        if (
+            candidate_root.name == "service_control"
+            and candidate_root.parent.name == "RUNTIME"
+            and candidate_root.parent.parent.name == "model-api-gguf"
+        ):
+            expected_branch_root = candidate_root.parents[2]
+        existing = _existing_product_unit_identity(
+            self.unit_path,
+            expected_branch_root=expected_branch_root,
+        )
         old_unit = _read_regular(self.unit_path, "existing service definition")
         initial_before = dict(before)
         manager_stop_result = None

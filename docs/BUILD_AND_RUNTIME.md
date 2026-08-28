@@ -40,6 +40,24 @@ The automatic coordinator uses first-model placement only. It does not replace a
 ## Lifecycle control
 
 Desired-state changes and activation are accepted only through the selected platform adapter. Do not kill processes directly. `WAITING_FOR_MODEL` is the stable authenticated state before automatic placement; `READY` requires physical candidate acceptance and runtime verification. Read-only receipt inspection does not mutate service, model, registry, or credential state.
+
+## Chat finalization
+
+Ordinary text chat is final-answer-first across the native, OpenAI-compatible,
+Responses, and Messages-compatible adapters. When the selected model exposes
+the canonical template toggle, ordinary requests and explicit standard mode
+forward enable_thinking=false; explicit pro_extended forwards true for
+its reasoning phase. Tool-result and structured-output finalization also
+disables private reasoning.
+
+The canonical final_answer_reserve_tokens field is a bounded non-stream
+pro-extended contract. It reserves a final-answer phase after a bounded
+reasoning phase, preserves one public request identity, and keeps reasoning
+separate from final text. Streaming reserve requests are rejected with a
+capability error before private forwarding rather than being ignored. A
+completed response must always contain non-empty final output; a bounded
+reasoning-only result remains incomplete or fails truthfully.
+
 ## Receipt and client contract
 
 The zero-argument `show-connection` operation is read-only. It checks the stored connection receipt, reports its byte identity, and never prints the raw key. The receipt supplies the local origins and the recommended client model reference `default` for native, OpenAI-compatible, and Messages-compatible requests.

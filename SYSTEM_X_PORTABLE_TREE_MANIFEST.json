@@ -609,13 +609,13 @@
       "sha256": "9444fa8d07f06f4815e70770c4d6a78e4d37a555712882af795e25a846ca714d"
     },
     {
-      "bytes": 5948,
+      "bytes": 6448,
       "classification": "TRACKED_TEST",
       "git_blob": "b7785cbc1c43be1a803e52eac85504741ae360a8",
       "git_mode": "100644",
       "path": "INSPECTOR/tests/test_source_gate.py",
       "portable_mode": "0o0644",
-      "sha256": "d868d38820869a33b1afa6bb1d535332af3de34d1c279a046285b32f61519015"
+      "sha256": "a3a9895209b43a4a276b8b6d47cefc25ed117f146ab3cf2ba28ae4616114922d"
     },
     {
       "bytes": 4397,
@@ -669,7 +669,7 @@
       "git_mode": "100644",
       "path": "SYSTEM_X_REPOSITORY_MANIFEST.json",
       "portable_mode": "0o0644",
-      "sha256": "9f8a2a29dde35acc2a8dd3d9648e01a3d8331c01bbbfedf7bdea5596341491d8"
+      "sha256": "c24273125f63daee283cc22f34593a016a9fac6816ebf5f3f04603728d25679b"
     },
     {
       "bytes": 1032,
@@ -732,7 +732,7 @@
       "git_mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
       "portable_mode": "0o0644",
-      "sha256": "f27b8a6316607ba0de50dd0aa6dc6e3dc121c086fbdf0a4317cdcadcb2503f3a"
+      "sha256": "57535dc94191e4a67ee80d7b997534b5772ce7974b69683506aab58577fb3996"
     },
     {
       "bytes": 1009,
@@ -1050,13 +1050,13 @@
       "sha256": "208d81c73e77ee8d97bd25652de05d779567346895c57bb39c226479ff4b70d6"
     },
     {
-      "bytes": 3333,
+      "bytes": 4262,
       "classification": "DOCUMENTATION",
       "git_blob": "6c888543f765f9b737c9cdb97ec9ea2e25fd590c",
       "git_mode": "100644",
       "path": "docs/BUILD_AND_RUNTIME.md",
       "portable_mode": "0o0644",
-      "sha256": "12f2a4b0263e6ac0bf981a50a2fc4dbb85fbf44d400f0dad39538bdabe9ec812"
+      "sha256": "19ed52ee705fb208396e8ddd9c89efbbfdd82fa2d5d37cde2345c0a2cdc0fc38"
     },
     {
       "bytes": 2652,
@@ -1338,22 +1338,22 @@
       "sha256": "1afc528a63f317c5d498a5bdcf7ffbf81281cb6eb13693ca3491328aebcf9e94"
     },
     {
-      "bytes": 2371,
+      "bytes": 3423,
       "classification": "TRACKED_CANDIDATE_INPUT",
       "git_blob": "61db32d350e8317277224ccade883340dd4f02ac",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/finalization_policy.py",
       "portable_mode": "0o0644",
-      "sha256": "1e94665f7dcd50553cfb903b949c9bf71c84aab7d1e64a387e601f4ebeec9687"
+      "sha256": "c1cba47c2f9f7a5aa6a47aa677774863ecd81b82222a4411448a62968f6cab5d"
     },
     {
-      "bytes": 31794,
+      "bytes": 38538,
       "classification": "TRACKED_CANDIDATE_INPUT",
       "git_blob": "07632bed4e937b260928489a37130258e3d10b25",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/inference_service.py",
       "portable_mode": "0o0644",
-      "sha256": "b125008b916e060f86d58c294bfa5b5970050417a67c8a8ff59288ede9aabce0"
+      "sha256": "1b8ab7555adebe271688d60be489f7efd8f6a1b5f7754dc6ab502c788133fd65"
     },
     {
       "bytes": 21837,
@@ -1794,7 +1794,7 @@
       "git_mode": "100644",
       "path": "model-api-gguf/api_service_controller/controller.py",
       "portable_mode": "0o0644",
-      "sha256": "55771d6472cc016b3e4aab5a8da728bf1927c0b964a660f4673d4bc2f212611d"
+      "sha256": "defab25c1fe23f6f4f0756d20c7807a95e3831d9e5099efab14d593fa0e724d8"
     },
     {
       "bytes": 74310,
@@ -31110,13 +31110,13 @@
       "sha256": "8d6ad7643ab6c7243c2b392a5a81e43493218aecc63b39c1313524e4512f540d"
     },
     {
-      "bytes": 133224,
+      "bytes": 134182,
       "classification": "TRACKED_CANDIDATE_INPUT",
       "git_blob": "8b8b0bb2c66fc0f357c19e4716dbab818b3a2cae",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
       "portable_mode": "0o0644",
-      "sha256": "6207564ea05e75fe1c3b79e4418e0acba32af9519c1daa966530daa466a20902"
+      "sha256": "a54356136e3a63ae17bda39fdf16c22d9022fbbc4f44d662c1497bbf6fb4f6c0"
     },
     {
       "bytes": 1737,
@@ -31179,7 +31179,7 @@
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
       "portable_mode": "0o0644",
-      "sha256": "dd8ba0338b661b3005c177e228403177ce26cf00fde3839572c27f7c389e0e3d"
+      "sha256": "f0fc70ee014267f3d75fef754ae89cb169fe993b6af919f3db97bc3b3ef43700"
     },
     {
       "bytes": 7585,
