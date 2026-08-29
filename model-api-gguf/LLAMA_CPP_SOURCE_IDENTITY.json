@@ -1,7 +1,7 @@
 {
   "build_output_excluded": true,
   "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
-  "complete_vendored_manifest_sha256": "67e0de2dab224c6e941b1dc8de3ab4a0156b966e377c21ec4e6a11c34e7c287d",
+  "complete_vendored_manifest_sha256": "a4b51e97ab6f33f51bd0d1ae4073d7ceeece6b55e51f01df92c1c16b85c89def",
   "files": [
     {
       "bytes": 4961,
@@ -2228,13 +2228,6 @@
       "mode": "100644",
       "path": "docs/development/debugging-tests.md",
       "sha256": "fb0aba1f9e57ececadf73726de9d5a1ba02b6bb50bccd8f701acb19a600f700e"
-    },
-    {
-      "bytes": 488591,
-      "git_blob_oid": "3e068e7075c2ebb53a270b57c51e9281618d8f29",
-      "mode": "100755",
-      "path": "docs/development/llama-star/idea-arch.key",
-      "sha256": "32dede0548e6501b4b60d89b4afc3445a9a45c5df6fcee0c2bb9fe75592908c9"
     },
     {
       "bytes": 42334,
@@ -22739,8 +22732,8 @@
   "schema": "system-x.llama-cpp-source-identity.v1",
   "source_patch_count": 0,
   "tag": "b10092",
-  "tracked_byte_count": 160919633,
-  "tracked_file_count": 3243,
+  "tracked_byte_count": 160431042,
+  "tracked_file_count": 3242,
   "upstream_tree": "cfbb48d88cfd7f0530f27e08b0112dd66c001816",
   "version": 1
 }

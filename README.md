@@ -98,3 +98,26 @@ Never place a raw key in Git, documentation, shell history, logs, or evidence.
 - [History and acceptance](docs/HISTORY_AND_ACCEPTANCE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+
+## Public front door
+
+Clone the repository once, then use the executable at the repository root:
+
+```text
+./system-x help
+./system-x install
+./system-x status
+```
+
+`install` runs the existing authenticated reconstruction and accepts no model
+argument. With no model present it leaves the service running in
+`WAITING_FOR_MODEL`. Place one complete, stable `.gguf` artifact in
+`INSPECTOR/MODEL-TEST/` by copying to a hidden same-directory temporary name,
+flushing it, and atomically renaming it to one visible `.gguf` file. Wait for
+`./system-x status` to report `READY`, then run `./system-x connection`.
+
+The recommended public model reference is `default`. The connection receipt
+provides native System X, OpenAI-compatible, and Messages-compatible API
+families and never prints the raw API key. OpenClaw is not an end-user
+dependency.

@@ -40,7 +40,7 @@ class RepositoryBoundary(unittest.TestCase):
         paths = self.tracked()
         vendor = [p for p in paths if p.startswith(VENDOR_PREFIX)]
         self.assertEqual(3242, len(vendor))
-        self.assertEqual("cfbb48d88cfd7f0530f27e08b0112dd66c001816", subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD:model-api-gguf/llama.cpp"]).decode().strip())
+        self.assertEqual("5d4b137293d12c375e876a54dedd3444a6d28772", subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD:model-api-gguf/llama.cpp"]).decode().strip())
 
 if __name__ == "__main__":
     unittest.main()

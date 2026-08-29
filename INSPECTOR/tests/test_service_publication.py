@@ -342,6 +342,28 @@ class PublicationFoundationTest(unittest.TestCase):
         self.assertEqual(prepare.call_count, 2)
         sleep.assert_called_once()
 
+    def test_publication_waits_for_public_health_convergence(self) -> None:
+        prepared_value = object()
+        transient = InspectorError(
+            "PUBLIC_HEALTH_FAILED",
+            "public health is still warming the handed-off model",
+        )
+        with (
+            mock.patch(
+                "system_x_inspector.service_publication.prepare_publication",
+                side_effect=[transient, prepared_value],
+            ) as prepare,
+            mock.patch("system_x_inspector.service_publication.time.sleep")
+            as sleep,
+        ):
+            result = prepare_publication_with_convergence_wait(
+                self.paths,
+                "handoff-public-health-fixture",
+            )
+        self.assertIs(result, prepared_value)
+        self.assertEqual(prepare.call_count, 2)
+        sleep.assert_called_once()
+
     def test_paths_contained_and_machine_parser_input_closed(self) -> None:
         self.assertTrue(
             self.paths.publication_results.is_relative_to(self.root)

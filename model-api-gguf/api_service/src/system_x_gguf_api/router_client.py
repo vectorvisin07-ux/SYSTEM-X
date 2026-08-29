@@ -473,7 +473,7 @@ class RouterClient:
         package_file = Path(__file__).resolve(strict=True)
         self._models_root = (
             package_file.parents[3] / "MODEL" / "SUPERMODEL"
-        ).resolve(strict=True)
+        ).resolve(strict=False)
         self._control_timeout = httpx.Timeout(
             connect=min(10.0, operation_timeout_seconds),
             read=operation_timeout_seconds,

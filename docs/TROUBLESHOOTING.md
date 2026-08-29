@@ -55,3 +55,22 @@ Stop automatic placement and preserve the existing records. Use read-only status
 ## Model becomes `READY`
 
 A successful automatic path reaches `READY` only after the candidate is accepted through the pinned `llama.cpp` and `llama-server` GGUF branch. Use the receipt for the resolved client reference; do not change service or model state by hand.
+
+
+## Public front-door troubleshooting
+
+- `SOURCE_ONLY`: the clone is present but the authenticated installation has
+  not run. Use `system-x install`.
+- `WAITING_FOR_MODEL`: the service is running and waiting for one complete,
+  stable `.gguf` file in `INSPECTOR/MODEL-TEST/`. Use one hidden temporary copy
+  and a same-directory atomic rename so intake never sees a partial artifact.
+- `READY`: run `system-x connection` and use model reference `default`.
+- `CONNECTION_STALE` or `DEGRADED`: keep the receipt private and rerun the
+  read-only status/connection commands; do not edit generated state or resend
+  a generation request.
+- `REPAIR_REQUIRED`: preserve the installation and its receipts, then inspect
+  the read-only `system-x doctor` result. Do not manually start a backend,
+  change the registry, or manipulate the service manager.
+
+The public commands do not require OpenClaw and never display the raw API key,
+private model-child endpoint, or physical model path.

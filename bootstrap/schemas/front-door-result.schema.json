@@ -1,0 +1,758 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "system-x.front-door-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation",
+    "ok",
+    "reason_code",
+    "message",
+    "installation_state",
+    "service_state",
+    "readiness_state",
+    "model_state",
+    "connection_state",
+    "recommended_model",
+    "child_result_identities",
+    "timestamp_utc"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "system-x.front-door-result.v1"
+    },
+    "operation": {
+      "enum": [
+        "install",
+        "status",
+        "connection",
+        "doctor",
+        "help",
+        "unknown"
+      ]
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "installation_state": {
+      "enum": [
+        "SOURCE_ONLY",
+        "INSTALLING",
+        "INSTALLED",
+        "REPAIR_REQUIRED"
+      ]
+    },
+    "service_state": {
+      "enum": [
+        "RUNNING",
+        "STOPPED",
+        "DEGRADED",
+        "UNKNOWN"
+      ]
+    },
+    "readiness_state": {
+      "enum": [
+        "INSTALLING",
+        "WAITING_FOR_MODEL",
+        "READY",
+        "DEGRADED",
+        "STOPPED",
+        "UNKNOWN"
+      ]
+    },
+    "model_state": {
+      "enum": [
+        "ABSENT",
+        "LOADING",
+        "READY",
+        "DEGRADED",
+        "UNKNOWN"
+      ]
+    },
+    "connection_state": {
+      "enum": [
+        "NOT_READY",
+        "READY",
+        "STALE",
+        "UNKNOWN"
+      ]
+    },
+    "recommended_model": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "child_result_identities": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "exit_status",
+          "output_valid",
+          "timeout"
+        ],
+        "properties": {
+          "exit_status": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "output_valid": {
+            "type": "boolean"
+          },
+          "timeout": {
+            "type": "boolean"
+          },
+          "operation": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "ok": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "receipt_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "result_class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "schema_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "connection": {
+      "$ref": "#/$defs/connection"
+    }
+  },
+  "$defs": {
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "connectionFamily": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "endpoint_semantics": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "compatibility_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "authentication": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "endpoints": {
+          "$ref": "#/$defs/stringMap"
+        },
+        "required_headers": {
+          "$ref": "#/$defs/stringMap"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "public_origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "service_available": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "inference_ready": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "service_readiness": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_service_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "desired_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "always_on": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "authentication_required": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recommended_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_alias": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolved_immutable_model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "physical_architecture": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "physical_model_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "official_checkpoint_attested": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "artifact_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact_version_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_manifest_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "warm": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "context_window_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "maximum_output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "authentication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "accepted_schemes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "non_secret_key_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "raw_api_key_returned": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "streaming": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "token_counting": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "reasoning_output": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "reasoning_control": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "tool_calling": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "structured_output": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "context_window_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "health_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "model_list_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "model_detail_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "proof_request_id": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "proof_request_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "response_model_matches": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "artifact_version_matches": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "final_content_nonempty": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "operation_record_correlated": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "openai_model_list_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "openai_model_list_contains_recommended_model": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "openai_model_list_contains_resolved_model": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "messages_model_list_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "messages_model_list_contains_recommended_model": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "messages_model_list_contains_resolved_model": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "messages_token_count_http_status": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "messages_token_count_result_valid": {
+          "type": [
+            "integer",
+            "boolean",
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "promotion_result": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rollback_result": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retirement_result": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "service_left_running": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "service_left_ready": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "current_receipt_updated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_class",
+        "reason_code"
+      ],
+      "properties": {
+        "result_class": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason_code": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "receipt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_utc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deployment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deployment_result_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "service": {
+          "$ref": "#/$defs/service"
+        },
+        "connections": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "system_x_native": {
+              "$ref": "#/$defs/connectionFamily"
+            },
+            "openai_compatible": {
+              "$ref": "#/$defs/connectionFamily"
+            },
+            "messages_compatible": {
+              "$ref": "#/$defs/connectionFamily"
+            }
+          }
+        },
+        "model": {
+          "$ref": "#/$defs/model"
+        },
+        "authentication": {
+          "$ref": "#/$defs/authentication"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/capabilities"
+        },
+        "proof": {
+          "$ref": "#/$defs/proof"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        }
+      }
+    }
+  }
+}

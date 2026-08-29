@@ -1155,7 +1155,7 @@ class BootstrapMatrix(unittest.TestCase):
 
     def test_41_schemas_are_closed_utf8_json(self) -> None:
         schemas = sorted((BOOTSTRAP_ROOT / "schemas").glob("*.json"))
-        self.assertEqual(len(schemas), 4)
+        self.assertEqual(len(schemas), 5)
         for path in schemas:
             value = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(value["type"], "object")

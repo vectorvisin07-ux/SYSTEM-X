@@ -71,3 +71,25 @@ Use `x-api-key` or `Authorization: Bearer` only as documented by the receipt. St
 ## Verification
 
 Verify package identities, forbidden-driver absence, private-environment imports, the vendored source manifest, CUDA device visibility, dynamic libraries, empty runtime schemas, owner-only credential state, adapter receipts, authenticated health, and a clean source tree. Do not print the API key. The source tree does not contain generated environments, builds, runtime state, credentials, or model bytes.
+
+
+## Public installation path
+
+The repository root `system-x` command is the supported user entry point. Run
+`system-x install` once after the clone; it supplies authorization to the
+existing bootstrap reconstruction and does not take a model name or model
+policy. The service remains authenticated and running while the model state is
+`WAITING_FOR_MODEL`.
+
+To admit a model, ensure there is exactly one complete stable `.gguf` file in
+`INSPECTOR/MODEL-TEST/`. For a large artifact, use a hidden temporary file in
+that same directory, flush and close it, then atomically rename it to the final
+visible `.gguf` name. The automatic intake path performs validation and
+lifecycle work. Do not use a manual deployment command, edit the registry, or
+operate the service manager directly.
+
+Poll `system-x status` until readiness is `READY`, then run `system-x
+connection`. Use the receipt's `default` model reference with the native,
+OpenAI-compatible, or Messages-compatible API family. The receipt exposes only
+sanitized connection data and a non-secret key identifier; the raw key is never
+printed. OpenClaw is not required.

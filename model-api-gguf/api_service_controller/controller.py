@@ -221,8 +221,8 @@ DEPENDENCY_FILES = {
         "89da46ea2754a41f13539a71d6ac2caf6e3dce8679cc90af51a99a09f28b9d12",
     ),
     "src/system_x_gguf_api/router_client.py": (
-        37844,
-        "7dc0578d5d0b551ab3c6eafdef923444b329a44e5044da6866adbe38c2b8edaa",
+        37845,
+        "0254aa798a9ef9a2716be3b05e0a0acabcbcf02d70d947ec1f9ef0c5793dcd16",
     ),
     "src/system_x_gguf_api/schemas.py": (
         19215,
