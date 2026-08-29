@@ -669,7 +669,7 @@
       "git_mode": "100644",
       "path": "SYSTEM_X_REPOSITORY_MANIFEST.json",
       "portable_mode": "0o0644",
-      "sha256": "57729084ecdfddf248adc869737d946309f43c5dc23237f63600c0e3469418cf"
+      "sha256": "cfaba2cabe97b3155fdbbe23b75cb5b0bb10052c277241afb6fb5fbc70dec52c"
     },
     {
       "bytes": 1032,
@@ -1038,7 +1038,7 @@
       "git_mode": "100644",
       "path": "bootstrap/tests/test_repository_boundary.py",
       "portable_mode": "0o0644",
-      "sha256": "09231f8a543d92f9029e548441e94e7d157f626074c749cf6127dfaf06d786e0"
+      "sha256": "fc9daa547ff9fe2f708e2aaf32e9d4f18c55281f0953020f4f187a8ebbcd3c47"
     },
     {
       "bytes": 1279,
@@ -4675,15 +4675,6 @@
       "path": "model-api-gguf/llama.cpp/docs/development/debugging-tests.md",
       "portable_mode": "0o0644",
       "sha256": "fb0aba1f9e57ececadf73726de9d5a1ba02b6bb50bccd8f701acb19a600f700e"
-    },
-    {
-      "bytes": 488591,
-      "classification": "VENDORED_SOURCE",
-      "git_blob": "3e068e7075c2ebb53a270b57c51e9281618d8f29",
-      "git_mode": "100755",
-      "path": "model-api-gguf/llama.cpp/docs/development/llama-star/idea-arch.key",
-      "portable_mode": "0o0755",
-      "sha256": "32dede0548e6501b4b60d89b4afc3445a9a45c5df6fcee0c2bb9fe75592908c9"
     },
     {
       "bytes": 42334,
@@ -31254,7 +31245,7 @@
       "sha256": "4a7611c8478bf1cb579d885421002962311b891f4f5da88ae0d8dc9820c3d926"
     }
   ],
-  "entry_count": 3472,
+  "entry_count": 3471,
   "excluded": [
     {
       "path": "SYSTEM_X_PORTABLE_TREE_MANIFEST.json",
@@ -31270,5 +31261,5 @@
   },
   "semantics": "FULL_TREE",
   "source_root": ".",
-  "tracked_regular_file_count": 3473
+  "tracked_regular_file_count": 3472
 }
