@@ -665,7 +665,7 @@
     {
       "bytes": 1825,
       "classification": "STATIC_CONTRACT",
-      "git_blob": "ab5b0d5a9688110ee32967d0155fa6801ccf8944",
+      "git_blob": "a32b7ac86dd815fa987c46d2570c1dea473d3a88",
       "git_mode": "100644",
       "path": "SYSTEM_X_REPOSITORY_MANIFEST.json",
       "portable_mode": "0o0644",
