@@ -611,7 +611,7 @@
     {
       "bytes": 6448,
       "classification": "TRACKED_TEST",
-      "git_blob": "b7785cbc1c43be1a803e52eac85504741ae360a8",
+      "git_blob": "b58b72cbf36aaa335a8aa36f5b470981a3397458",
       "git_mode": "100644",
       "path": "INSPECTOR/tests/test_source_gate.py",
       "portable_mode": "0o0644",
@@ -665,11 +665,11 @@
     {
       "bytes": 1825,
       "classification": "STATIC_CONTRACT",
-      "git_blob": "fd09c4e97609c449217ba456422a0581f127e928",
+      "git_blob": "ab5b0d5a9688110ee32967d0155fa6801ccf8944",
       "git_mode": "100644",
       "path": "SYSTEM_X_REPOSITORY_MANIFEST.json",
       "portable_mode": "0o0644",
-      "sha256": "c24273125f63daee283cc22f34593a016a9fac6816ebf5f3f04603728d25679b"
+      "sha256": "57729084ecdfddf248adc869737d946309f43c5dc23237f63600c0e3469418cf"
     },
     {
       "bytes": 1032,
@@ -728,7 +728,7 @@
     {
       "bytes": 3005,
       "classification": "STATIC_CONTRACT",
-      "git_blob": "a059ad25cc8463a09f37df25d8f01ebf9f8f290b",
+      "git_blob": "6a3685b40f62c31a69776b387db579e4b23cde05",
       "git_mode": "100644",
       "path": "bootstrap/configuration/service-registration.json",
       "portable_mode": "0o0644",
@@ -1052,7 +1052,7 @@
     {
       "bytes": 4262,
       "classification": "DOCUMENTATION",
-      "git_blob": "6c888543f765f9b737c9cdb97ec9ea2e25fd590c",
+      "git_blob": "132a77f865a0db59339a7424ebd25860b25158ba",
       "git_mode": "100644",
       "path": "docs/BUILD_AND_RUNTIME.md",
       "portable_mode": "0o0644",
@@ -1340,7 +1340,7 @@
     {
       "bytes": 3423,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "61db32d350e8317277224ccade883340dd4f02ac",
+      "git_blob": "d70cfd59c1fa8043b8865f597ef9b820820d13d2",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/finalization_policy.py",
       "portable_mode": "0o0644",
@@ -1349,7 +1349,7 @@
     {
       "bytes": 38538,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "07632bed4e937b260928489a37130258e3d10b25",
+      "git_blob": "9ba26ca427950c7c41e035ffb08e72a9ca4d1fef",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service/src/system_x_gguf_api/inference_service.py",
       "portable_mode": "0o0644",
@@ -1662,6 +1662,15 @@
       "sha256": "189b3c2aaefd9a134045c21e685aec32c481b0167a291eecbbf422e01b7a8920"
     },
     {
+      "bytes": 14820,
+      "classification": "TRACKED_TEST",
+      "git_blob": "8d2dd0bcc464b561542d2fbb91ca22ffc722fbff",
+      "git_mode": "100644",
+      "path": "model-api-gguf/api_service/tests/test_chat_finalization.py",
+      "portable_mode": "0o0644",
+      "sha256": "93071bcbcc5ece652983796e3a24fadad570e505f31c41f65a272d954fd269c2"
+    },
+    {
       "bytes": 10116,
       "classification": "TRACKED_TEST",
       "git_blob": "fb6a6953a5e77dabab3f9ca15a6a7e1512849a81",
@@ -1790,7 +1799,7 @@
     {
       "bytes": 104774,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "80bc0232989aab1c87d85afdb378aa2b73466d53",
+      "git_blob": "d6e6517ab5f4ef2cdd67a320328c2ef9c2012e45",
       "git_mode": "100644",
       "path": "model-api-gguf/api_service_controller/controller.py",
       "portable_mode": "0o0644",
@@ -31112,7 +31121,7 @@
     {
       "bytes": 134182,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "8b8b0bb2c66fc0f357c19e4716dbab818b3a2cae",
+      "git_blob": "c2fca76bdc024b5c0dc12dcce9d0722f81484dd1",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/platform_adapters/linux_systemd_user.py",
       "portable_mode": "0o0644",
@@ -31175,7 +31184,7 @@
     {
       "bytes": 129705,
       "classification": "TRACKED_CANDIDATE_INPUT",
-      "git_blob": "5eb36db3673178609167dfe083f30f7ed4f24007",
+      "git_blob": "847c14be3b44d9582dce2910897894d186aada4d",
       "git_mode": "100644",
       "path": "model-api-gguf/service_control/supervisor.py",
       "portable_mode": "0o0644",
@@ -31245,7 +31254,7 @@
       "sha256": "4a7611c8478bf1cb579d885421002962311b891f4f5da88ae0d8dc9820c3d926"
     }
   ],
-  "entry_count": 3471,
+  "entry_count": 3472,
   "excluded": [
     {
       "path": "SYSTEM_X_PORTABLE_TREE_MANIFEST.json",
@@ -31261,5 +31270,5 @@
   },
   "semantics": "FULL_TREE",
   "source_root": ".",
-  "tracked_regular_file_count": 3472
+  "tracked_regular_file_count": 3473
 }
