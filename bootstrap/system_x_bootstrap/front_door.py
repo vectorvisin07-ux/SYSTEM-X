@@ -290,13 +290,25 @@ def _default_alias(root: Path, observations: Mapping[str, Any] | None = None) ->
     return value if isinstance(value, str) and value else None
 
 
-def _installation_state(root: Path, observations: Mapping[str, Any] | None = None) -> str:
-    durable = _load_json(root / ".system-x-bootstrap-state" / "status.json")
-    state = _state_from_payload(durable)
+def _activation_completed(durable: Mapping[str, Any]) -> bool:
+    completed = durable.get("completed_operations")
+    return isinstance(completed, list) and all(isinstance(item, str) and item for item in completed) and "activate-platform-service" in completed
+
+
+def _installation_state(
+    root: Path,
+    observations: Mapping[str, Any] | None = None,
+    *,
+    durable: Mapping[str, Any] | None = None,
+) -> str:
+    document = durable if durable is not None else _load_json(root / ".system-x-bootstrap-state" / "status.json")
+    state = _state_from_payload(document)
     if state in (None, "CLONED") and not observations:
         return "SOURCE_ONLY"
     if state in {"FAILED_CLEAN", "FAIL_CLOSED"}:
         return "REPAIR_REQUIRED"
+    if state == "SERVICE_REGISTERED" and _activation_completed(document):
+        return "INSTALLED"
     if state in {"HOST_INSPECTED", "HOST_PLAN_READY", "HOST_READY", "SUBMODULES_READY", "PYTHON_ENVIRONMENTS_READY", "LLAMA_SERVER_BUILT", "RUNTIME_INITIALIZED", "CREDENTIAL_READY", "SERVICE_REGISTERED"}:
         return "INSTALLING"
     return "INSTALLED"
@@ -396,10 +408,11 @@ def _status(root: Path) -> dict[str, Any]:
         installation = "REPAIR_REQUIRED"
     elif durable_state in (None, "CLONED") and not observations and connection_run is None:
         installation = "SOURCE_ONLY"
-    elif durable_state in {"HOST_INSPECTED", "HOST_PLAN_READY", "HOST_READY", "SUBMODULES_READY", "PYTHON_ENVIRONMENTS_READY", "LLAMA_SERVER_BUILT", "RUNTIME_INITIALIZED", "CREDENTIAL_READY", "SERVICE_REGISTERED"}:
-        installation = "INSTALLING"
     else:
-        installation = "INSTALLED"
+        installation_document: Mapping[str, Any] = durable
+        if _state_from_payload(durable) is None and isinstance(bootstrap.payload, Mapping):
+            installation_document = bootstrap.payload
+        installation = _installation_state(root, observations, durable=installation_document)
     active = observations.get("active") is True or observations.get("supervisor_state") == "RUNNING"
     service = "RUNNING" if active else "STOPPED"
     if installation == "SOURCE_ONLY":
@@ -455,10 +468,21 @@ def _connection(root: Path) -> dict[str, Any]:
     view = _connection_view(data if isinstance(data, Mapping) else None)
     ready = run.returncode == 0 and view.get("result_class") == "CONNECTION_READY"
     installation = _installation_state(root)
-    if ready:
+    if ready and installation == "INSTALLED":
         model = view.get("model")
         recommended = model.get("recommended_reference") if isinstance(model, Mapping) else None
-        return _result("connection", ok=True, reason_code="CONNECTION_READY", message="System X API connection is READY; use the default model", installation_state="INSTALLED" if installation != "SOURCE_ONLY" else "SOURCE_ONLY", service_state="RUNNING", readiness_state="READY", model_state="READY", connection_state="READY", recommended_model=recommended if isinstance(recommended, str) else None, child_result_identities=identities, connection=view)
+        return _result("connection", ok=True, reason_code="CONNECTION_READY", message="System X API connection is READY; use the default model", installation_state="INSTALLED", service_state="RUNNING", readiness_state="READY", model_state="READY", connection_state="READY", recommended_model=recommended if isinstance(recommended, str) else None, child_result_identities=identities, connection=view)
+    if ready:
+        view = dict(view)
+        view["result_class"] = "CONNECTION_NOT_READY"
+        view["reason_code"] = "CONNECTION_NOT_READY"
+        if installation == "SOURCE_ONLY":
+            service, readiness, model = "STOPPED", "WAITING_FOR_MODEL", "ABSENT"
+        elif installation == "INSTALLING":
+            service, readiness, model = "RUNNING", "INSTALLING", "UNKNOWN"
+        else:
+            service, readiness, model = "DEGRADED", "DEGRADED", "UNKNOWN"
+        return _result("connection", ok=False, reason_code="CONNECTION_NOT_READY", message="System X API connection is not ready", installation_state=installation, service_state=service, readiness_state=readiness, model_state=model, connection_state="NOT_READY", recommended_model=None, child_result_identities=identities, connection=view)
     result_class = view.get("result_class")
     if result_class == "CONNECTION_STALE":
         reason, readiness, state, model = "CONNECTION_STALE", "DEGRADED", "STALE", "UNKNOWN"
