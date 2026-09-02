@@ -14,6 +14,17 @@ from system_x_bootstrap.front_door import main  # noqa: E402
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-release":
+        from system_x_bootstrap.v3_hardening.verify_release import main as run_v3
+        raise SystemExit(run_v3(ROOT, machine=len(sys.argv) == 3 and sys.argv[2] == "--json"))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-resilience":
+        from system_x_bootstrap.v3_hardening.verify_resilience import main as run_v3
+        profile = sys.argv[sys.argv.index("--profile") + 1] if "--profile" in sys.argv and sys.argv.index("--profile") + 1 < len(sys.argv) else "quick"
+        raise SystemExit(run_v3(ROOT, profile, machine="--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "backup":
+        from system_x_bootstrap.v3_hardening.backup import main as run_v3
+        action = sys.argv[2] if len(sys.argv) >= 3 else "verify"
+        raise SystemExit(run_v3(ROOT, action, machine="--json" in sys.argv))
     if len(sys.argv) >= 2 and sys.argv[1] == "verify-code":
         from system_x_bootstrap.code_verify import main as verify_main
         raise SystemExit(verify_main(ROOT, machine=len(sys.argv) == 3 and sys.argv[2] == "--json"))

@@ -1,0 +1,1 @@
+{"schema":"system-x.v3.policy.v1","network":"loopback-only","max_soak_requests":64,"max_retry":1,"credential_overlap_seconds":30}
