@@ -65,7 +65,8 @@ class FrontDoorTests(unittest.TestCase):
             return front_door.ChildRun(tuple(str(x) for x in argv), 0, False, value, True)
         with patch.object(front_door, "_run_child", side_effect=fake) as runner:
             result = front_door._status(ROOT)
-        self.assertEqual(result["installation_state"], "INSTALLED")
+        expected_installation = "INSTALLED" if (ROOT / ".system-x-bootstrap-state" / "status.json").is_file() else "SOURCE_ONLY"
+        self.assertEqual(result["installation_state"], expected_installation)
         self.assertGreaterEqual(runner.call_count, 1)
 
     def _write_state_fixture(self, root: Path, state: str | None, completed_operations: tuple[str, ...]) -> None:
