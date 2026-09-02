@@ -14,4 +14,7 @@ from system_x_bootstrap.front_door import main  # noqa: E402
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-code":
+        from system_x_bootstrap.code_verify import main as verify_main
+        raise SystemExit(verify_main(ROOT, machine=len(sys.argv) == 3 and sys.argv[2] == "--json"))
     raise SystemExit(main())

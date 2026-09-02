@@ -1,0 +1,1 @@
+{"schema":"system-x.code-hardening-policy.v1","python":">=3.14,<3.15","source_roots":["bootstrap","INSPECTOR","model-api-gguf/branch_controller","model-api-gguf/service_control","model-api-gguf/api_service","system-x","README.md","docs","SYSTEM_X_PORTABLE_TREE_MANIFEST.json"],"forbidden_imports":["sqlite3"],"forbidden_calls":["system","eval","exec"],"max_file_bytes":2097152}

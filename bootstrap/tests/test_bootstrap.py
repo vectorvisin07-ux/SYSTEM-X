@@ -345,7 +345,7 @@ class BootstrapMatrix(unittest.TestCase):
     def test_02d_live_llama_path_is_ordinary(self) -> None:
         self.assertFalse((REPOSITORY_ROOT / ".gitmodules").exists())
         stage = subprocess.check_output(
-            ("git", "-C", str(REPOSITORY_ROOT), "ls-files", "--stage", "--", "model-api-gguf/llama.cpp/LICENSE"),
+            ("git", "-C", os.environ.get("SYSTEM_X_GIT_ROOT", str(REPOSITORY_ROOT)), "ls-files", "--stage", "--", "model-api-gguf/llama.cpp/LICENSE"),
             text=True,
         )
         self.assertTrue(stage.startswith("100644 "))
@@ -1155,7 +1155,7 @@ class BootstrapMatrix(unittest.TestCase):
 
     def test_41_schemas_are_closed_utf8_json(self) -> None:
         schemas = sorted((BOOTSTRAP_ROOT / "schemas").glob("*.json"))
-        self.assertEqual(len(schemas), 5)
+        self.assertEqual(len(schemas), 6)
         for path in schemas:
             value = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(value["type"], "object")

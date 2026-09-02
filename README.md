@@ -121,3 +121,8 @@ The recommended public model reference is `default`. The connection receipt
 provides native System X, OpenAI-compatible, and Messages-compatible API
 families and never prints the raw API key. OpenClaw is not an end-user
 dependency.
+## Source verification
+
+Run `./system-x verify-code` for the deterministic, source-only V2 architecture,
+contract, security, test, coverage, mutation, and manifest gate. Use
+`./system-x verify-code --json` for the machine-readable result.

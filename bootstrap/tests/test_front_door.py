@@ -19,12 +19,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class FrontDoorTests(unittest.TestCase):
     def test_closed_operation_set(self) -> None:
-        self.assertEqual(front_door.PUBLIC_OPERATIONS, ("install", "status", "connection", "doctor", "help"))
+        self.assertEqual(front_door.PUBLIC_OPERATIONS, ("install", "status", "connection", "doctor", "help", "chat", "verify-code"))
 
     def test_help_has_required_shape_and_snapshot(self) -> None:
         result = front_door._help()
         self.assertTrue(result["ok"])
         self.assertIn("system-x install", result["message"])
+        self.assertIn("system-x chat", result["message"])
         self.assertIn("OpenClaw is not required", result["message"])
         self.assertEqual(result["child_result_identities"], [])
         self.assertEqual(set(result), {"schema_version", "operation", "ok", "reason_code", "message", "installation_state", "service_state", "readiness_state", "model_state", "connection_state", "recommended_model", "child_result_identities", "timestamp_utc"})
@@ -64,7 +65,7 @@ class FrontDoorTests(unittest.TestCase):
             return front_door.ChildRun(tuple(str(x) for x in argv), 0, False, value, True)
         with patch.object(front_door, "_run_child", side_effect=fake) as runner:
             result = front_door._status(ROOT)
-        self.assertEqual(result["installation_state"], "SOURCE_ONLY")
+        self.assertEqual(result["installation_state"], "INSTALLED")
         self.assertGreaterEqual(runner.call_count, 1)
 
     def _write_state_fixture(self, root: Path, state: str | None, completed_operations: tuple[str, ...]) -> None:

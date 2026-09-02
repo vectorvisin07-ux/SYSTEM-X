@@ -723,6 +723,7 @@ class RegistrationLifecycleTests(SelectedAdapterCase):
         distribution = self.root / "distribution"
         assets = distribution / "assets"
         assets.mkdir(parents=True)
+        distribution.chmod(0o700)
         (distribution / "index.html").write_text(
             '<script type="module" src="/ui/assets/app-12345678.js"></script>'
             '<link rel="stylesheet" href="/ui/assets/app-12345678.css">',
@@ -1025,6 +1026,7 @@ class StaticIsolationTests(SelectedAdapterCase):
     ) -> None:
         self.register()
         distribution = self.root / "space-bearing distribution"
+        distribution.mkdir(mode=0o700)
         assets = distribution / "assets"
         assets.mkdir(parents=True)
         (distribution / "index.html").write_text(

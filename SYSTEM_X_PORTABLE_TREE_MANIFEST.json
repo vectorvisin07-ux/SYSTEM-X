@@ -2,7 +2,8 @@
   "coverage": {
     "candidate_git_tree": "COMPLETE",
     "constructor_graph": "COMPLETE_CANDIDATE_GIT_TREE_CLOSURE",
-    "generated_state": "EXCLUDED"
+    "generated_state": "EXCLUDED",
+    "v2_source_gate": "COMPLETE_CANDIDATE"
   },
   "entries": [
     {
@@ -699,6 +700,24 @@
       "sha256": "55e0e3955db8d0318404b37e8510e818be5dc9e184126fef01910ee26d954e71"
     },
     {
+      "bytes": 378,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/configuration/code-hardening-policy.json",
+      "portable_mode": "0o0600",
+      "sha256": "384a9731904bb69ba7880f7250fa239c2ec8800a23433b6c8dc2ba40e38dff51"
+    },
+    {
+      "bytes": 608,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/configuration/code-hardening-tools.lock.json",
+      "portable_mode": "0o0600",
+      "sha256": "3eec590c5ccaa754d77e7830692eec7177129b598352f2ed0192f2b50b73641e"
+    },
+    {
       "bytes": 1479,
       "classification": "STATIC_CONTRACT",
       "git_blob": "049865782ae991c93474a2a8b21fb2cf069dc227",
@@ -780,6 +799,15 @@
       "sha256": "781d3fdd3d9a0238d086181f3615f6cc79d59969e298d306483c8c941a23231e"
     },
     {
+      "bytes": 528,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/schemas/code-verification-result.schema.json",
+      "portable_mode": "0o0600",
+      "sha256": "fadde646d69c87a8e358aa10d37eb4ded6495e34d782f2fa67ad09a3889caf45"
+    },
+    {
       "bytes": 15330,
       "classification": "STATIC_CONTRACT",
       "git_blob": "08fd62c732a458ae492398a8b812cee87856b562",
@@ -850,6 +878,96 @@
       "path": "bootstrap/system_x_bootstrap/cli.py",
       "portable_mode": "0o0600",
       "sha256": "514b9e9413db2fa2796734796d306c66bbc3d9ae6b86d860c0a0c46ebefed301"
+    },
+    {
+      "bytes": 127,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/__init__.py",
+      "portable_mode": "0o0600",
+      "sha256": "5959ee2bf007bd928277805f54beb8cf878d52e419f7921084381c3f91ce78df"
+    },
+    {
+      "bytes": 1268,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/architecture.py",
+      "portable_mode": "0o0600",
+      "sha256": "edbd2bed5fc041695962dd6d8607e717358b241a201286f02e6aea7f77628cd2"
+    },
+    {
+      "bytes": 866,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/contracts.py",
+      "portable_mode": "0o0600",
+      "sha256": "e85531c477014f3e9d98e0a223b73509f4d8755e30c36b765749dba92ba25b2d"
+    },
+    {
+      "bytes": 1431,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/inventory.py",
+      "portable_mode": "0o0600",
+      "sha256": "244346febc943bd1eff6c7c37e45a2101710f7488b9196d7d27246a07d4821be"
+    },
+    {
+      "bytes": 571,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/mutation_gate.py",
+      "portable_mode": "0o0600",
+      "sha256": "976eff02ab6e93096f7957112e9ac227dbfcf4501790ab13459c69829c296d35"
+    },
+    {
+      "bytes": 1146,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/policy.py",
+      "portable_mode": "0o0600",
+      "sha256": "db5ab959eb67d424593634f1863916c75844dc193467ab120c4ca3ec8d1e3ef8"
+    },
+    {
+      "bytes": 556,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/report.py",
+      "portable_mode": "0o0600",
+      "sha256": "b18d3b3fbfbc09f0ea0d9a091b01a86c306388fd52bb386771c428349d4730bf"
+    },
+    {
+      "bytes": 1173,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/security.py",
+      "portable_mode": "0o0600",
+      "sha256": "36f9dacb5338fd531dc53141529036ea81ebe715ccb66118456357ef47583b2f"
+    },
+    {
+      "bytes": 877,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_hardening/test_gate.py",
+      "portable_mode": "0o0600",
+      "sha256": "40afc313c860d7d3718e7279a0c2c028fc8be4d9722285050fb96789b1d6f461"
+    },
+    {
+      "bytes": 2789,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/system_x_bootstrap/code_verify.py",
+      "portable_mode": "0o0600",
+      "sha256": "3e512c1df59c72496fa263d0334e979d9cae7ed1e12445cc25f512bef55341c9"
     },
     {
       "bytes": 19948,
@@ -1032,6 +1150,15 @@
       "sha256": "a985ea63d4dc9663a39dd6ca150ab05a3783b291e0c2ac28963facc67682b8c3"
     },
     {
+      "bytes": 40,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/__init__.py",
+      "portable_mode": "0o0600",
+      "sha256": "92e00bb68c497be7e176d8f29ea0b11129848993b9b47408746f4bdc453d0af5"
+    },
+    {
       "bytes": 74774,
       "classification": "TRACKED_TEST",
       "git_blob": "42caa5529301099e617d9cc6707047cafcc1b419",
@@ -1039,6 +1166,60 @@
       "path": "bootstrap/tests/test_bootstrap.py",
       "portable_mode": "0o0600",
       "sha256": "12c6d1ad8199850ebc629985f5752b89d430b54d590c96855a4798f17ea6fcb1"
+    },
+    {
+      "bytes": 595,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_hardening_architecture.py",
+      "portable_mode": "0o0600",
+      "sha256": "0a441b9614c17b8756268050651873c252405555ba6d7a172cc73eef9cb0d8e2"
+    },
+    {
+      "bytes": 474,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_hardening_contracts.py",
+      "portable_mode": "0o0600",
+      "sha256": "4b13be6350001061cac7e9735bb923376ea063e19937ce8de26242c7a27f9b8d"
+    },
+    {
+      "bytes": 451,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_hardening_mutation.py",
+      "portable_mode": "0o0600",
+      "sha256": "b128682f13acfd7451d352189190c1d8897f200a58e2785acca44d2ca257e0a6"
+    },
+    {
+      "bytes": 561,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_hardening_security.py",
+      "portable_mode": "0o0600",
+      "sha256": "2929393837b219935abf6b06a571725b546b7e4293dc4ecbf85b66091ca4c621"
+    },
+    {
+      "bytes": 338,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_hardening_state.py",
+      "portable_mode": "0o0600",
+      "sha256": "7625760f0f77bc4f4efb567c474408c48753faebbad7951bac3b21e650afa8a0"
+    },
+    {
+      "bytes": 1553,
+      "classification": "V2_SOURCE_GATE",
+      "git_blob": "NOT_TRACKED_CANDIDATE",
+      "git_mode": "100644",
+      "path": "bootstrap/tests/test_code_verify.py",
+      "portable_mode": "0o0600",
+      "sha256": "02790aca4aabd88622a2a72a5ecfb3bb8cd2ef81e5c483af57a88fd4d3936b26"
     },
     {
       "bytes": 14801,

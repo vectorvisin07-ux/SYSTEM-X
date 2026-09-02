@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = "system-x.front-door-result.v1"
-PUBLIC_OPERATIONS = ("install", "status", "connection", "doctor", "help")
+PUBLIC_OPERATIONS = ("install", "status", "connection", "doctor", "help", "chat", "verify-code")
 _PUBLIC_OPERATION_SET = frozenset(PUBLIC_OPERATIONS)
 
 
@@ -506,7 +506,7 @@ def _doctor(root: Path) -> dict[str, Any]:
 
 
 def _help() -> dict[str, Any]:
-    return _result("help", ok=True, reason_code="HELP", message="Clone once, run system-x install, place one complete stable GGUF through a hidden temporary copy followed by an atomic rename into INSPECTOR/MODEL-TEST, wait for READY, then run system-x connection; use the default model through native, OpenAI-compatible, or Messages-compatible APIs. OpenClaw is not required.", installation_state="SOURCE_ONLY", service_state="STOPPED", readiness_state="WAITING_FOR_MODEL", model_state="ABSENT", connection_state="NOT_READY", recommended_model=None, child_result_identities=())
+    return _result("help", ok=True, reason_code="HELP", message="Clone once, run system-x install, wait for READY, then use system-x chat or system-x verify-code for local source verification. Use system-x connection for API details. OpenClaw is not required.", installation_state="SOURCE_ONLY", service_state="STOPPED", readiness_state="WAITING_FOR_MODEL", model_state="ABSENT", connection_state="NOT_READY", recommended_model=None, child_result_identities=())
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -516,6 +516,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n")
         return 2
     operation = arguments[0]
+    if operation == "chat":
+        from .chat_client import run_chat
+        return run_chat()
+    if operation == "verify-code":
+        from .code_verify import main as verify_main
+        return verify_main(_repository_root(), machine=False)
     try:
         root = _repository_root()
         if operation == "help":
@@ -526,6 +532,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = _status(root)
         elif operation == "connection":
             result = _connection(root)
+        elif operation == "verify-code":
+            result = _result("verify-code", ok=True, reason_code="VERIFY_CODE", message="Source gate completed", installation_state="SOURCE_ONLY", service_state="STOPPED", readiness_state="SOURCE_ONLY", model_state="UNKNOWN", connection_state="NOT_READY", recommended_model=None, child_result_identities=())
         else:
             result = _doctor(root)
     except Exception:
