@@ -1,0 +1,3 @@
+from enum import StrEnum
+class EventType(StrEnum):
+    OPERATION_REQUESTED="OperationRequested"; AUTHORIZATION_ACCEPTED="AuthorizationAccepted"; PRECONDITIONS_VERIFIED="PreconditionsVerified"; OPERATION_STARTED="OperationStarted"; PHYSICAL_MUTATION_OBSERVED="PhysicalMutationObserved"; POSTCONDITIONS_VERIFIED="PostconditionsVerified"; OPERATION_COMMITTED="OperationCommitted"; OPERATION_COMPLETED="OperationCompleted"; OPERATION_FAILED_CLEAN="OperationFailedClean"; OPERATION_FAILED_DIRTY="OperationFailedDirty"; RECOVERY_STARTED="RecoveryStarted"; RECOVERY_REATTACHED="RecoveryReattached"; RECOVERY_COMPLETED="RecoveryCompleted"; ROLLBACK_STARTED="RollbackStarted"; ROLLBACK_COMPLETED="RollbackCompleted"

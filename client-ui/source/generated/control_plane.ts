@@ -1,0 +1,4 @@
+/** Generated from control-plane/contracts/control-command.schema.json. */
+export const CONTROL_COMMAND_SCHEMA_VERSION = "system-x.control-command.v1" as const;
+export type ControlOperation = "ActivateModel" | "SetDefaultAlias" | "StartService" | "StopService" | "RepairService" | "RepairRuntime" | "RotateCredential" | "CreateBackup" | "VerifyBackup" | "RestoreBackup" | "ApplyRelease" | "RollbackRelease" | "CreateBrowserSession" | "RevokeBrowserSession" | "RegisterWindowsEntry" | "RemoveWindowsEntry";
+export type ControlCommand = {schema_version: typeof CONTROL_COMMAND_SCHEMA_VERSION; operation_id: string; idempotency_key: string; operation_type: ControlOperation; actor_identity: string; capability_set: string[]; request_hash: string; expected_generation: number; target_identity: string; deadline: string; cancellation_policy: string; rollback_policy: string; created_at: string; correlation_id: string | null};
