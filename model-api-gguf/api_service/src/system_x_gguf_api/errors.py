@@ -367,7 +367,7 @@ def install_system_error_handling(
             and operation_route is not None
             and isinstance(recorder, OperationRecorder)
         ):
-            if authentication is None or authentication.enabled:
+            if (authentication is None or authentication.enabled) and not session_ok:
                 context = authentication_context_for(request)
                 key_id = context.key_id
             recorder.begin(

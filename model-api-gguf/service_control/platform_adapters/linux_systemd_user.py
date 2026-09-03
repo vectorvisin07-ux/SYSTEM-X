@@ -159,7 +159,7 @@ STATIC_RESERVED_PREFIXES = (
     "/redoc",
 )
 SAFE_UNIT_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@,-]+$")
-SYSTEMD_PATH_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@, -]+$")
+SYSTEMD_PATH_TOKEN = re.compile(r"^[A-Za-z0-9_./:=+@,# -]+$")
 MANAGER_PROPERTIES = (
     "LoadState",
     "ActiveState",
@@ -663,6 +663,24 @@ def _atomic_json(
         exclusive=exclusive,
         conflict_reason=conflict_reason,
     )
+
+
+def _rebind_desired_state(
+    state_path: Path | str,
+    profile: OperatingProfile,
+    desired: DesiredState,
+) -> DesiredState:
+    """Rebind an owned state file after a profile change during recovery."""
+
+    state_file = _absolute(state_path)
+    value = desired.as_dict()
+    value["profile_identity"] = profile.identity
+    value["updated_utc"] = utc_now()
+    _atomic_json(state_file, value)
+    try:
+        return load_desired_state(state_file, profile.identity)
+    except ServiceControlError as exc:
+        _fail("DESIRED_STATE_PROFILE_MISMATCH", exc.message)
 
 
 def _sha256(path: Path) -> str:
@@ -1338,6 +1356,7 @@ class LinuxSystemdUserServiceAdapter:
         state_path: Path | str,
         supervisor_runtime_root: Path | str,
         supervisor_entrypoint: Path | str,
+        allow_stale_desired_state_profile: bool = False,
     ) -> tuple[
         dict[str, Any],
         OperatingProfile,
@@ -1381,7 +1400,10 @@ class LinuxSystemdUserServiceAdapter:
         runtime_root = _absolute(supervisor_runtime_root)
         try:
             profile = load_operating_profile(profile_file)
-            desired = load_desired_state(state_file, profile.identity)
+            desired = load_desired_state(
+                state_file,
+                None if allow_stale_desired_state_profile else profile.identity,
+            )
         except ServiceControlError as exc:
             reason = (
                 "PROFILE_IDENTITY_MISMATCH"
@@ -1536,6 +1558,9 @@ class LinuxSystemdUserServiceAdapter:
             state_path=reference["state_path"],
             supervisor_runtime_root=reference["supervisor_runtime_root"],
             supervisor_entrypoint=value["supervisor_entrypoint"]["path"],
+            allow_stale_desired_state_profile=(
+                allow_stale_configuration_for_inactive_removal
+            ),
         )
         if (
             config["supervisor_entrypoint"]
@@ -2141,6 +2166,7 @@ class LinuxSystemdUserServiceAdapter:
             state_path=state_path,
             supervisor_runtime_root=supervisor_runtime_root,
             supervisor_entrypoint=supervisor_entrypoint,
+            allow_stale_desired_state_profile=True,
         )
         if desired.desired_state not in {"STOPPED", "RUNNING"}:
             _fail(
@@ -2148,10 +2174,25 @@ class LinuxSystemdUserServiceAdapter:
                 "registration reconciliation requires a known desired state",
             )
         old_reference = old_manifest["configuration_reference"]
+        reference_rebound = False
         if old_reference != config["configuration_reference"]:
-            _fail(
-                "ADAPTER_CONFIGURATION_CONFLICT",
-                "registered adapter references a different production configuration",
+            for key in (
+                "profile_path",
+                "state_path",
+                "supervisor_runtime_root",
+            ):
+                if old_reference.get(key) != config["configuration_reference"].get(key):
+                    _fail(
+                        "ADAPTER_CONFIGURATION_CONFLICT",
+                        "registered adapter references a different production configuration",
+                    )
+            reference_rebound = True
+        desired_rebound = desired.profile_identity != profile.identity
+        if desired_rebound:
+            desired = _rebind_desired_state(
+                config["configuration_reference"]["state_path"],
+                profile,
+                desired,
             )
         old_native = old_manifest["native_service"]
         if (
@@ -2286,17 +2327,35 @@ class LinuxSystemdUserServiceAdapter:
             )
         before = self.manager.status()
         manager_stop_result = None
+        pending_auto_restart = (
+            not before.get("active")
+            and before.get("sub_state") == "auto-restart"
+            and not before.get("main_pid")
+            and not before.get("exec_main_pid")
+        )
         if not before.get("registered"):
             _fail(
                 "MANAGER_STATE_MISMATCH",
                 "registered service manager state is not registered",
                 data={"manager_status": before},
             )
-        if before.get("active") or before.get("active_state") in {"activating", "deactivating", "reloading", "auto-restart"}:
+        if (
+            before.get("active")
+            or before.get("active_state")
+            in {"activating", "deactivating", "reloading", "auto-restart"}
+        ) and not pending_auto_restart:
             manager_stop_result = self.manager.stop()
             before = self.manager.status()
-        if before.get("active") or before.get("active_state") in {"activating", "deactivating", "reloading", "auto-restart"}:
+        if (
+            before.get("active")
+            or before.get("active_state")
+            in {"activating", "deactivating", "reloading", "auto-restart"}
+        ) and not pending_auto_restart:
             _fail("MANAGER_STATE_MISMATCH", "registered service remained active during reconciliation", data={"manager_status": before})
+        if pending_auto_restart:
+            manager_stop_result = {
+                "pending_auto_restart_without_process": True
+            }
         if desired.desired_state == "RUNNING":
             try:
                 desired = set_desired_state(profile, "STOPPED", config["configuration_reference"]["state_path"], expected_generation=desired.generation)
@@ -2307,6 +2366,22 @@ class LinuxSystemdUserServiceAdapter:
         verify = self.manager.verify_unit()
         reload_result = self.manager.daemon_reload()
         after = self.manager.status()
+        if pending_auto_restart:
+            deadline = time.monotonic() + min(
+                max(
+                    float(old_native.get("timeout_stop_seconds", 60)),
+                    1.0,
+                ),
+                120.0,
+            )
+            while (
+                after.get("active")
+                or after.get("active_state")
+                in {"activating", "deactivating", "reloading", "auto-restart"}
+                or after.get("sub_state") == "auto-restart"
+            ) and time.monotonic() < deadline:
+                time.sleep(0.1)
+                after = self.manager.status()
         if (
             not after.get("registered")
             or after.get("active")
@@ -2368,6 +2443,8 @@ class LinuxSystemdUserServiceAdapter:
                 "process_started": False,
                 "manager_stop_result": manager_stop_result,
                 "reconciled_existing_registration": True,
+                "configuration_reference_rebound": reference_rebound,
+                "desired_state_rebound": desired_rebound,
             },
         )
         transaction_id = self._record_transaction(

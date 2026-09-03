@@ -23,13 +23,14 @@ def build_studio_router(broker:StudioSessionBroker, authentication:Authenticatio
         body=await request.json()
         try:s=broker.exchange(body.get("bootstrap",""),request.headers.get("origin",""),request.headers.get("host",""))
         except (KeyError,TypeError,ValueError):return JSONResponse({"error":"session_exchange_rejected"},status_code=401)
-        response.set_cookie("system_x_studio",s.session_id,httponly=True,samesite="strict",max_age=300,path="/ui");return {"csrf":s.csrf,"expires_in":300,"scope":["studio:read","studio:chat"]}
+        response.set_cookie("system_x_studio",s.session_id,httponly=True,samesite="strict",max_age=300,path="/");return {"csrf":s.csrf,"expires_in":300,"scope":["studio:read","studio:chat"]}
     @router.post("/revoke")
     async def revoke(request:Request,response:Response):
         if (sid:=request.cookies.get("system_x_studio")):broker.revoke(sid)
-        response.delete_cookie("system_x_studio",path="/ui");return {"revoked":True}
+        response.delete_cookie("system_x_studio",path="/");return {"revoked":True}
     @router.get("/state")
     async def state(request:Request):
         sid=request.cookies.get("system_x_studio")
-        return {"authenticated":bool(sid and broker.has_session(sid)),"scope":["studio:read","studio:chat"]}
+        csrf=broker.csrf_for(sid) if sid else None
+        return {"authenticated":bool(sid and broker.has_session(sid)),"csrf":csrf,"scope":["studio:read","studio:chat"]}
     return router

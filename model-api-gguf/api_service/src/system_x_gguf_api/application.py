@@ -361,7 +361,7 @@ def create_application(
         build_anthropic_router(anthropic_compatibility, streaming)
     )
     application.include_router(build_studio_router(studio_sessions, authentication))
-    application.include_router(build_workspace_router())
+    application.include_router(build_workspace_router(catalogue, registry, warm_model))
     if external_static is not None:
         external_static.install(application)
     original_openapi = application.openapi

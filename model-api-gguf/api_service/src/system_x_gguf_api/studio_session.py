@@ -20,4 +20,7 @@ class StudioSessionBroker:
         s=self._sessions.get(self.digest(sid));return bool(s and s.expires>time.monotonic() and hmac.compare_digest(s.csrf,csrf))
     def has_session(self,sid:str)->bool:
         s=self._sessions.get(self.digest(sid));return bool(s and s.expires>time.monotonic())
+    def csrf_for(self,sid:str)->str|None:
+        s=self._sessions.get(self.digest(sid))
+        return s.csrf if s and s.expires>time.monotonic() else None
     def revoke(self,sid:str)->None:self._sessions.pop(self.digest(sid),None)

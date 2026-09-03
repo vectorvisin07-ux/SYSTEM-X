@@ -178,6 +178,7 @@ def _collect_observations(value: object, result: dict[str, Any]) -> None:
         "active", "enabled", "registered", "unit_present", "adapter_manifest_present",
         "operating_profile_present", "desired_state_present", "ready", "inference_ready",
         "warm", "warm_model_present", "service_operational", "supervisor_state",
+        "public_origin",
         "service_readiness_state", "model_service_state", "desired_state", "lifecycle_state",
         "state", "result_class", "model_state", "default_alias", "recommended_reference",
         "resolved_immutable_model_id", "resolved_model_id", "health_state", "ready_model_count",
