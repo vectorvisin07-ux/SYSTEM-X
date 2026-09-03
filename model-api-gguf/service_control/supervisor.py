@@ -1195,6 +1195,7 @@ class ForegroundSupervisor:
         self.supervisor_identity: dict[str, Any] | None = None
         self.startup_reconciliation: dict[str, Any] | None = None
         self._previous_signal_handlers: dict[int, Any] = {}
+        self.control_plane: Any = None
 
     def request_graceful_shutdown(self) -> None:
         self.shutdown_requested.set()
@@ -2455,6 +2456,18 @@ class ForegroundSupervisor:
         if self.automatic_coordinator is not None:
             self.automatic_coordinator.set_supervisor_generation(self.transaction_id)
         self._acquire_active_records(profile)
+        # The control plane is an internal task of this existing supervisor,
+        # never a second public daemon or a second service owner.
+        try:
+            control_plane_src = Path(__file__).resolve().parents[2] / "control-plane" / "src"
+            if str(control_plane_src) not in sys.path:
+                sys.path.insert(0, str(control_plane_src))
+            from system_x_control_plane.broker import ControlPlaneBroker
+            self.control_plane = ControlPlaneBroker()
+            self.control_plane.start()
+        except Exception:
+            self._cleanup_active_records()
+            raise
         recovery = RecoveryStore(
             self.paths.recovery,
             profile.identity,
@@ -2953,6 +2966,8 @@ class ForegroundSupervisor:
         finally:
             if self.automatic_coordinator is not None:
                 self.automatic_coordinator.request_stop(time.monotonic())
+            if self.control_plane is not None:
+                self.control_plane.close()
             self._restore_signals()
             cleanup_result = self._cleanup_active_records()
             transaction["cleanup_result"] = cleanup_result
