@@ -342,7 +342,11 @@ def install_system_error_handling(
                 "anthropic-version" in request.headers
             ),
         )
-        response = (
+        browser_session = getattr(application.state, "studio_sessions", None)
+        session_id = request.cookies.get("system_x_studio")
+        csrf = request.headers.get("x-studio-csrf", "")
+        session_ok = bool(family == "system" and browser_session is not None and session_id and browser_session.valid(session_id, csrf))
+        response = None if session_ok else (
             authentication.authenticate_request(request, family)
             if authentication is not None and family is not None
             else None

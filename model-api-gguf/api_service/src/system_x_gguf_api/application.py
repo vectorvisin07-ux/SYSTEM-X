@@ -60,6 +60,9 @@ from .tool_contract import (
 )
 from .warm_model import WarmModelCoordinator, full_readiness
 from .runtime_recovery import RuntimeRecoveryCoordinator
+from .studio_session import StudioSessionBroker
+from .studio_routes import build_studio_router
+from .studio_workspace import build_workspace_router
 
 
 def create_application(
@@ -99,6 +102,7 @@ def create_application(
         credentials,
         enabled=active_settings.authentication_enabled,
     )
+    studio_sessions = StudioSessionBroker()
     runtime_readiness = {"authentication_ready": False}
 
     @asynccontextmanager
@@ -200,6 +204,7 @@ def create_application(
     application.state.streaming = streaming
     application.state.credentials = credentials
     application.state.authentication = authentication
+    application.state.studio_sessions = studio_sessions
     application.state.operations = operations
     application.state.metrics = metrics
     application.state.privacy_diagnostics = privacy_diagnostics
@@ -355,6 +360,8 @@ def create_application(
     application.include_router(
         build_anthropic_router(anthropic_compatibility, streaming)
     )
+    application.include_router(build_studio_router(studio_sessions, authentication))
+    application.include_router(build_workspace_router())
     if external_static is not None:
         external_static.install(application)
     original_openapi = application.openapi

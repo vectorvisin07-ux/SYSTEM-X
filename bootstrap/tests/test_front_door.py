@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class FrontDoorTests(unittest.TestCase):
     def test_closed_operation_set(self) -> None:
-        self.assertEqual(front_door.PUBLIC_OPERATIONS, ("install", "status", "connection", "doctor", "help", "chat", "verify-code"))
+        self.assertEqual(front_door.PUBLIC_OPERATIONS, ("install", "status", "connection", "doctor", "help", "chat", "open", "verify-code"))
 
     def test_help_has_required_shape_and_snapshot(self) -> None:
         result = front_door._help()

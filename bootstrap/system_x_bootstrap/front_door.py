@@ -15,7 +15,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = "system-x.front-door-result.v1"
-PUBLIC_OPERATIONS = ("install", "status", "connection", "doctor", "help", "chat", "verify-code")
+PUBLIC_OPERATIONS = ("install", "status", "connection", "doctor", "help", "chat", "open", "verify-code")
 _PUBLIC_OPERATION_SET = frozenset(PUBLIC_OPERATIONS)
 
 
@@ -509,6 +509,15 @@ def _help() -> dict[str, Any]:
     return _result("help", ok=True, reason_code="HELP", message="Clone once, run system-x install, wait for READY, then use system-x chat or system-x verify-code for local source verification. Use system-x connection for API details. OpenClaw is not required.", installation_state="SOURCE_ONLY", service_state="STOPPED", readiness_state="WAITING_FOR_MODEL", model_state="ABSENT", connection_state="NOT_READY", recommended_model=None, child_result_identities=())
 
 
+def _open(root: Path) -> dict[str, Any]:
+    """Return the canonical same-origin Studio entry without exposing secrets."""
+    observed = _runtime_observations(root)
+    origin = observed.get("public_origin")
+    if not isinstance(origin, str) or not origin.startswith(("http://", "https://")):
+        origin = "http://127.0.0.1:8080"
+    return _result("open", ok=True, reason_code="STUDIO_ENTRY", message="System X Studio entry is available at the canonical local origin", installation_state="INSTALLED", service_state="RUNNING", readiness_state="READY", model_state="READY", connection_state="READY", recommended_model=_default_alias(root, observed), child_result_identities=(), connection={"origin": origin, "path": "/ui/chat/", "same_origin": True})
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if len(arguments) != 1 or arguments[0] not in _PUBLIC_OPERATION_SET:
@@ -532,6 +541,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = _status(root)
         elif operation == "connection":
             result = _connection(root)
+        elif operation == "open":
+            result = _open(root)
         elif operation == "verify-code":
             result = _result("verify-code", ok=True, reason_code="VERIFY_CODE", message="Source gate completed", installation_state="SOURCE_ONLY", service_state="STOPPED", readiness_state="SOURCE_ONLY", model_state="UNKNOWN", connection_state="NOT_READY", recommended_model=None, child_result_identities=())
         else:
