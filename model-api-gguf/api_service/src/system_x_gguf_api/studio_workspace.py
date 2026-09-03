@@ -77,7 +77,7 @@ def build_workspace_router(
             return JSONResponse({"error": "model_reference_required"}, status_code=400)
         snapshot = await catalogue.resolve(reference)
         return {
-            "request_id": request_id_for(request),
+            "request_id": _workspace_request_id(request),
             "requested_model": reference,
             "resolved_model_id": snapshot.public_model_id,
             "classification": "already_active",
