@@ -32,6 +32,13 @@ if __name__ == "__main__":
     if len(sys.argv) >= 2 and sys.argv[1] == "verify-kernel":
         from system_x_control_plane.verify_kernel import run
         raise SystemExit(run("--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-dataplane":
+        from system_x_control_plane.verify_dataplane import run
+        raise SystemExit(run("--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-chaos":
+        from system_x_control_plane.verify_chaos import run
+        profile = sys.argv[sys.argv.index("--profile") + 1] if "--profile" in sys.argv else "quick"
+        raise SystemExit(run(profile, "--json" in sys.argv))
     if len(sys.argv) >= 2 and sys.argv[1] == "repair":
         from system_x_control_plane.operator import run
         raise SystemExit(run("apply" if "--apply" in sys.argv else "check"))

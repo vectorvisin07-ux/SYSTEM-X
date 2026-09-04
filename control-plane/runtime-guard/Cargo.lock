@@ -1,0 +1,6 @@
+# This lockfile is intentionally dependency-free: the guard uses only the Rust standard library.
+version = 3
+
+[[package]]
+name = "system-x-runtime-guard"
+version = "0.1.0"
