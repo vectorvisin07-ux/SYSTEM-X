@@ -59,14 +59,18 @@ class ModelManifest:
 
 def inspect_native(root: Path, *, model_id: str, source_revision: str, created_utc: str) -> ModelManifest:
     root = root.resolve(strict=True)
-    files = sorted(p for p in root.rglob("*") if p.is_file())
+    entries = list(root.rglob("*"))
+    files = sorted(p for p in entries if p.is_file())
     if not (root / "config.json").is_file() or not any(p.suffix == ".safetensors" for p in files):
         raise ValueError("incomplete native file graph")
-    if any(p.is_symlink() or p.stat().st_mode & 0o002 for p in files):
+    if any(p.is_symlink() or p.stat().st_mode & 0o002 for p in entries):
         raise ValueError("unsafe native file graph")
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    if config.get("trust_remote_code", False):
+        raise ValueError("custom remote code is not accepted")
     hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     manifest = ModelManifest("v7", model_id, ArtifactFamily.NATIVE_HF, RequiredEngine.VLLM_NATIVE,
-        "unknown", "causal-language", ("text",), ("text-generation",), "sha256:" + hashes.get("tokenizer.json", "missing"),
+        ",".join(config.get("architectures", ["unknown"])), "causal-language", ("text",), ("text-generation",), "sha256:" + hashes.get("tokenizer.json", "missing"),
         "unknown", 2048, "auto", None, tuple(str(p.relative_to(root)) for p in files if p.suffix == ".safetensors"),
         "local", source_revision, hashes, sum(p.stat().st_size for p in files), ("chat", "streaming"),
         {"artifact_bytes": sum(p.stat().st_size for p in files)}, "REGISTERED", 0, created_utc)

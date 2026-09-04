@@ -14,11 +14,17 @@ def run(argv: list[str]) -> int:
     action=argv[1] if len(argv)>1 else "list"
     models=[{"immutable_model_id":"original-gguf","artifact_family":"GGUF","engine":"llama-cpp","state":"READY","current":True,"default":True,"activation_eligible":True}]
     root=Path(__file__).resolve().parents[3]
-    if (root/"native-staging").exists():
+    # Project the product-owned native catalogue, not a disposable staging
+    # sentinel.  Import leaves the fixture inactive while the GGUF incumbent
+    # remains current/default.
+    native_model = root/"model-api-native"/"MODEL"/"native-fixture"
+    if native_model.is_dir() and (native_model/"config.json").is_file():
         models.append({"immutable_model_id":"native-fixture","artifact_family":"NATIVE_HF","engine":"vllm-native","state":"REGISTERED_INACTIVE","current":False,"default":False,"activation_eligible":True})
     if action in {"list","current"}: return _out(models if action=="list" else models[0])
     if action=="inspect" and len(argv)>2: return _out(next((m for m in models if m["immutable_model_id"]==argv[2]),{"status":"UNKNOWN_MODEL"}),0 if any(m["immutable_model_id"]==argv[2] for m in models) else 1)
-    if action=="plan" and len(argv)>2: return _out({"model":argv[2],"decision":"INSUFFICIENT_RESOURCES","activation_eligible":False})
+    if action=="plan" and len(argv)>2:
+        known = next((m for m in models if m["immutable_model_id"] == argv[2]), None)
+        return _out({"model":argv[2],"decision":"FIT","activation_eligible":True} if known else {"status":"UNKNOWN_MODEL"}, 0 if known else 1)
     return _out({"status":"UNSUPPORTED_OPERATION"},1)
 
 def _out(value: object, status: int=0) -> int:
