@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "System X V7 architecture result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "package_modules", "forbidden_domain_imports", "generated_schema", "source_only"],
+  "properties": {
+    "schema": {"const": "system-x.verify-architecture.v1"},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "package_modules": {"type": "array", "items": {"type": "string"}},
+    "forbidden_domain_imports": {"type": "array", "items": {"type": "string"}},
+    "generated_schema": {"type": "boolean"},
+    "source_only": {"const": true}
+  }
+}

@@ -48,6 +48,9 @@ if __name__ == "__main__":
     if len(sys.argv) >= 2 and sys.argv[1] == "verify-model-fabric":
         from system_x_control_plane.verify_model_fabric import run
         raise SystemExit(run("--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-architecture":
+        from system_x_architecture.verify import run
+        raise SystemExit(run(ROOT, machine="--json" in sys.argv))
     if len(sys.argv) >= 2 and sys.argv[1] == "repair":
         from system_x_control_plane.operator import run
         raise SystemExit(run("apply" if "--apply" in sys.argv else "check"))
