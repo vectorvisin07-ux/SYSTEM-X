@@ -15,6 +15,9 @@ from system_x_bootstrap.front_door import main  # noqa: E402
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] in {"models", "engines"}:
+        from system_x_control_plane.v7_cli import run
+        raise SystemExit(run(sys.argv[1:]))
     if len(sys.argv) >= 2 and sys.argv[1] == "verify-release":
         from system_x_bootstrap.v3_hardening.verify_release import main as run_v3
         raise SystemExit(run_v3(ROOT, machine=len(sys.argv) == 3 and sys.argv[2] == "--json"))
@@ -39,6 +42,12 @@ if __name__ == "__main__":
         from system_x_control_plane.verify_chaos import run
         profile = sys.argv[sys.argv.index("--profile") + 1] if "--profile" in sys.argv else "quick"
         raise SystemExit(run(profile, "--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-native":
+        from system_x_control_plane.verify_native import run
+        raise SystemExit(run("--json" in sys.argv))
+    if len(sys.argv) >= 2 and sys.argv[1] == "verify-model-fabric":
+        from system_x_control_plane.verify_model_fabric import run
+        raise SystemExit(run("--json" in sys.argv))
     if len(sys.argv) >= 2 and sys.argv[1] == "repair":
         from system_x_control_plane.operator import run
         raise SystemExit(run("apply" if "--apply" in sys.argv else "check"))
