@@ -743,6 +743,7 @@ class OpenAIErrorDetail(OpenAIStrictModel):
         "invalid_request_error",
         "server_error",
         "conflict_error",
+        "rate_limit_error",
     ]
     param: str | None
     code: str = Field(min_length=1, max_length=64)

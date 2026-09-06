@@ -382,9 +382,15 @@ def install_system_error_handling(
         if response is None and operation_started:
             try:
                 if isinstance(governance, RequestGovernance):
-                    await read_body_and_replay(
-                        request, governance.max_body_bytes
-                    )
+                    try:
+                        async with asyncio.timeout(governance.body_receive_timeout_seconds):
+                            await read_body_and_replay(request, governance.max_body_bytes)
+                    except asyncio.TimeoutError as exc:
+                        raise GovernanceRejection(
+                            408,
+                            "system_x_body_receive_timeout",
+                            "Request body receive deadline exceeded",
+                        ) from exc
                     lease = governance.admit(key_id)
                     request.state.system_x_governance_lease = lease
                     deadline = governance.new_deadline()

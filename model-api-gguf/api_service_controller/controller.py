@@ -109,8 +109,8 @@ DEPENDENCY_FILES = {
         "3753365b416a1f5479792f07d8b16bd21948f58b18a4b9eedf24df365bb24612",
     ),
     "src/system_x_gguf_api/request_governance.py": (
-        10084,
-        "94ca9a320dfbcf9c0628782a61363113bf6c142c77bab3cb7c036b6291eb4c6d",
+        12182,
+        "ee5197fd0ae330baa7d7b4da0c98522bb64bae947dc1378a44ac7159a9bcf2f7",
     ),
     "src/system_x_gguf_api/credential_admin.py": (
         2289,
@@ -133,8 +133,8 @@ DEPENDENCY_FILES = {
         "15af07e0016e099d29f1b0e963b3a03e1aa2bd6fd806bbd978e972f3f1a39281",
     ),
     "src/system_x_gguf_api/errors.py": (
-        27634,
-        "92bd087034db817452dc3c9c54799170bbd3335fc4de46b0ee4296e328b22f37",
+        28020,
+        "50c0e47ed65be6c3ac717d1136a070fc1816c02757aa8cf4cfa3662e88890f4e",
     ),
     "src/system_x_gguf_api/external_static.py": (
         9926,
@@ -185,8 +185,8 @@ DEPENDENCY_FILES = {
         "cebe183252163c0d0f625e58f7a4e304ef5376b2efc3977f25840b2f75067667",
     ),
     "src/system_x_gguf_api/openai_schemas.py": (
-        24341,
-        "2a628461d1d40fc2fb91af6ef3be0dc13ba8d97b8098e61da6a286293c5c8063",
+        24369,
+        "249cb5eddd87eb998906c93e2a2ff3956ae892e0d62f9ebe7ba289a4fdc839bd",
     ),
     "src/system_x_gguf_api/openai_stream.py": (
         10755,
@@ -233,8 +233,8 @@ DEPENDENCY_FILES = {
         "a9f077def7a3920052878f7d39b30909b4d23ec5312b705df35db6a091cf3038",
     ),
     "src/system_x_gguf_api/settings.py": (
-        12143,
-        "2cbaf065de14c0f60f1a52c9e59a87054ab552d974de8eb2bcc10bf97ecc86da",
+        12778,
+        "e1f41c4a3834bd9ecb925316930e79d3f4431eae92ec3f16d8c448f1e7f92b46",
     ),
     "src/system_x_gguf_api/warm_model.py": (
         22630,

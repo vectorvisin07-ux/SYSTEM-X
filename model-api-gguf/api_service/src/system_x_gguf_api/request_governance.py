@@ -129,15 +129,25 @@ async def read_body_and_replay(request: Request, maximum: int) -> int:
 class SlidingRateWindow:
     """Per-key monotonic sliding-window admission with bounded state."""
 
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, clock: Callable[[], float] = time.monotonic, *, maximum_keys: int = 1024, idle_ttl: float = 120.0) -> None:
         self._clock = clock
         self._timestamps: dict[str | None, deque[float]] = {}
         self._lock = threading.Lock()
+        self._last_seen: dict[str | None, float] = {}
+        self._maximum_keys = maximum_keys
+        self._idle_ttl = idle_ttl
 
     def admit(self, key_id: str | None, allowance: int, window: float) -> int | None:
         now = float(self._clock())
         with self._lock:
+            expired = [key for key, seen in self._last_seen.items() if now - seen >= self._idle_ttl]
+            for expired_key in expired:
+                self._timestamps.pop(expired_key, None)
+                self._last_seen.pop(expired_key, None)
+            if key_id not in self._timestamps and len(self._timestamps) >= self._maximum_keys:
+                return max(1, int(math.ceil(window)))
             bucket = self._timestamps.setdefault(key_id, deque())
+            self._last_seen[key_id] = now
             while bucket and now - bucket[0] >= window:
                 bucket.popleft()
             if len(bucket) >= allowance:
@@ -184,42 +194,63 @@ class RequestGovernance:
         self.concurrency_limit_per_key = int(
             settings.request_concurrency_limit_per_key
         )
+        self.concurrency_limit_instance = int(
+            getattr(settings, "request_concurrency_limit_instance", 1)
+        )
         self.rate_limit_requests_per_key = int(
             settings.request_rate_limit_requests_per_key
         )
         self.rate_limit_window_seconds = float(
             settings.request_rate_limit_window_seconds
         )
+        self.rate_limit_requests_instance = int(
+            getattr(settings, "request_rate_limit_requests_instance", 60)
+        )
+        self.body_receive_timeout_seconds = float(
+            getattr(settings, "request_body_receive_timeout_seconds", 15.0)
+        )
         self._clock = clock
-        self._rate = SlidingRateWindow(clock)
+        self._rate = SlidingRateWindow(
+            clock,
+            maximum_keys=int(getattr(settings, "request_rate_limit_keys_maximum", 1024)),
+            idle_ttl=float(getattr(settings, "request_rate_limit_idle_ttl_seconds", 120.0)),
+        )
+        self._instance_rate = SlidingRateWindow(clock, maximum_keys=1, idle_ttl=max(120.0, self.rate_limit_window_seconds * 2))
         self._active: dict[str | None, int] = {}
         self._lock = threading.Lock()
+        self._active_instance = 0
 
     def new_deadline(self) -> float:
         return float(self._clock()) + self.timeout_seconds
 
     def admit(self, key_id: str | None) -> ConcurrencyLease:
-        retry_after = self._rate.admit(
-            key_id,
-            self.rate_limit_requests_per_key,
-            self.rate_limit_window_seconds,
-        )
-        if retry_after is not None:
-            raise GovernanceRejection(
-                429,
-                "system_x_rate_limit_exceeded",
-                "Request rate limit exceeded",
-                retry_after=retry_after,
-            )
         with self._lock:
             active = self._active.get(key_id, 0)
-            if active >= self.concurrency_limit_per_key:
+            if active >= self.concurrency_limit_per_key or self._active_instance >= self.concurrency_limit_instance:
                 raise GovernanceRejection(
                     429,
                     "system_x_concurrency_limit_exceeded",
                     "Request concurrency limit exceeded",
                 )
+            retry_after = self._rate.admit(
+                key_id,
+                self.rate_limit_requests_per_key,
+                self.rate_limit_window_seconds,
+            )
+            if retry_after is not None:
+                raise GovernanceRejection(
+                    429,
+                    "system_x_rate_limit_exceeded",
+                    "Request rate limit exceeded",
+                    retry_after=retry_after,
+                )
+            instance_retry = self._instance_rate.admit(
+                "instance", self.rate_limit_requests_instance, self.rate_limit_window_seconds
+            )
+            if instance_retry is not None:
+                raise GovernanceRejection(429, "system_x_rate_limit_exceeded", "Instance request rate limit exceeded", retry_after=instance_retry)
             self._active[key_id] = active + 1
+            self._active_instance += 1
         return ConcurrencyLease(self, key_id)
 
     def _release(self, key_id: str | None) -> None:
@@ -229,6 +260,13 @@ class RequestGovernance:
                 self._active.pop(key_id, None)
             else:
                 self._active[key_id] = active - 1
+            if self._active_instance > 0:
+                self._active_instance -= 1
+
+    @property
+    def active_instance(self) -> int:
+        with self._lock:
+            return self._active_instance
 
     def active_snapshot(self) -> dict[str | None, int]:
         with self._lock:

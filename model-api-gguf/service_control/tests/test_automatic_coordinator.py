@@ -18,7 +18,7 @@ from service_control.automatic_coordinator import (
 
 CHILD = r'''import json,sys,time
 mode=sys.argv[1]
-if mode == "long":
+if mode in ("long", "dispatch"):
     time.sleep(0.25)
 if mode == "bad":
     print("not-json", flush=True)
@@ -85,6 +85,8 @@ class CoordinatorTest(unittest.TestCase):
         self.fail("coordinator child did not reach a terminal state")
 
     def test_one_child_structured_zero_argument_dispatch_and_terminal_record(self) -> None:
+        # Keep the child alive across the identity observation point so this
+        # ownership assertion is deterministic on fast hosts.
         coordinator = self.coordinator()
         first = coordinator.tick(0.0, "RUNNING", "generation-test")
         self.assertEqual(first["coordinator_state"], "CHILD_RUNNING")

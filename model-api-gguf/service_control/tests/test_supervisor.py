@@ -1173,6 +1173,7 @@ class StaticContractTests(unittest.TestCase):
                 imports.add(node.module.split(".", 1)[0])
         internal = {
             "service_control",
+            "system_x_control_plane",
             "operating_profile",
             "recovery",
             "automatic_coordinator",

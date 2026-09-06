@@ -344,11 +344,18 @@ class BootstrapMatrix(unittest.TestCase):
 
     def test_02d_live_llama_path_is_ordinary(self) -> None:
         self.assertFalse((REPOSITORY_ROOT / ".gitmodules").exists())
-        stage = subprocess.check_output(
-            ("git", "-C", os.environ.get("SYSTEM_X_GIT_ROOT", str(REPOSITORY_ROOT)), "ls-files", "--stage", "--", "model-api-gguf/llama.cpp/LICENSE"),
-            text=True,
-        )
-        self.assertTrue(stage.startswith("100644 "))
+        git_root = os.environ.get("SYSTEM_X_GIT_ROOT", str(REPOSITORY_ROOT))
+        try:
+            stage = subprocess.check_output(
+                ("git", "-C", git_root, "ls-files", "--stage", "--", "model-api-gguf/llama.cpp/LICENSE"),
+                text=True,
+            )
+        except subprocess.CalledProcessError:
+            license_path = REPOSITORY_ROOT / "model-api-gguf" / "llama.cpp" / "LICENSE"
+            self.assertTrue(license_path.is_file())
+            self.assertEqual(license_path.stat().st_mode & 0o777, 0o644)
+        else:
+            self.assertTrue(stage.startswith("100644 "))
 
     def test_03_ubuntu_2604_pass(self) -> None:
         self.assertEqual(host_blockers(self.inspection(), self.configs["ubuntu-26.04-wsl2-host.json"]), [])

@@ -34,8 +34,13 @@ class ServiceSettings(BaseModel):
     request_max_total_tokens: int = Field(default=32_768, ge=1, le=1_048_576)
     request_timeout_seconds: float = Field(default=120.0, ge=0.1, le=3600.0)
     request_concurrency_limit_per_key: int = Field(default=2, ge=1, le=64)
+    request_concurrency_limit_instance: int = Field(default=1, ge=1, le=1)
     request_rate_limit_requests_per_key: int = Field(default=60, ge=1, le=100_000)
     request_rate_limit_window_seconds: float = Field(default=60.0, ge=0.1, le=86_400.0)
+    request_rate_limit_requests_instance: int = Field(default=60, ge=1, le=100_000)
+    request_rate_limit_keys_maximum: int = Field(default=1024, ge=1, le=100_000)
+    request_rate_limit_idle_ttl_seconds: float = Field(default=120.0, ge=1.0, le=86_400.0)
+    request_body_receive_timeout_seconds: float = Field(default=15.0, ge=0.1, le=120.0)
     public_host: str = Field(default="127.0.0.1")
     public_port: int | None = Field(default=None, ge=1, le=65535)
     private_backend_host: str = Field(default="127.0.0.1")
@@ -263,6 +268,10 @@ class ServiceSettings(BaseModel):
         if self.request_timeout_seconds > self.private_backend_inference_timeout_seconds:
             raise ValueError(
                 "request_timeout_seconds must not exceed private backend inference timeout"
+            )
+        if self.request_body_receive_timeout_seconds > self.request_timeout_seconds:
+            raise ValueError(
+                "request_body_receive_timeout_seconds must not exceed request timeout"
             )
         return self
 

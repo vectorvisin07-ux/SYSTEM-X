@@ -80,12 +80,38 @@ def test_admission_lease_is_idempotent_and_separates_keys():
         governance.admit("key-a")
     assert caught.value.status_code == 429
     assert caught.value.code == "system_x_concurrency_limit_exceeded"
-    other = governance.admit("key-b")
-    assert governance.active_snapshot() == {"key-a": 1, "key-b": 1}
+    with pytest.raises(GovernanceRejection) as cross_key:
+        governance.admit("key-b")
+    assert cross_key.value.code == "system_x_concurrency_limit_exceeded"
+    assert governance.active_snapshot() == {"key-a": 1}
     assert first.release() is True
     assert first.release() is False
-    assert other.release() is True
     assert governance.active_snapshot() == {}
+    assert governance.active_instance == 0
+
+
+def test_instance_aggregate_is_zero_queue_across_keys():
+    governance = RequestGovernance(_settings(request_rate_limit_requests_per_key=100))
+    first = governance.admit("native-key")
+    with pytest.raises(GovernanceRejection) as caught:
+        governance.admit("openai-key")
+    assert caught.value.status_code == 429
+    assert governance.active_instance == 1
+    assert first.release() is True
+    second = governance.admit("openai-key")
+    assert governance.active_instance == 1
+    assert second.release() is True
+
+
+def test_rate_state_is_bounded_and_idle_entries_expire():
+    now = [0.0]
+    window = SlidingRateWindow(lambda: now[0], maximum_keys=2, idle_ttl=5.0)
+    assert window.admit("a", 10, 60) is None
+    assert window.admit("b", 10, 60) is None
+    assert window.admit("c", 10, 60) == 60
+    now[0] = 6.0
+    assert window.admit("c", 10, 60) is None
+    assert set(window.snapshot()) == {"c"}
 
 
 def test_token_budget_uses_context_and_model_output_limits():
@@ -248,6 +274,38 @@ def test_middleware_deadline_covers_pre_response_and_stream_body():
             )
             assert application.state.governance.active_snapshot() == {}
             assert recorder.active_count == 0
+    finally:
+        recorder.shutdown()
+
+
+def test_middleware_body_receive_has_independent_deadline():
+    calls = []
+
+    async def handler(_request: Request):
+        calls.append("generation")
+        return JSONResponse({"ok": True})
+
+    application, recorder = _isolated_application(
+        _settings(request_body_receive_timeout_seconds=0.01), handler
+    )
+    try:
+        original = application.user_middleware
+        assert original
+        async def delayed_receive():
+            await asyncio.sleep(0.05)
+            return {"type": "http.request", "body": b"{}", "more_body": False}
+        request = _request(
+            headers=((b"authorization", b"Bearer good-key"),),
+            receive=delayed_receive,
+        )
+        governance = application.state.governance
+        with pytest.raises(asyncio.TimeoutError):
+            async def bounded_read():
+                async with asyncio.timeout(governance.body_receive_timeout_seconds):
+                    await read_body_and_replay(request, governance.max_body_bytes)
+            asyncio.run(bounded_read())
+        assert calls == []
+        assert governance.active_instance == 0
     finally:
         recorder.shutdown()
 
